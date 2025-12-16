@@ -16,7 +16,7 @@ return new class extends Migration
             $table->id("id_product");
             $table->string("product_name", 200);
             $table->string("product_code", 150)->unique();
-            $table->enum("status", array_column(GenericStatus::cases(),"value"))->default(GenericStatus::ACTIVE->value);
+            $table->enum("status", array_column(GenericStatus::cases(), "value"))->default(GenericStatus::ACTIVE->value);
             $table->decimal("sale_price", 15, 2)->default(0.00);
             $table->text("notes")->nullable();
             $table->unsignedBigInteger("id_category")->nullable();
@@ -26,8 +26,8 @@ return new class extends Migration
 
             $table->unsignedBigInteger("id_product_type")->nullable();
             $table->foreign("id_product_type")->references("id_product_type")->on("product_types")->ondelete("set null");
-            $table->decimal('stock', 10, 2)->default(0)->after('id_product');
-            $table->decimal('purchase_price', 10, 2)->nullable()->default(0)->after('stock');
+            $table->decimal('stock', 10, 2)->default(0);
+            $table->decimal('purchase_price', 10, 2)->nullable()->default(0);
             $table->string("url_image", 255)->nullable();
 
             $table->timestamps();

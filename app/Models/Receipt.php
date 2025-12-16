@@ -19,7 +19,8 @@ class Receipt extends Model
         'total_amount',
         "document_type",
         'receipt_path',
-        "receipt_code"
+        "receipt_code",
+        "id_parent",
     ];
 
     protected function casts(): array
@@ -52,5 +53,16 @@ class Receipt extends Model
     {
         return $this->belongsToMany(Products::class, 'receipt_details')
             ->withPivot('quantity', 'unit_price', 'subtotal');
+    }
+
+    public function parent()
+    {
+        return $this->belongsTo(Receipt::class, 'id_parent');
+    }
+
+    // Relación: Documentos Hijos (Las NC generadas a partir de esta factura)
+    public function children()
+    {
+        return $this->hasMany(Receipt::class, 'id_parent');
     }
 }

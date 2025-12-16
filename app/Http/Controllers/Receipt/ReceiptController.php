@@ -13,6 +13,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -22,7 +23,8 @@ class ReceiptController extends Controller
 
     protected $service;
 
-    public function __construct(ReceiptService $service){
+    public function __construct(ReceiptService $service)
+    {
         $this->service = $service;
     }
 
@@ -93,42 +95,79 @@ class ReceiptController extends Controller
 
     public function store(Request $request)
     {
-        // 1. Validación
+        $messages = [
+            'id_supplier.required' => 'El proveedor es obligatorio.',
+            'document_type.required' => 'El tipo de documento es obligatorio.',
+            'series.required' => 'La serie del comprobante es obligatoria.',
+            'number.required' => 'El número del comprobante es obligatorio.',
+            'issue_date.required' => 'La fecha de emisión es obligatoria.',
+            'details.required' => 'Debes agregar al menos un producto.',
+            'details.*.id_product.required' => 'El producto es obligatorio en cada línea.',
+            'details.*.id_product.exists' => 'Uno de los productos seleccionados no es válido.',
+            'details.*.quantity.required' => 'La cantidad es obligatoria.',
+            'details.*.quantity.min' => 'La cantidad debe ser mayor a 0.',
+            'details.*.unit_price.required' => 'El costo unitario es obligatorio.',
+            'details.*.unit_price.min' => 'El costo unitario debe ser mayor o igual a 0.',
+            'details.*.sale_price.required' => 'El precio de venta es obligatorio.',
+            'details.*.sale_price.min' => 'El precio de venta debe ser mayor o igual a 0.',
+        ];
+
         $validated = $request->validate([
-            'id_supplier'          => 'required|exists:suppliers,id_supplier',
-            'document_type'        => ['required', Rule::enum(DocumentType::class)],
-            'series'               => 'required|string|max:10',
-            'number'               => 'required|string|max:20',
-            'issue_date'           => 'required|date',
-            'file'                 => 'nullable|file|mimes:pdf,jpg,png,jpeg|max:5120',
-            'details'              => 'required|array|min:1',
-            'details.*.id_product' => 'required|exists:products,id_product',
-            'details.*.quantity'   => 'required|numeric|min:0.01',
-            'details.*.unit_price' => 'required|numeric|min:0',
-        ]);
+            'id_supplier'           => 'required|exists:suppliers,id_supplier',
+            'document_type'         => ['required', Rule::enum(DocumentType::class)],
+            'series'                => 'required|string|max:10',
+            'number'                => 'required|string|max:20',
+            'issue_date'            => 'required|date',
+            'file'                  => 'nullable|file|mimes:pdf,jpg,png,jpeg|max:5120',
+            'details'               => 'required|array|min:1',
+            'details.*.id_product'  => 'required|exists:products,id_product',
+            'details.*.quantity'    => 'required|numeric|min:0.01',
+            'details.*.unit_price'  => 'required|numeric|min:0',
+            'details.*.sale_price'  => 'required|numeric|min:0',
+        ], $messages);
+
+
+        if (empty($validated['details'])) {
+            return back()->withErrors(['error' => 'Debes agregar al menos un producto.']);
+        }
+
 
         try {
-            // 2. Delegar lógica al servicio
+            $productNames = Products::whereIn('id_product', collect($validated['details'])->pluck('id_product'))
+                ->pluck('product_name', 'id_product');
+
+            foreach ($validated['details'] as $detail) {
+                $cost = (float)$detail['unit_price'];
+                $salePrice = (float)$detail['sale_price'];
+                $productId = $detail['id_product'];
+                $productName = $productNames[$productId] ?? "ID {$productId}";
+
+                if ($salePrice > 0 && $cost > $salePrice) {
+                    return back()->withErrors([
+                        'error' => "El costo unitario (S/ {$cost}) del producto '{$productName}' es mayor que su precio de venta sugerido (S/ {$salePrice}). La compra generaría pérdida."
+                    ]);
+                }
+            }
+
             $receipt = $this->service->createReceipt($validated);
 
-            // 3. Redireccionar al Show del registro creado
             return to_route('receipts.show', $receipt->id_receipt)
                 ->with('success', 'Comprobante registrado correctamente.');
-
         } catch (\Exception $e) {
             Log::error('Error creating receipt: ' . $e->getMessage());
-            // Si el servicio lanza excepción, el archivo (si se subió) debería gestionarse en el catch del servicio o aquí.
-            // Gracias a la transacción DB, la base de datos queda limpia.
             return back()->withErrors(['error' => 'Error al guardar: ' . $e->getMessage()]);
         }
     }
 
     public function show($id)
     {
-        // Cargamos el recibo con sus detalles y la información del producto asociado
-        // Usamos findOrFail directamente o a través del servicio si tienes un método getByIdWithRelations
-        $receipt = Receipt::with(['details.product', 'supplier'])->findOrFail($id);
-
+        $receipt = Receipt::with(['details.product', 'supplier', 'children' => function ($query) {
+            $query->with('supplier', 'details');
+            $query->orderBy('issue_date', 'desc');
+        }])->findOrFail($id);
+        if (Session::has('success')) {  
+            Session::forget('success');
+        }
         return Inertia::render('Receipts/EditReceipt', [
             'receipt' => $receipt,
             'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')->orderBy('company_name')->get(),
@@ -156,6 +195,7 @@ class ReceiptController extends Controller
             'details.*.id_product' => 'required|exists:products,id_product',
             'details.*.quantity'   => 'required|numeric|min:0.01',
             'details.*.unit_price' => 'required|numeric|min:0',
+
         ]);
 
         try {
@@ -164,7 +204,6 @@ class ReceiptController extends Controller
 
             // 3. Retornar
             return back()->with('success', 'Comprobante actualizado correctamente.');
-
         } catch (\Exception $e) {
             Log::error('Error updating receipt: ' . $e->getMessage());
             return back()->withErrors(['error' => 'Error al actualizar: ' . $e->getMessage()]);
@@ -226,7 +265,6 @@ class ReceiptController extends Controller
             $this->service->createReturn($itemsToReturn, $id);
 
             return back()->with('success', 'Devolución registrada correctamente (Nota de Crédito creada).');
-
         } catch (\Exception $e) {
             Log::error('Error processing return: ' . $e->getMessage());
             return back()->withErrors(['error' => 'Error al procesar devolución: ' . $e->getMessage()]);

@@ -43,6 +43,7 @@ import {
 import { KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'use-debounce';
 import { Columns, Supplier } from './Columns';
+import receipts from '@/routes/receipts';
 
 // --- MODIFICACIÓN 1: FLOATING ALERT SIEMPRE FIJO (EN LA ESQUINA) ---
 function FloatingAlert({
@@ -101,7 +102,7 @@ interface Props {
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Compras', href: '#' },
+    { title: 'Comprobantes', href: receipts.index().url },
     { title: 'Proveedores', href: suppliersRoute.index().url },
 ];
 

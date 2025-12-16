@@ -13,9 +13,9 @@ enum DocumentType: string
      */
     public function label(): string
     {
-        return match($this) {
+        return match ($this) {
             self::INVOICE => 'Factura',
-            self::RECEIPT => 'Boleta de Venta',
+            self::RECEIPT => 'Boleta',
             self::CREDIT_NOTE => 'Nota de Crédito',
         };
     }
@@ -26,7 +26,7 @@ enum DocumentType: string
      */
     public function sunatCode(): string
     {
-        return match($this) {
+        return match ($this) {
             self::INVOICE => '01',
             self::RECEIPT => '03',
             self::CREDIT_NOTE => '07',
@@ -38,7 +38,7 @@ enum DocumentType: string
      */
     public function color(): string
     {
-        return match($this) {
+        return match ($this) {
             self::INVOICE => 'blue',   // Azul corporativo
             self::RECEIPT => 'green',  // Verde común
             self::CREDIT_NOTE => 'red',

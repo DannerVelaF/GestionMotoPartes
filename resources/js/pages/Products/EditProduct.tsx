@@ -33,10 +33,10 @@ import brandsRoute from '@/routes/product-brands';
 import categoriesRoute from '@/routes/product-categories';
 import typesRoute from '@/routes/product-types';
 import productsRoute from '@/routes/products';
+import receipts from '@/routes/receipts';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
     AlertCircle,
-    ArrowLeft,
     Camera,
     CheckCircle2,
     Eye,
@@ -796,10 +796,20 @@ export default function EditProduct({
                                                     product.movements.map(
                                                         (move) => (
                                                             <tr
+                                                                onClick={() => {
+                                                                    router.visit(
+                                                                        receipts.show(
+                                                                            {
+                                                                                receipt:
+                                                                                    move.reference_id,
+                                                                            },
+                                                                        ).url,
+                                                                    );
+                                                                }}
                                                                 key={
                                                                     move.id_movement
                                                                 }
-                                                                className="border-b transition-colors hover:bg-muted/50"
+                                                                className="cursor-pointer border-b transition-colors hover:bg-muted/50"
                                                             >
                                                                 <td className="p-4 align-middle">
                                                                     {new Date(
@@ -817,21 +827,29 @@ export default function EditProduct({
                                                                         )}
                                                                     </span>
                                                                 </td>
-                                                                <td className="p-4 align-middle">
+                                                                <td className="px-6 py-4 text-sm whitespace-nowrap">
                                                                     <span
-                                                                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-none ${
+                                                                        className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${
+                                                                            // Lógica para asignar color y etiqueta
                                                                             move.type ===
                                                                             'purchase'
-                                                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                                                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' // Entrada: Compra
                                                                                 : move.type ===
                                                                                     'sale'
-                                                                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300'
+                                                                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' // Salida: Venta
                                                                                   : move.type ===
-                                                                                      'return'
-                                                                                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300'
-                                                                                    : 'bg-gray-100 text-gray-800'
+                                                                                      'purchase_return' // ¡NUEVO TIPO!
+                                                                                    ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' // Salida: Devolución de Compra
+                                                                                    : move.type ===
+                                                                                        'return'
+                                                                                      ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' // Entrada: Devolución de Venta
+                                                                                      : move.type ===
+                                                                                          'adjustment'
+                                                                                        ? 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200' // Ajuste (Neutro)
+                                                                                        : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200' // Otros
                                                                         }`}
                                                                     >
+                                                                        {/* Lógica para traducir la etiqueta */}
                                                                         {move.type ===
                                                                         'purchase'
                                                                             ? 'Compra'
@@ -839,12 +857,15 @@ export default function EditProduct({
                                                                                 'sale'
                                                                               ? 'Venta'
                                                                               : move.type ===
-                                                                                  'return'
-                                                                                ? 'Devolución'
+                                                                                  'purchase_return' // ¡NUEVO: Traducción!
+                                                                                ? 'Devolución Compra (NC)'
                                                                                 : move.type ===
-                                                                                    'adjustment'
-                                                                                  ? 'Ajuste'
-                                                                                  : move.type}
+                                                                                    'return'
+                                                                                  ? 'Devolución Venta'
+                                                                                  : move.type ===
+                                                                                      'adjustment'
+                                                                                    ? 'Ajuste'
+                                                                                    : move.type}
                                                                     </span>
                                                                 </td>
                                                                 <td

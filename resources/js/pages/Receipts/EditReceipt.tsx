@@ -9,6 +9,8 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import {
     Dialog,
     DialogContent,
@@ -16,9 +18,7 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
+} from '@/components/ui/dialog';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -52,10 +52,12 @@ import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
 import receipts from '@/routes/receipts';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { DropdownMenuSeparator } from '@radix-ui/react-dropdown-menu';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
     AlertCircle,
+    BookText,
     CalendarIcon,
     CheckCircle2,
     Lock,
@@ -64,11 +66,9 @@ import {
     RotateCcw,
     Save,
     Trash2,
-    BookText,
-    Undo2
+    Undo2,
 } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
-import { DropdownMenuSeparator } from '@radix-ui/react-dropdown-menu';
 
 // --- Interfaces ---
 interface Detail {
@@ -90,6 +90,7 @@ interface Receipt {
     receipt_path: string | null;
     details: Detail[];
     supplier?: { company_name: string; ruc: string };
+    children?: Receipt[];
 }
 
 interface Props {
@@ -155,7 +156,7 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
     }));
 
     const [rows] = useState(initialRows); // Estado de filas (Solo lectura)
-
+    const isCreditNote = receipt.document_type === 'nota_credito';
     const {
         data,
         setData,
@@ -181,6 +182,14 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
         })),
     });
 
+    const visitNc = (ncId: number) => {
+        const url = receipts.show({ receipt: ncId }).url;
+        router.visit(url, {
+            replace: true,
+            preserveState: false,
+        });
+    };
+
     const returnForm = useForm({
         id_receipt: receipt.id_receipt,
         // Inicializamos con cantidad de retorno en 0
@@ -191,7 +200,6 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
             unit_price: Number(d.unit_price),
             return_quantity: 0, // Inicia en 0
         })),
-
     });
 
     // Handler para cambiar cantidad a devolver
@@ -211,6 +219,10 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
         returnForm.setData('return_items', newItems);
     };
 
+    const hasItemsToReturn = returnForm.data.return_items.some(
+        (item) => item.return_quantity > 0,
+    );
+
     // Calcular total a devolver (Visual)
     const totalRefund = returnForm.data.return_items.reduce((acc, item) => {
         return acc + item.return_quantity * item.unit_price;
@@ -219,8 +231,10 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
     const submitReturn: FormEventHandler = (e) => {
         e.preventDefault();
         // Validar que al menos haya 1 item para devolver
-        if (totalRefund <= 0) {
-            alert('Debes indicar una cantidad a devolver mayor a 0.');
+        if (!hasItemsToReturn) {
+            setFormError(
+                'Debes indicar al menos un producto y una cantidad mayor a 0 para proceder con la devolución.',
+            );
             return;
         }
 
@@ -241,7 +255,7 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
             },
         );
     };
-
+    const parentId = (usePage<any>().props.receipt as any).id_parent || null;
     useEffect(() => {
         if (flash?.success) {
             setShowSuccess(true);
@@ -286,563 +300,685 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
         >
             <Head title={`Ver ${receipt.receipt_code}`} />
 
-            <AlertDialog
-                open={isDeleteAlertOpen}
-                onOpenChange={setIsDeleteAlertOpen}
-            >
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>
-                            ¿Eliminar comprobante?
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Esta acción no se puede deshacer. Se eliminará el
-                            registro <strong>{receipt.receipt_code}</strong> y
-                            su historial contable.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={executeDelete}
-                            className="bg-red-600 text-white hover:bg-red-700"
-                        >
-                            Sí, eliminar
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <div key={receipt.id_receipt}>
+                <AlertDialog
+                    open={isDeleteAlertOpen}
+                    onOpenChange={setIsDeleteAlertOpen}
+                >
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>
+                                ¿Eliminar comprobante?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Esta acción no se puede deshacer. Se eliminará
+                                el registro{' '}
+                                <strong>{receipt.receipt_code}</strong> y su
+                                historial contable.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={executeDelete}
+                                className="bg-red-600 text-white hover:bg-red-700"
+                            >
+                                Sí, eliminar
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
 
-            <Dialog
-                open={isReturnDialogOpen}
-                onOpenChange={setIsReturnDialogOpen}
-            >
-                <DialogContent className="max-w-3xl">
-                    <DialogHeader>
-                        <DialogTitle>Devolución de Mercadería</DialogTitle>
-                        <DialogDescription>
-                            Selecciona las cantidades a devolver. Se generará
-                            una Nota de Crédito interna y se ajustará el stock.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Producto</TableHead>
-                                    <TableHead className="text-right">
-                                        Comprado
-                                    </TableHead>
-                                    <TableHead className="text-right">
-                                        Precio
-                                    </TableHead>
-                                    <TableHead className="w-[140px] text-right">
-                                        Cant. a Devolver
-                                    </TableHead>
-                                    <TableHead className="text-right">
-                                        Total Dev.
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {returnForm.data.return_items.map(
-                                    (item, index) => (
-                                        <TableRow key={item.id_product}>
-                                            <TableCell className="font-medium">
-                                                {item.product_name}
-                                            </TableCell>
-                                            <TableCell className="text-right text-muted-foreground">
-                                                {item.purchased_quantity.toFixed(
-                                                    2,
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="text-right text-muted-foreground">
-                                                S/ {item.unit_price.toFixed(2)}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    max={
-                                                        item.purchased_quantity
-                                                    }
-                                                    step="1"
-                                                    className="h-8 text-right"
-                                                    value={
-                                                        item.return_quantity ||
-                                                        ''
-                                                    }
-                                                    onChange={(e) =>
-                                                        handleReturnQuantityChange(
-                                                            index,
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                />
-                                            </TableCell>
-                                            <TableCell className="text-right font-bold text-red-600">
-                                                S/{' '}
-                                                {(
-                                                    item.return_quantity *
-                                                    item.unit_price
-                                                ).toFixed(2)}
-                                            </TableCell>
-                                        </TableRow>
-                                    ),
-                                )}
-                            </TableBody>
-                        </Table>
-
-                        <div className="mt-4 flex justify-end border-t pt-4">
-                            <div className="flex gap-4 text-lg">
-                                <span className="font-semibold">
-                                    Total Reembolso:
-                                </span>
-                                <span className="font-bold text-red-600">
-                                    S/ {totalRefund.toFixed(2)}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <DialogFooter>
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsReturnDialogOpen(false)}
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            className="bg-red-600 text-white hover:bg-red-700"
-                            onClick={submitReturn}
-                            disabled={
-                                returnForm.processing || totalRefund === 0
-                            }
-                        >
-                            {returnForm.processing
-                                ? 'Procesando...'
-                                : 'Confirmar Devolución'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {showSuccess && flash?.success && (
-                <FloatingAlert message={flash.success} type="success" />
-            )}
-            {formError && <FloatingAlert message={formError} type="error" />}
-
-            <form
-                onSubmit={submit}
-                className="flex h-full flex-col bg-background"
-            >
-                {/* --- HEADER STICKY --- */}
-                <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b bg-background/95 px-8 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                    <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-2 font-mono text-xl font-bold tracking-tight text-foreground/90">
-                            <BookText />
-                            {receipt.receipt_code}
-                        </span>
-
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                >
-                                    <MoreVertical className="h-5 w-5" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start">
-                                <DropdownMenuItem
-                                    onClick={() => setIsReturnDialogOpen(true)}
-                                    className="cursor-pointer"
-                                >
-                                    <Undo2 className="mr-2 h-4 w-4" />{' '}
-                                    Devolución de Mercadería
-                                </DropdownMenuItem>
-
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                    onClick={() => setIsDeleteAlertOpen(true)}
-                                    className="cursor-pointer text-red-600"
-                                >
-                                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar
-                                    Registro
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-
-                        {/* INDICADOR DE CAMBIOS SIN GUARDAR */}
-                        {isDirty && (
-                            <span className="ml-2 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                                Sin guardar
-                            </span>
-                        )}
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        {/* BOTÓN DESCARTAR (Reset) */}
-                        <Button
-                            variant="outline"
-                            onClick={() => reset()}
-                            disabled={!isDirty || processing}
-                            type="button"
-                            className={`border-muted-foreground/30 hover:bg-muted ${!isDirty ? 'opacity-50' : ''}`}
-                        >
-                            <RotateCcw className="mr-2 h-4 w-4" /> Descartar
-                        </Button>
-
-                        {/* BOTÓN GUARDAR */}
-                        <Button
-                            type="submit"
-                            disabled={!isDirty || processing}
-                            className={`min-w-[120px] bg-blue-600 text-white shadow-sm hover:bg-blue-700 active:scale-95 ${!isDirty ? 'bg-gray-400 opacity-50' : ''}`}
-                        >
-                            <Save className="mr-2 h-4 w-4" /> Guardar
-                        </Button>
-                    </div>
-                </div>
-
-                {/* --- CONTENIDO PRINCIPAL --- */}
-                <div className="w-full animate-in px-8 py-8 duration-500 fade-in slide-in-from-bottom-4">
-                    <Tabs defaultValue="general" className="w-full">
-                        <TabsList className="mb-8 w-full justify-start rounded-none border-b border-border bg-transparent p-0">
-                            {['general', 'files'].map((tab) => (
-                                <TabsTrigger
-                                    key={tab}
-                                    value={tab}
-                                    className="relative rounded-none px-8 py-4 text-sm font-bold tracking-wide text-muted-foreground uppercase transition-colors hover:bg-muted/50 hover:text-foreground data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:shadow-none data-[state=active]:after:absolute data-[state=active]:after:bottom-0 data-[state=active]:after:left-0 data-[state=active]:after:h-[3px] data-[state=active]:after:w-full data-[state=active]:after:bg-blue-600"
-                                >
-                                    {tab === 'general'
-                                        ? 'Información General'
-                                        : 'Archivos Adjuntos'}
-                                </TabsTrigger>
-                            ))}
-                        </TabsList>
-
-                        <TabsContent
-                            value="general"
-                            className="mt-6 animate-in duration-300 fade-in-50 slide-in-from-left-2"
-                        >
-                            {/* 1. CAMPOS DE CABECERA */}
-                            <div className="mb-10 grid grid-cols-1 gap-x-20 gap-y-10 md:grid-cols-2">
-                                {/* Columna Izquierda */}
-                                <div className="space-y-8">
-                                    <div className="group space-y-2">
-                                        <Label className="text-xs font-bold text-muted-foreground uppercase">
-                                            Proveedor
-                                        </Label>
-                                        <div className="relative">
-                                            <Input
-                                                value={
-                                                    receipt.supplier
-                                                        ?.company_name ||
-                                                    'Proveedor no encontrado'
-                                                }
-                                                disabled
-                                                className={disabledInputClass}
-                                            />
-                                            <Lock className="absolute top-2 right-2 h-4 w-4 text-muted-foreground/50" />
-                                        </div>
-                                    </div>
-                                    <div className="group space-y-2">
-                                        <Label className="text-xs font-bold text-muted-foreground uppercase">
-                                            Tipo Documento
-                                        </Label>
-                                        {/* HABILITADO PARA EDICIÓN */}
-                                        <Select
-                                            value={data.document_type}
-                                            onValueChange={(val) =>
-                                                onFieldChange(
-                                                    'document_type',
-                                                    val,
-                                                )
-                                            }
-                                        >
-                                            <SelectTrigger
-                                                className={cleanInputClass}
-                                            >
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {documentTypes.map((dt) => (
-                                                    <SelectItem
-                                                        key={dt.value}
-                                                        value={dt.value}
-                                                    >
-                                                        {dt.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        {errors.document_type && (
-                                            <p className="text-xs text-red-500">
-                                                {errors.document_type}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Columna Derecha */}
-                                <div className="space-y-8">
-                                    <div className="group space-y-2">
-                                        <Label className="text-xs font-bold text-muted-foreground uppercase">
-                                            Fecha Emisión
-                                        </Label>
-                                        {/* HABILITADO PARA EDICIÓN */}
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    variant={'outline'}
-                                                    className={cn(
-                                                        'w-full justify-start rounded-none border-0 border-b border-muted bg-transparent px-0 text-left font-normal shadow-none hover:border-blue-600 hover:bg-transparent focus:ring-0',
-                                                        !data.issue_date &&
-                                                            'text-muted-foreground',
-                                                    )}
-                                                >
-                                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                                    {data.issue_date ? (
-                                                        format(
-                                                            data.issue_date,
-                                                            'PPP',
-                                                            { locale: es },
-                                                        )
-                                                    ) : (
-                                                        <span>
-                                                            Seleccionar fecha
-                                                        </span>
-                                                    )}
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0">
-                                                <Calendar
-                                                    mode="single"
-                                                    selected={data.issue_date}
-                                                    onSelect={(date) =>
-                                                        date &&
-                                                        onFieldChange(
-                                                            'issue_date',
-                                                            date,
-                                                        )
-                                                    }
-                                                    initialFocus
-                                                />
-                                            </PopoverContent>
-                                        </Popover>
-                                    </div>
-                                    <div className="group space-y-2">
-                                        <Label className="text-xs font-bold text-muted-foreground uppercase">
-                                            Referencia
-                                        </Label>
-                                        {/* HABILITADO PARA EDICIÓN */}
-                                        <div className="flex gap-4">
-                                            <Input
-                                                value={data.series}
-                                                onChange={(e) =>
-                                                    onFieldChange(
-                                                        'series',
-                                                        e.target.value.toUpperCase(),
-                                                    )
-                                                }
-                                                className={
-                                                    cleanInputClass +
-                                                    ' w-24 text-center uppercase'
-                                                }
-                                            />
-                                            <span className="self-center text-muted-foreground">
-                                                -
-                                            </span>
-                                            <Input
-                                                value={data.number}
-                                                onChange={(e) =>
-                                                    onFieldChange(
-                                                        'number',
-                                                        e.target.value,
-                                                    )
-                                                }
-                                                className={
-                                                    cleanInputClass + ' flex-1'
-                                                }
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 2. TABLA DE DETALLES (SOLO LECTURA) */}
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between border-b pb-2">
-                                    <h3 className="flex items-center gap-2 font-semibold text-foreground">
-                                        Líneas de Compra
-                                        <Lock className="h-3 w-3 text-muted-foreground" />
-                                    </h3>
-                                </div>
-
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow className="bg-muted/10 hover:bg-muted/10">
-                                            <TableHead className="w-[50%]">
-                                                Producto
-                                            </TableHead>
-                                            <TableHead className="w-[15%] text-right">
-                                                Cantidad
-                                            </TableHead>
-                                            <TableHead className="w-[15%] text-right">
-                                                Precio Unit.
-                                            </TableHead>
-                                            <TableHead className="w-[20%] text-right">
-                                                Subtotal
-                                            </TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {rows.map((row) => (
-                                            <TableRow key={row.id}>
-                                                <TableCell className="py-2">
-                                                    <Input
-                                                        value={row.product_name}
-                                                        disabled
-                                                        className="cursor-default border-0 bg-transparent px-0 text-foreground shadow-none focus:ring-0"
-                                                    />
+                <Dialog
+                    open={isReturnDialogOpen}
+                    onOpenChange={setIsReturnDialogOpen}
+                >
+                    <DialogContent className="max-w-3xl">
+                        <DialogHeader>
+                            <DialogTitle>Devolución de Mercadería</DialogTitle>
+                            <DialogDescription>
+                                Selecciona las cantidades a devolver. Se
+                                generará una Nota de Crédito interna y se
+                                ajustará el stock.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-4">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Producto</TableHead>
+                                        <TableHead className="text-right">
+                                            Comprado
+                                        </TableHead>
+                                        <TableHead className="text-right">
+                                            Precio
+                                        </TableHead>
+                                        <TableHead className="w-[140px] text-right">
+                                            Cant. a Devolver
+                                        </TableHead>
+                                        <TableHead className="text-right">
+                                            Total Dev.
+                                        </TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {returnForm.data.return_items.map(
+                                        (item, index) => (
+                                            <TableRow key={item.id_product}>
+                                                <TableCell className="font-medium">
+                                                    {item.product_name}
                                                 </TableCell>
-                                                <TableCell className="py-2">
+                                                <TableCell className="text-right text-muted-foreground">
+                                                    {item.purchased_quantity.toFixed(
+                                                        2,
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-right text-muted-foreground">
+                                                    S/{' '}
+                                                    {item.unit_price.toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="text-right">
                                                     <Input
-                                                        value={row.quantity.toFixed(
-                                                            2,
-                                                        )}
-                                                        disabled
-                                                        className={
-                                                            tableInputClass
+                                                        type="number"
+                                                        min="0"
+                                                        max={
+                                                            item.purchased_quantity
+                                                        }
+                                                        step="1"
+                                                        className="h-8 text-right"
+                                                        value={
+                                                            item.return_quantity ||
+                                                            ''
+                                                        }
+                                                        onChange={(e) =>
+                                                            handleReturnQuantityChange(
+                                                                index,
+                                                                e.target.value,
+                                                            )
                                                         }
                                                     />
                                                 </TableCell>
-                                                <TableCell className="py-2">
-                                                    <Input
-                                                        value={row.unit_price.toFixed(
-                                                            2,
-                                                        )}
-                                                        disabled
-                                                        className={
-                                                            tableInputClass
-                                                        }
-                                                    />
-                                                </TableCell>
-                                                <TableCell className="py-2 text-right font-medium tabular-nums">
+                                                <TableCell className="text-right font-bold text-red-600">
                                                     S/{' '}
                                                     {(
-                                                        row.quantity *
-                                                        row.unit_price
+                                                        item.return_quantity *
+                                                        item.unit_price
                                                     ).toFixed(2)}
                                                 </TableCell>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                        ),
+                                    )}
+                                </TableBody>
+                            </Table>
 
-                                {/* 3. TOTALES */}
-                                <div className="flex flex-col items-end gap-2 border-t pt-4">
-                                    <div className="w-full max-w-xs space-y-2">
-                                        <div className="flex justify-between text-sm text-muted-foreground">
-                                            <span>Base Imponible</span>
-                                            <span>
-                                                S/ {subTotal.toFixed(2)}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between text-sm text-muted-foreground">
-                                            <span>IGV (18%)</span>
-                                            <span>
-                                                S/ {igvAmount.toFixed(2)}
-                                            </span>
-                                        </div>
-                                        <div className="mt-2 flex justify-between border-t pt-2">
-                                            <span className="text-lg font-bold text-foreground">
-                                                Total
-                                            </span>
-                                            <span className="text-xl font-bold text-blue-600">
-                                                S/ {totalAmount.toFixed(2)}
-                                            </span>
-                                        </div>
-                                    </div>
+                            <div className="mt-4 flex justify-end border-t pt-4">
+                                <div className="flex gap-4 text-lg">
+                                    <span className="font-semibold">
+                                        Total Reembolso:
+                                    </span>
+                                    <span className="font-bold text-red-600">
+                                        S/ {totalRefund.toFixed(2)}
+                                    </span>
                                 </div>
                             </div>
-                        </TabsContent>
+                        </div>
 
-                        <TabsContent
-                            value="files"
-                            className="mt-6 animate-in duration-300 fade-in-50 slide-in-from-left-2"
-                        >
-                            <div className="max-w-md space-y-4">
-                                <Label className="text-base font-semibold">
-                                    Archivo Adjunto Actual
-                                </Label>
-                                {receipt.receipt_path ? (
-                                    <div className="flex items-center justify-between rounded border bg-muted/20 p-4">
-                                        <span className="max-w-[200px] truncate text-sm text-muted-foreground">
-                                            {receipt.receipt_path
-                                                .split('/')
-                                                .pop()}
-                                        </span>
-                                        <a
-                                            href={`/storage/${receipt.receipt_path}`}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="text-sm font-medium text-blue-600 hover:underline"
-                                        >
-                                            Ver / Descargar
-                                        </a>
-                                    </div>
-                                ) : (
-                                    <p className="text-sm text-muted-foreground italic">
-                                        No hay archivo adjunto.
-                                    </p>
-                                )}
+                        <DialogFooter>
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsReturnDialogOpen(false)}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                className="bg-red-600 text-white hover:bg-red-700"
+                                onClick={submitReturn}
+                                disabled={
+                                    returnForm.processing || !hasItemsToReturn
+                                }
+                            >
+                                {returnForm.processing
+                                    ? 'Procesando...'
+                                    : 'Confirmar Devolución'}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
 
-                                <div className="mt-4 border-t pt-4">
-                                    <Label className="mb-2 block text-sm font-medium">
-                                        Reemplazar Archivo
-                                    </Label>
-                                    <div className="flex items-center gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            type="button"
-                                            className="relative hover:bg-muted"
+                {showSuccess && flash?.success && (
+                    <FloatingAlert message={flash.success} type="success" />
+                )}
+                {formError && (
+                    <FloatingAlert message={formError} type="error" />
+                )}
+
+                <form
+                    onSubmit={submit}
+                    className="flex h-full flex-col bg-background"
+                >
+                    {/* --- HEADER STICKY --- */}
+                    <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b bg-background/95 px-8 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                        <div className="flex items-center gap-3">
+                            <span className="flex items-center gap-2 font-mono text-xl font-bold tracking-tight text-foreground/90">
+                                <BookText />
+                                {receipt.receipt_code}
+                            </span>
+                            {isCreditNote && parentId && (
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    type="button"
+                                    className="ml-4 h-8 text-sm"
+                                    onClick={() => {
+                                        // Navega al documento padre
+                                        router.visit(
+                                            receipts.show({ receipt: parentId })
+                                                .url,
+                                        );
+                                    }}
+                                >
+                                    <Undo2 className="mr-2 h-4 w-4" />
+                                    Ver Documento Origen
+                                </Button>
+                            )}
+
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                    >
+                                        <MoreVertical className="h-5 w-5" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start">
+                                    <DropdownMenuItem
+                                        onClick={() =>
+                                            setIsReturnDialogOpen(true)
+                                        }
+                                        className="cursor-pointer"
+                                        disabled={isCreditNote}
+                                    >
+                                        <Undo2 className="mr-2 h-4 w-4" />{' '}
+                                        Devolución de Mercadería
+                                    </DropdownMenuItem>
+
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                        onClick={() =>
+                                            setIsDeleteAlertOpen(true)
+                                        }
+                                        className="cursor-pointer text-red-600"
+                                    >
+                                        <Trash2 className="mr-2 h-4 w-4" />{' '}
+                                        Eliminar Registro
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+
+                            {/* INDICADOR DE CAMBIOS SIN GUARDAR */}
+                            {isDirty && (
+                                <span className="ml-2 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                    Sin guardar
+                                </span>
+                            )}
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            {/* BOTÓN DESCARTAR (Reset) */}
+                            <Button
+                                variant="outline"
+                                onClick={() => reset()}
+                                disabled={!isDirty || processing}
+                                type="button"
+                                className={`border-muted-foreground/30 hover:bg-muted ${!isDirty ? 'opacity-50' : ''}`}
+                            >
+                                <RotateCcw className="mr-2 h-4 w-4" /> Descartar
+                            </Button>
+
+                            {/* BOTÓN GUARDAR */}
+                            <Button
+                                type="submit"
+                                disabled={!isDirty || processing}
+                                className={`min-w-[120px] bg-blue-600 text-white shadow-sm hover:bg-blue-700 active:scale-95 ${!isDirty ? 'bg-gray-400 opacity-50' : ''}`}
+                            >
+                                <Save className="mr-2 h-4 w-4" /> Guardar
+                            </Button>
+                        </div>
+                    </div>
+
+                    {/* --- CONTENIDO PRINCIPAL --- */}
+                    <div className="w-full animate-in px-8 py-8 duration-500 fade-in slide-in-from-bottom-4">
+                        <Tabs defaultValue="general" className="w-full">
+                            <TabsList className="mb-8 w-full justify-start rounded-none border-b border-border bg-transparent p-0">
+                                {['general', 'files', 'returns']
+                                    .filter(
+                                        (tab) =>
+                                            !(
+                                                isCreditNote &&
+                                                tab === 'returns'
+                                            ),
+                                    )
+                                    .map((tab) => (
+                                        <TabsTrigger
+                                            key={tab}
+                                            value={tab}
+                                            className="relative rounded-none px-8 py-4 text-sm font-bold tracking-wide text-muted-foreground uppercase transition-colors hover:bg-muted/50 hover:text-foreground data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:shadow-none data-[state=active]:after:absolute data-[state=active]:after:bottom-0 data-[state=active]:after:left-0 data-[state=active]:after:h-[3px] data-[state=active]:after:w-full data-[state=active]:after:bg-blue-600"
                                         >
-                                            <Paperclip className="mr-2 h-4 w-4" />
-                                            {data.file
-                                                ? 'Nuevo archivo seleccionado'
-                                                : 'Subir nuevo PDF/Imagen'}
-                                            <input
-                                                type="file"
-                                                className="absolute inset-0 cursor-pointer opacity-0"
-                                                accept=".pdf,image/*"
-                                                onChange={(e) =>
+                                            {tab === 'general'
+                                                ? 'Información General'
+                                                : tab === 'files'
+                                                  ? 'Archivos Adjuntos'
+                                                  : `Devoluciones (${receipt.children?.length ?? 0})`}
+                                        </TabsTrigger>
+                                    ))}
+                            </TabsList>
+
+                            <TabsContent
+                                value="general"
+                                className="mt-6 animate-in duration-300 fade-in-50 slide-in-from-left-2"
+                            >
+                                {/* 1. CAMPOS DE CABECERA */}
+                                <div className="mb-10 grid grid-cols-1 gap-x-20 gap-y-10 md:grid-cols-2">
+                                    {/* Columna Izquierda */}
+                                    <div className="space-y-8">
+                                        <div className="group space-y-2">
+                                            <Label className="text-xs font-bold text-muted-foreground uppercase">
+                                                Proveedor
+                                            </Label>
+                                            <div className="relative">
+                                                <Input
+                                                    value={
+                                                        receipt.supplier
+                                                            ?.company_name ||
+                                                        'Proveedor no encontrado'
+                                                    }
+                                                    disabled
+                                                    className={
+                                                        disabledInputClass
+                                                    }
+                                                />
+                                                <Lock className="absolute top-2 right-2 h-4 w-4 text-muted-foreground/50" />
+                                            </div>
+                                        </div>
+                                        <div className="group space-y-2">
+                                            <Label className="text-xs font-bold text-muted-foreground uppercase">
+                                                Tipo Documento
+                                            </Label>
+                                            {/* HABILITADO PARA EDICIÓN */}
+                                            <Select
+                                                value={data.document_type}
+                                                disabled={isCreditNote}
+                                                onValueChange={(val) =>
                                                     onFieldChange(
-                                                        'file',
-                                                        e.target.files?.[0] ||
-                                                            null,
+                                                        'document_type',
+                                                        val,
                                                     )
                                                 }
-                                            />
-                                        </Button>
-                                        {data.file && (
-                                            <span className="text-xs text-muted-foreground">
-                                                {data.file.name}
-                                            </span>
-                                        )}
+                                            >
+                                                <SelectTrigger
+                                                    className={cleanInputClass}
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {documentTypes.map((dt) => (
+                                                        <SelectItem
+                                                            key={dt.value}
+                                                            value={dt.value}
+                                                        >
+                                                            {dt.label}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            {errors.document_type && (
+                                                <p className="text-xs text-red-500">
+                                                    {errors.document_type}
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
-                                    <p className="mt-1 text-xs text-muted-foreground">
-                                        Sube un archivo solo si deseas
-                                        reemplazar el actual.
-                                    </p>
+
+                                    {/* Columna Derecha */}
+                                    <div className="space-y-8">
+                                        <div className="group space-y-2">
+                                            <Label className="text-xs font-bold text-muted-foreground uppercase">
+                                                Fecha Emisión
+                                            </Label>
+                                            {/* HABILITADO PARA EDICIÓN */}
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        variant={'outline'}
+                                                        className={cn(
+                                                            'w-full justify-start rounded-none border-0 border-b border-muted bg-transparent px-0 text-left font-normal shadow-none hover:border-blue-600 hover:bg-transparent focus:ring-0',
+                                                            !data.issue_date &&
+                                                                'text-muted-foreground',
+                                                        )}
+                                                    >
+                                                        <CalendarIcon className="mr-2 h-4 w-4" />
+                                                        {data.issue_date ? (
+                                                            format(
+                                                                data.issue_date,
+                                                                'PPP',
+                                                                { locale: es },
+                                                            )
+                                                        ) : (
+                                                            <span>
+                                                                Seleccionar
+                                                                fecha
+                                                            </span>
+                                                        )}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0">
+                                                    <Calendar
+                                                        mode="single"
+                                                        selected={
+                                                            data.issue_date
+                                                        }
+                                                        onSelect={(date) =>
+                                                            date &&
+                                                            onFieldChange(
+                                                                'issue_date',
+                                                                date,
+                                                            )
+                                                        }
+                                                        initialFocus
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
+                                        <div className="group space-y-2">
+                                            <Label className="text-xs font-bold text-muted-foreground uppercase">
+                                                Referencia
+                                            </Label>
+                                            {/* HABILITADO PARA EDICIÓN */}
+                                            <div className="flex gap-4">
+                                                <Input
+                                                    value={data.series}
+                                                    onChange={(e) =>
+                                                        onFieldChange(
+                                                            'series',
+                                                            e.target.value.toUpperCase(),
+                                                        )
+                                                    }
+                                                    disabled={isCreditNote}
+                                                    className={
+                                                        cleanInputClass +
+                                                        ' w-24 text-center uppercase'
+                                                    }
+                                                />
+                                                <span className="self-center text-muted-foreground">
+                                                    -
+                                                </span>
+                                                <Input
+                                                    value={data.number}
+                                                    disabled={isCreditNote}
+                                                    onChange={(e) =>
+                                                        onFieldChange(
+                                                            'number',
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    className={
+                                                        cleanInputClass +
+                                                        ' flex-1'
+                                                    }
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        </TabsContent>
-                    </Tabs>
-                </div>
-            </form>
+
+                                {/* 2. TABLA DE DETALLES (SOLO LECTURA) */}
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between border-b pb-2">
+                                        <h3 className="flex items-center gap-2 font-semibold text-foreground">
+                                            Líneas de Compra
+                                            <Lock className="h-3 w-3 text-muted-foreground" />
+                                        </h3>
+                                    </div>
+
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow className="bg-muted/10 hover:bg-muted/10">
+                                                <TableHead className="w-[50%]">
+                                                    Producto
+                                                </TableHead>
+                                                <TableHead className="w-[15%] text-right">
+                                                    Cantidad
+                                                </TableHead>
+                                                <TableHead className="w-[15%] text-right">
+                                                    Precio Unit.
+                                                </TableHead>
+                                                <TableHead className="w-[20%] text-right">
+                                                    Subtotal
+                                                </TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {rows.map((row) => (
+                                                <TableRow key={row.id}>
+                                                    <TableCell className="py-2">
+                                                        <Input
+                                                            value={
+                                                                row.product_name
+                                                            }
+                                                            disabled
+                                                            className="cursor-default border-0 bg-transparent px-0 text-foreground shadow-none focus:ring-0"
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell className="py-2">
+                                                        <Input
+                                                            value={row.quantity.toFixed(
+                                                                2,
+                                                            )}
+                                                            disabled
+                                                            className={
+                                                                tableInputClass
+                                                            }
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell className="py-2">
+                                                        <Input
+                                                            value={row.unit_price.toFixed(
+                                                                2,
+                                                            )}
+                                                            disabled
+                                                            className={
+                                                                tableInputClass
+                                                            }
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell className="py-2 text-right font-medium tabular-nums">
+                                                        S/{' '}
+                                                        {(
+                                                            row.quantity *
+                                                            row.unit_price
+                                                        ).toFixed(2)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+
+                                    {/* 3. TOTALES */}
+                                    <div className="flex flex-col items-end gap-2 border-t pt-4">
+                                        <div className="w-full max-w-xs space-y-2">
+                                            <div className="flex justify-between text-sm text-muted-foreground">
+                                                <span>Base Imponible</span>
+                                                <span>
+                                                    S/ {subTotal.toFixed(2)}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between text-sm text-muted-foreground">
+                                                <span>IGV (18%)</span>
+                                                <span>
+                                                    S/ {igvAmount.toFixed(2)}
+                                                </span>
+                                            </div>
+                                            <div className="mt-2 flex justify-between border-t pt-2">
+                                                <span className="text-lg font-bold text-foreground">
+                                                    Total
+                                                </span>
+                                                <span className="text-xl font-bold text-blue-600">
+                                                    S/ {totalAmount.toFixed(2)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </TabsContent>
+
+                            <TabsContent
+                                value="files"
+                                className="mt-6 animate-in duration-300 fade-in-50 slide-in-from-left-2"
+                            >
+                                <div className="max-w-md space-y-4">
+                                    <Label className="text-base font-semibold">
+                                        Archivo Adjunto Actual
+                                    </Label>
+                                    {receipt.receipt_path ? (
+                                        <div className="flex items-center justify-between rounded border bg-muted/20 p-4">
+                                            <span className="max-w-[200px] truncate text-sm text-muted-foreground">
+                                                {receipt.receipt_path
+                                                    .split('/')
+                                                    .pop()}
+                                            </span>
+                                            <a
+                                                href={`/storage/${receipt.receipt_path}`}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-sm font-medium text-blue-600 hover:underline"
+                                            >
+                                                Ver / Descargar
+                                            </a>
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground italic">
+                                            No hay archivo adjunto.
+                                        </p>
+                                    )}
+
+                                    <div className="mt-4 border-t pt-4">
+                                        <Label className="mb-2 block text-sm font-medium">
+                                            Reemplazar Archivo
+                                        </Label>
+                                        <div className="flex items-center gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                type="button"
+                                                className="relative hover:bg-muted"
+                                            >
+                                                <Paperclip className="mr-2 h-4 w-4" />
+                                                {data.file
+                                                    ? 'Nuevo archivo seleccionado'
+                                                    : 'Subir nuevo PDF/Imagen'}
+                                                <input
+                                                    type="file"
+                                                    className="absolute inset-0 cursor-pointer opacity-0"
+                                                    accept=".pdf,image/*"
+                                                    onChange={(e) =>
+                                                        onFieldChange(
+                                                            'file',
+                                                            e.target
+                                                                .files?.[0] ||
+                                                                null,
+                                                        )
+                                                    }
+                                                />
+                                            </Button>
+                                            {data.file && (
+                                                <span className="text-xs text-muted-foreground">
+                                                    {data.file.name}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                            Sube un archivo solo si deseas
+                                            reemplazar el actual.
+                                        </p>
+                                    </div>
+                                </div>
+                            </TabsContent>
+                            <TabsContent
+                                value="returns"
+                                className="mt-6 animate-in duration-300 fade-in-50 slide-in-from-left-2"
+                            >
+                                <h3 className="mb-4 text-lg font-semibold">
+                                    Notas de Crédito Emitidas
+                                </h3>
+
+                                {receipt.children &&
+                                receipt.children.length > 0 ? (
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>Código NC</TableHead>
+                                                <TableHead>Fecha</TableHead>
+                                                <TableHead>
+                                                    Referencia
+                                                </TableHead>
+                                                <TableHead className="text-right">
+                                                    Monto Devuelto
+                                                </TableHead>
+                                                <TableHead className="text-right">
+                                                    Acciones
+                                                </TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {receipt.children.map((nc) => (
+                                                <TableRow
+                                                    key={nc.id_receipt}
+                                                    className="cursor-pointer hover:bg-muted/50"
+                                                    onClick={() => {
+                                                        visitNc(nc.id_receipt);
+                                                    }}
+                                                >
+                                                    <TableCell className="font-mono text-sm">
+                                                        {nc.receipt_code}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {format(
+                                                            new Date(
+                                                                nc.issue_date,
+                                                            ),
+                                                            'dd MMM yyyy',
+                                                            { locale: es },
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {nc.series}-{nc.number}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-bold text-red-600">
+                                                        S/{' '}
+                                                        {parseFloat(
+                                                            String(
+                                                                nc.total_amount,
+                                                            ),
+                                                        ).toFixed(2)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                ) : (
+                                    <div className="rounded-lg border border-dashed p-6 text-center text-muted-foreground">
+                                        Aún no se han generado devoluciones
+                                        (Notas de Crédito) para este
+                                        comprobante.
+                                    </div>
+                                )}
+                            </TabsContent>
+                        </Tabs>
+                    </div>
+                </form>
+            </div>
         </AppLayout>
     );
 }

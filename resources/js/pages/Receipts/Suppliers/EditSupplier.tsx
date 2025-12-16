@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
+import receipts from '@/routes/receipts';
 import suppliersRoute from '@/routes/suppliers';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -59,9 +60,9 @@ interface Props {
 
 // --- ALERTA FLOTANTE ---
 function FloatingAlert({
-                           message,
-                           type = 'error',
-                       }: {
+    message,
+    type = 'error',
+}: {
     message?: string;
     type?: 'error' | 'success';
 }) {
@@ -102,7 +103,10 @@ export default function EditSupplier({ supplier }: Props) {
 
     // Estados para alertas
     const [showSuccess, setShowSuccess] = useState(false);
-    const [manualAlert, setManualAlert] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+    const [manualAlert, setManualAlert] = useState<{
+        message: string;
+        type: 'success' | 'error';
+    } | null>(null);
 
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
     const [isSunatEditable, setIsSunatEditable] = useState(false);
@@ -167,14 +171,22 @@ export default function EditSupplier({ supplier }: Props) {
             // 3. Actualizamos y mostramos alerta
             if (simulatedNewName !== data.company_name) {
                 setData('company_name', simulatedNewName);
-                setManualAlert({ message: 'Datos actualizados desde SUNAT correctamente.', type: 'success' });
+                setManualAlert({
+                    message: 'Datos actualizados desde SUNAT correctamente.',
+                    type: 'success',
+                });
             } else {
-                setManualAlert({ message: 'Los datos ya están actualizados.', type: 'success' });
+                setManualAlert({
+                    message: 'Los datos ya están actualizados.',
+                    type: 'success',
+                });
             }
-
         } catch (error) {
             console.error(error);
-            setManualAlert({ message: 'Error al conectar con SUNAT. Intente manualmente.', type: 'error' });
+            setManualAlert({
+                message: 'Error al conectar con SUNAT. Intente manualmente.',
+                type: 'error',
+            });
         } finally {
             setIsSyncing(false);
         }
@@ -197,7 +209,7 @@ export default function EditSupplier({ supplier }: Props) {
     };
 
     const breadcrumbs = [
-        { title: 'Compras', href: '#' },
+        { title: 'Comprobantes', href: receipts.index().url },
         { title: 'Proveedores', href: suppliersRoute.index().url },
         { title: data.company_name || 'Editar', href: '' },
     ];
@@ -248,7 +260,10 @@ export default function EditSupplier({ supplier }: Props) {
 
             {/* 2. Alerta Manual (Cliente / SUNAT) */}
             {manualAlert && (
-                <FloatingAlert message={manualAlert.message} type={manualAlert.type} />
+                <FloatingAlert
+                    message={manualAlert.message}
+                    type={manualAlert.type}
+                />
             )}
 
             <form

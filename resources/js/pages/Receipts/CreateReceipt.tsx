@@ -1,4 +1,4 @@
-import { SearchableSelect } from '@/Components/SearchableSelect';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -33,15 +33,20 @@ import {
 } from '@/components/ui/tooltip'; // Necesario para el detalle del margen
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
-import receipts from '@/routes/receipts';
-import { Head, useForm } from '@inertiajs/react';
+import productsRoute from '@/routes/products';
+import {
+    default as receipts,
+    default as receiptsRoute,
+} from '@/routes/receipts';
+import suppliersRoute from '@/routes/suppliers';
+import { Head, router, useForm } from '@inertiajs/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
     AlertCircle,
     AlertTriangle,
     CalendarIcon,
-    ChevronLeft,
+    CheckCircle2,
     Paperclip,
     Plus,
     Save,
@@ -50,7 +55,6 @@ import {
     TrendingUp,
 } from 'lucide-react';
 import { FormEventHandler, useState } from 'react';
-import receiptsRoute from '@/routes/receipts';
 
 // --- Interfaces ---
 interface Supplier {
@@ -71,6 +75,7 @@ interface DetailRow {
     id_product: string;
     quantity: number;
     unit_price: number;
+    sale_price: number;
 }
 
 interface Props {
@@ -79,7 +84,44 @@ interface Props {
     documentTypes: { value: string; label: string }[];
 }
 
-// --- COMPONENTE AUXILIAR PARA INDICADOR DE MARGEN ---
+function FloatingAlert({
+    message,
+    type = 'error',
+}: {
+    message?: string;
+    type?: 'error' | 'success';
+}) {
+    if (!message) return null;
+
+    const isSuccess = type === 'success';
+
+    return (
+        <div
+            // Ya está corregido a fixed top-6 right-6
+            className={`fixed top-6 right-6 z-50 w-auto max-w-md animate-in fade-in slide-in-from-top-2`}
+        >
+            <Alert
+                variant={isSuccess ? 'default' : 'destructive'}
+                className={`border-2 shadow-xl ${
+                    isSuccess
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100'
+                        : 'border-red-500 bg-white text-red-900 dark:border-red-700 dark:bg-slate-900 dark:text-red-300'
+                }`}
+            >
+                {isSuccess ? (
+                    <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                    <AlertCircle className="h-4 w-4" />
+                )}
+                <AlertTitle className="ml-2 font-bold">
+                    {isSuccess ? '¡Éxito!' : 'Error'}
+                </AlertTitle>
+                <AlertDescription className="ml-2">{message}</AlertDescription>
+            </Alert>
+        </div>
+    );
+}
+
 const MarginIndicator = ({
     cost,
     salePrice,
@@ -87,79 +129,83 @@ const MarginIndicator = ({
     cost: number;
     salePrice: number;
 }) => {
-    // Si no hay precio de venta configurado, no mostramos nada o mostramos gris
-    if (!salePrice || salePrice <= 0) return null;
+    // ✅ CORRECCIÓN 1: Asegurar que las entradas son números válidos.
+    const numericCost = Number(cost) || 0;
+    const numericSalePrice = Number(salePrice) || 0;
 
-    const margin = salePrice - cost;
-    const marginPercent = salePrice > 0 ? (margin / salePrice) * 100 : 0;
+    // Si no hay precio de venta configurado, no mostramos nada.
+    if (numericSalePrice <= 0) return null;
+
+    const margin = numericSalePrice - numericCost;
+    const marginPercent = (margin / numericSalePrice) * 100;
+
+    // Texto de Ganancia/Pérdida para mostrar en la celda
+    const marginText = `S/ ${margin.toFixed(2)}`;
+    const percentText = ` (${marginPercent.toFixed(0)}%)`;
 
     // Caso 1: PÉRDIDA (Costo > Venta)
-    if (cost > salePrice) {
+    if (numericCost > numericSalePrice) {
+        // Usar las variables convertidas
         return (
             <TooltipProvider>
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <div className="flex cursor-help items-center gap-1 text-red-600">
                             <TrendingDown className="h-4 w-4" />
-                            <span className="text-xs font-bold">Pérdida</span>
-                        </div>
-                    </TooltipTrigger>
-                    <TooltipContent className="border-red-700 bg-red-600 text-white">
-                        <p>
-                            ¡Cuidado! Estás comprando a{' '}
-                            <strong>S/ {cost}</strong>
-                        </p>
-                        <p>
-                            y vendes a <strong>S/ {salePrice}</strong>.
-                        </p>
-                        <p>
-                            Pérdida de{' '}
-                            <strong>S/ {Math.abs(margin).toFixed(2)}</strong>{' '}
-                            por unidad.
-                        </p>
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-        );
-    }
-
-    // Caso 2: MARGEN BAJO (Ej. menos del 15% de ganancia)
-    if (marginPercent < 15) {
-        return (
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <div className="flex cursor-help items-center gap-1 text-yellow-600">
-                            <AlertTriangle className="h-4 w-4" />
-                            <span className="text-xs font-bold">
-                                {marginPercent.toFixed(0)}%
+                            <span className="text-xs font-bold whitespace-nowrap">
+                                {marginText}
                             </span>
                         </div>
                     </TooltipTrigger>
-                    <TooltipContent className="border-yellow-600 bg-yellow-500 text-white">
-                        <p>Margen bajo ({marginPercent.toFixed(1)}%).</p>
-                        <p>Ganancia: S/ {margin.toFixed(2)}</p>
+                    <TooltipContent className="border-red-700 bg-red-600 text-white">
+                        <p>PÉRDIDA. Costo: S/ {numericCost.toFixed(2)}</p>
+                        <p>Venta: S/ {numericSalePrice.toFixed(2)}</p>
+                        <p>
+                            Pérdida neta: {marginText}
+                            {percentText}
+                        </p>
                     </TooltipContent>
                 </Tooltip>
             </TooltipProvider>
         );
     }
 
-    // Caso 3: BUEN MARGEN (Default)
+    // Caso 2 & 3: MARGEN (Ganancia)
+    const colorClass =
+        marginPercent < 15 ? 'text-yellow-600' : 'text-emerald-600';
+    const Icon = marginPercent < 15 ? AlertTriangle : TrendingUp;
+
     return (
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <div className="flex cursor-help items-center gap-1 text-emerald-600">
-                        <TrendingUp className="h-4 w-4" />
-                        <span className="text-xs font-bold">
-                            {marginPercent.toFixed(0)}%
+                    <div
+                        className={cn(
+                            colorClass,
+                            'flex cursor-help items-center gap-1',
+                        )}
+                    >
+                        <Icon className="h-4 w-4" />
+                        <span className="text-xs font-bold whitespace-nowrap">
+                            {marginText}
                         </span>
                     </div>
                 </TooltipTrigger>
-                <TooltipContent className="border-emerald-700 bg-emerald-600 text-white">
-                    <p>¡Buen margen!</p>
-                    <p>Ganancia: S/ {margin.toFixed(2)} por unidad.</p>
+                <TooltipContent
+                    className={cn(
+                        `border-emerald-700 text-white`,
+                        marginPercent < 15
+                            ? 'border-yellow-600 bg-yellow-500'
+                            : 'bg-emerald-600',
+                    )}
+                >
+                    <p>
+                        {marginPercent < 15 ? 'Margen Bajo' : '¡Buen margen!'}
+                    </p>
+                    <p>
+                        Ganancia: {marginText}
+                        {percentText}
+                    </p>
                 </TooltipContent>
             </Tooltip>
         </TooltipProvider>
@@ -171,9 +217,15 @@ export default function CreateReceipt({
     products,
     documentTypes,
 }: Props) {
-    // ... (Estados y Hooks igual que antes) ...
+    const [formError, setFormError] = useState<string | null>(null);
     const [rows, setRows] = useState<DetailRow[]>([
-        { id: Date.now(), id_product: '', quantity: 1, unit_price: 0 },
+        {
+            id: Date.now(),
+            id_product: '',
+            quantity: 1,
+            unit_price: 0,
+            sale_price: 0,
+        },
     ]);
 
     const { data, setData, post, processing, errors, reset, clearErrors } =
@@ -196,7 +248,13 @@ export default function CreateReceipt({
     const addRow = () => {
         setRows([
             ...rows,
-            { id: Date.now(), id_product: '', quantity: 1, unit_price: 0 },
+            {
+                id: Date.now(),
+                id_product: '',
+                quantity: 1,
+                unit_price: 0,
+                sale_price: 0,
+            },
         ]);
         if (errors.details) clearErrors('details');
     };
@@ -207,8 +265,8 @@ export default function CreateReceipt({
     };
 
     const updateRow = (id: number, field: keyof DetailRow, value: any) => {
-        setRows(
-            rows.map((row) =>
+        setRows((prevRows) =>
+            prevRows.map((row) =>
                 row.id === id ? { ...row, [field]: value } : row,
             ),
         );
@@ -236,14 +294,52 @@ export default function CreateReceipt({
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        data.details = rows.map((row) => ({
+
+        const detailsToSend = rows.map((row) => ({
             id_product: row.id_product,
             quantity: row.quantity,
             unit_price: row.unit_price,
+            sale_price: row.sale_price, // Incluir el precio de venta
         }));
-        post(receipts.store().url, { forceFormData: true });
+
+        // 2. Validación de Pérdida en el FRONTEND (Regla de negocio)
+        const hasLoss = rows.some(
+            (row) =>
+                Number(row.unit_price) > Number(row.sale_price) &&
+                Number(row.sale_price) > 0,
+        );
+
+        if (hasLoss) {
+            setFormError(
+                '¡Advertencia! Hay productos cuyo costo es superior al precio de venta. Revise la columna Margen.',
+            );
+            // 🛑 Detener el envío a Inertia
+            return;
+        } else {
+            setFormError(null); // Limpiar error si la validación pasa
+        }
+
+        data.details = detailsToSend;
+
+        // 3. Envío con manejo de error del backend
+        post(receipts.store().url, {
+            forceFormData: true,
+            onSuccess: () => {
+                // Opcional: Mostrar éxito si no hay redirección
+                // setManualAlert({ message: 'Comprobante registrado correctamente.', type: 'success' });
+            },
+            onError: (backendErrors) => {
+                // Capturar el error de validación de negocio lanzado en el controlador
+                if (backendErrors.error) {
+                    setFormError(backendErrors.error);
+                }
+                // Los errores de validación de Laravel (ej: series.required) se manejan automáticamente por useForm/Inertia
+            },
+        });
     };
 
+    const goToCreateSupplier = () => router.visit(suppliersRoute.create().url);
+    const goToCreateProduct = () => router.visit(productsRoute.create().url);
     return (
         <AppLayout
             breadcrumbs={[
@@ -253,21 +349,31 @@ export default function CreateReceipt({
         >
             <Head title="Nueva Compra" />
 
+            {formError && (
+                <div className="fixed top-0 right-0 z-[100]">
+                    <FloatingAlert message={formError} type="error" />
+                </div>
+            )}
+            {/* Si usas flash messages de Laravel para el éxito, puedes hacer algo similar:
+            {page.props.flash.success && (
+                <div className="fixed top-6 right-6 z-[100]">
+                    <FloatingAlert message={page.props.flash.success} type="success" />
+                </div>
+            )}
+            */}
             <form
                 onSubmit={submit}
                 className="flex h-full flex-col bg-background"
             >
-                {/* ... HEADER (Igual que antes) ... */}
                 <div className="border-b px-6 py-4">
                     <div className="mb-4 flex items-center justify-between">
-                        <div
-                            className="flex cursor-pointer items-center gap-2 text-muted-foreground transition-colors hover:text-foreground"
-                            onClick={() => window.history.back()}
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                            <span className="text-sm font-medium">
-                                Volver a Compras
-                            </span>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-3xl font-light text-foreground">
+                                Nuevo /{' '}
+                                <span className="text-muted-foreground">
+                                    Borrador
+                                </span>
+                            </h1>
                         </div>
                         <div className="flex gap-2">
                             <Button
@@ -287,19 +393,10 @@ export default function CreateReceipt({
                             </Button>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <h1 className="text-3xl font-light text-foreground">
-                            Nuevo /{' '}
-                            <span className="text-muted-foreground">
-                                Borrador
-                            </span>
-                        </h1>
-                    </div>
                 </div>
 
                 <div className="flex-1 overflow-auto p-6">
                     <div className="mx-auto max-w-7xl space-y-8">
-                        {/* ... BLOQUE SUPERIOR (Igual que antes) ... */}
                         <div className="grid grid-cols-1 gap-x-12 gap-y-6 md:grid-cols-2">
                             <div className="space-y-4">
                                 <div className="grid grid-cols-[120px_1fr] items-center gap-4">
@@ -318,6 +415,7 @@ export default function CreateReceipt({
                                             }
                                             placeholder="Seleccionar proveedor..."
                                             error={errors.id_supplier}
+                                            onCreate={goToCreateSupplier}
                                             className="h-9 text-sm"
                                         />
                                     </div>
@@ -357,6 +455,19 @@ export default function CreateReceipt({
                                                     'border-red-500',
                                             )}
                                         />
+                                    </div>
+                                    <div></div>
+                                    <div className="flex gap-2">
+                                        {errors.series && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                                {errors.series}
+                                            </p>
+                                        )}
+                                        {errors.number && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                                {errors.number}
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -411,7 +522,13 @@ export default function CreateReceipt({
                                             onFieldChange('document_type', val)
                                         }
                                     >
-                                        <SelectTrigger className="h-9 focus:ring-blue-500">
+                                        <SelectTrigger
+                                            className={cn(
+                                                'h-9 focus:ring-blue-500',
+                                                errors.document_type &&
+                                                    'border-red-500',
+                                            )}
+                                        >
                                             <SelectValue placeholder="Seleccionar..." />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -425,6 +542,12 @@ export default function CreateReceipt({
                                             ))}
                                         </SelectContent>
                                     </Select>
+                                    <div></div>
+                                    {errors.document_type && (
+                                        <p className="mt-1 text-xs text-red-500">
+                                            {errors.document_type}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -454,19 +577,23 @@ export default function CreateReceipt({
                                     <Table>
                                         <TableHeader>
                                             <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                                <TableHead className="w-[40%] font-semibold text-foreground">
+                                                <TableHead className="w-[35%] font-semibold text-foreground">
                                                     Producto
                                                 </TableHead>
-                                                <TableHead className="w-[15%] text-right font-semibold text-foreground">
+                                                <TableHead className="w-[10%] text-right font-semibold text-foreground">
                                                     Cantidad
+                                                </TableHead>
+                                                {/* REVISIÓN: Renombrar Costo Venta a Precio Venta */}
+                                                <TableHead className="w-[15%] text-right font-semibold text-foreground">
+                                                    Precio Venta
                                                 </TableHead>
                                                 <TableHead className="w-[15%] text-right font-semibold text-foreground">
                                                     Costo Unit.
                                                 </TableHead>
-                                                <TableHead className="w-[10%] text-center font-semibold text-foreground">
+                                                <TableHead className="w-[15%] text-center font-semibold text-foreground">
                                                     Margen
                                                 </TableHead>
-                                                <TableHead className="w-[15%] text-right font-semibold text-foreground">
+                                                <TableHead className="w-[10%] text-right font-semibold text-foreground">
                                                     Subtotal
                                                 </TableHead>
                                                 <TableHead className="w-[5%]"></TableHead>
@@ -491,20 +618,62 @@ export default function CreateReceipt({
                                                                 options={
                                                                     productOptions
                                                                 }
+                                                                onCreate={
+                                                                    goToCreateProduct
+                                                                }
                                                                 value={
                                                                     row.id_product
                                                                 }
                                                                 onChange={(
                                                                     val,
-                                                                ) =>
-                                                                    updateRow(
-                                                                        row.id,
-                                                                        'id_product',
-                                                                        val,
+                                                                ) => {
+                                                                    const newProduct =
+                                                                        products.find(
+                                                                            (
+                                                                                p,
+                                                                            ) =>
+                                                                                String(
+                                                                                    p.id_product,
+                                                                                ) ===
+                                                                                val,
+                                                                        );
+
+                                                                    setRows(
+                                                                        (
+                                                                            prevRows,
+                                                                        ) =>
+                                                                            prevRows.map(
+                                                                                (
+                                                                                    r,
+                                                                                ) => {
+                                                                                    if (
+                                                                                        r.id ===
+                                                                                        row.id
+                                                                                    ) {
+                                                                                        return {
+                                                                                            ...r,
+                                                                                            id_product:
+                                                                                                val,
+                                                                                            // 2. Asigna el precio de venta del producto seleccionado
+                                                                                            sale_price:
+                                                                                                newProduct
+                                                                                                    ? newProduct.sale_price
+                                                                                                    : 0,
+                                                                                        };
+                                                                                    }
+                                                                                    return r;
+                                                                                },
+                                                                            ),
+                                                                    );
+                                                                    if (
+                                                                        errors.details
                                                                     )
-                                                                }
+                                                                        clearErrors(
+                                                                            'details',
+                                                                        );
+                                                                }}
                                                                 placeholder="Seleccionar producto..."
-                                                                className="text-sm h-8 border-transparent bg-transparent shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-blue-500"
+                                                                className="h-8 border-transparent bg-transparent text-sm shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-blue-500"
                                                             />
                                                         </TableCell>
                                                         <TableCell className="p-2">
@@ -536,6 +705,29 @@ export default function CreateReceipt({
                                                                 step="0.01"
                                                                 className="h-8 border-transparent bg-transparent text-right shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-blue-500"
                                                                 value={
+                                                                    row.sale_price
+                                                                } // ✅ USAR row.sale_price
+                                                                onChange={(e) =>
+                                                                    updateRow(
+                                                                        row.id,
+                                                                        'sale_price',
+                                                                        parseFloat(
+                                                                            e
+                                                                                .target
+                                                                                .value,
+                                                                        ) || 0,
+                                                                    )
+                                                                }
+                                                            />
+                                                        </TableCell>
+
+                                                        <TableCell className="p-2">
+                                                            <Input
+                                                                type="number"
+                                                                min="0"
+                                                                step="0.01"
+                                                                className="h-8 border-transparent bg-transparent text-right shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-blue-500"
+                                                                value={
                                                                     row.unit_price
                                                                 }
                                                                 onChange={(e) =>
@@ -554,18 +746,18 @@ export default function CreateReceipt({
 
                                                         {/* COLUMNA DE INDICADOR DE MARGEN */}
                                                         <TableCell className="flex h-12 items-center justify-center p-2">
-                                                            {selectedProduct && (
+                                                            {/* Solo mostramos el indicador si hay producto seleccionado */}
+                                                            {row.id_product && (
                                                                 <MarginIndicator
                                                                     cost={
                                                                         row.unit_price
                                                                     }
                                                                     salePrice={
-                                                                        selectedProduct.sale_price
+                                                                        row.sale_price
                                                                     }
                                                                 />
                                                             )}
                                                         </TableCell>
-
                                                         <TableCell className="p-2 text-right font-medium">
                                                             S/{' '}
                                                             {(
@@ -678,17 +870,6 @@ export default function CreateReceipt({
                                 </div>
                             </TabsContent>
                         </Tabs>
-
-                        {/* Mensajes de error */}
-                        {Object.keys(errors).length > 0 && (
-                            <Alert variant="destructive" className="mt-4">
-                                <AlertCircle className="h-4 w-4" />
-                                <AlertTitle>Error al guardar</AlertTitle>
-                                <AlertDescription>
-                                    Revisa los campos marcados en rojo.
-                                </AlertDescription>
-                            </Alert>
-                        )}
                     </div>
                 </div>
             </form>

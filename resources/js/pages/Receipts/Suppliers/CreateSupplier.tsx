@@ -2,6 +2,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import AppSidebarLayout from '@/layouts/app-layout';
+import receipts from '@/routes/receipts';
 import suppliers from '@/routes/suppliers';
 import { Head, useForm } from '@inertiajs/react';
 import {
@@ -164,7 +165,7 @@ export default function CreateSupplier() {
     };
 
     const breadcrumbs = [
-        { title: 'Compras', href: '#' },
+        { title: 'Comprobantes', href: receipts.index().url },
         { title: 'Proveedores', href: suppliers.index().url },
         { title: 'Nuevo', href: '' },
     ];

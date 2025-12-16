@@ -8,6 +8,7 @@ use App\Http\Repositories\Eloquent\Inventory\InventoryRepository;
 use App\Http\Repositories\Eloquent\Receipt\ReceiptRepository;
 use App\Http\Services\BaseService;
 use App\Http\Services\Inventory\InventoryService;
+use App\Models\Products;
 use App\Models\Receipt;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
@@ -20,7 +21,8 @@ class ReceiptService extends BaseService
     protected $inventoryService;
 
     // 2. INYECTA InventoryService AQUÍ
-    public function __construct(ReceiptRepository $model, InventoryService $inventoryService){
+    public function __construct(ReceiptRepository $model, InventoryService $inventoryService)
+    {
         parent::__construct($model);
         $this->inventoryService = $inventoryService;
     }
@@ -62,6 +64,12 @@ class ReceiptService extends BaseService
                     'subtotal'   => $detail['quantity'] * $detail['unit_price'],
                 ]);
 
+                if ($detail['sale_price'] > 0) {
+                    Products::where('id_product', $detail['id_product'])->update([
+                        'sale_price' => $detail['sale_price']
+                    ]);
+                }
+
                 // B. Registrar Ingreso en Kardex (+)
                 $this->inventoryService->registerMovement(
                     $detail['id_product'],
@@ -77,8 +85,6 @@ class ReceiptService extends BaseService
         });
     }
 
-    // En App\Http\Services\Receipt\ReceiptService.php
-
     public function createReturn(array $data, $originalReceiptId)
     {
         return DB::transaction(function () use ($data, $originalReceiptId) {
@@ -88,15 +94,20 @@ class ReceiptService extends BaseService
                 return $item['return_quantity'] * $item['unit_price'];
             });
 
+            $ncSeries = 'NC-' . $originalReceipt->series;
+
+            $ncNumber = $this->calculateNextReceiptNumber($ncSeries);
+
             $creditNote = $this->repo->create([
                 'id_supplier'   => $originalReceipt->id_supplier,
                 'document_type' => DocumentType::CREDIT_NOTE,
-                'series'        => 'NC-' . $originalReceipt->series,
-                'number'        => $originalReceipt->number,
+                'parent_id'     => $originalReceipt->id_receipt, // Correcto
+                'series'        => $ncSeries, // Ej: NC-F001
+                'number'        => $ncNumber, // Ej: 000004
                 'issue_date'    => Carbon::now()->format('Y-m-d'),
                 'total_amount'  => -$totalReturnAmount,
                 'receipt_path'  => null,
-                // Podrías agregar un campo 'parent_id' en tu tabla receipts si quieres vincularlos estrictamente
+                "id_parent"     => $originalReceipt->id_receipt,
             ]);
 
             foreach ($data as $item) {
@@ -104,7 +115,6 @@ class ReceiptService extends BaseService
                     $productId = $item['id_product'];
                     $currentReturnQuantity = $item['return_quantity'];
 
-                    // A. VALIDACIÓN DE LA CANTIDAD
                     $originalDetail = $originalDetails->get($productId);
 
                     if (!$originalDetail) {
@@ -113,15 +123,11 @@ class ReceiptService extends BaseService
 
                     $originalQuantity = $originalDetail->quantity;
 
-                    // 1. Obtener lo que ya se ha devuelto antes
                     $previouslyReturned = $this->getTotalPreviouslyReturnedQuantity($originalReceiptId, $productId);
 
-                    // 2. Sumar la devolución actual
                     $totalFutureReturned = $previouslyReturned + $currentReturnQuantity;
 
-                    // 3. ¡La Comprobación clave!
                     if ($totalFutureReturned > $originalQuantity) {
-                        // Lanza una excepción que será capturada por el transaction
                         throw new \Exception("No se puede devolver {$currentReturnQuantity} unidades del producto ID {$productId}. Ya se han devuelto {$previouslyReturned} y el stock original fue de {$originalQuantity}.");
                     }
                     $creditNote->details()->create([
@@ -132,15 +138,15 @@ class ReceiptService extends BaseService
                     ]);
 
 
-                $this->inventoryService->registerMovement(
-                    $item['id_product'],
-                    -abs($item['return_quantity']),
-                    'purchase_return',
-                    $item['unit_price'],
-                    $creditNote,
-                    "Devolución parcial de Compra {$originalReceipt->series}-{$originalReceipt->number}"
-                );
-            }
+                    $this->inventoryService->registerMovement(
+                        $item['id_product'],
+                        -abs($item['return_quantity']),
+                        'purchase_return',
+                        $item['unit_price'],
+                        $creditNote,
+                        "Devolución parcial de Compra {$originalReceipt->series}-{$originalReceipt->number}"
+                    );
+                }
             }
 
             return $creditNote;
@@ -218,13 +224,28 @@ class ReceiptService extends BaseService
             if (!$receipt) return false;
 
             foreach ($receipt->details as $detail) {
+                $quantityToRevert = abs($detail->quantity);
+                $movementType = 'adjustment';
+
+                // Si el documento es una COMPRA (entrada al almacén), 
+                // para anularla, la reversión es una SALIDA (-).
+                if ($receipt->document_type != DocumentType::CREDIT_NOTE) {
+                    $finalQuantity = -$quantityToRevert;
+                    $reason = "Anulación de Compra {$receipt->series}-{$receipt->number}";
+                } else {
+                    // Si el documento es una NOTA DE CRÉDITO (salida del almacén), 
+                    // para anularla, la reversión es una ENTRADA (+).
+                    $finalQuantity = $quantityToRevert;
+                    $reason = "Anulación de Nota de Crédito {$receipt->series}-{$receipt->number}";
+                }
+
                 $this->inventoryService->registerMovement(
                     $detail->id_product,
-                    -abs($detail->quantity),
-                    'return',
+                    $finalQuantity, // Cantidad ajustada
+                    $movementType,
                     $detail->unit_price,
                     $receipt,
-                    "Anulación de Compra {$receipt->series}-{$receipt->number}"
+                    $reason
                 );
             }
 
@@ -237,7 +258,8 @@ class ReceiptService extends BaseService
         });
     }
 
-    public function getReceiptById($id){
+    public function getReceiptById($id)
+    {
         return $this->repo->find($id);
     }
 
@@ -298,4 +320,27 @@ class ReceiptService extends BaseService
         return $totalReturned;
     }
 
+    /**
+     * Calcula el siguiente número de documento secuencial (Ej: 000004)
+     * basado en la última NC emitida para una serie dada.
+     * @param string $series La serie de la Nota de Crédito (Ej: NC-F001).
+     * @return string
+     */
+    protected function calculateNextReceiptNumber(string $series): string
+    {
+        $lastReceipt = Receipt::where('document_type', DocumentType::CREDIT_NOTE)
+            ->where('series', $series)
+            ->orderBy(DB::raw('CAST(number AS UNSIGNED)'), 'desc') // Ordenar numéricamente
+            ->first();
+
+        $lastNumber = 0;
+
+        if ($lastReceipt) {
+            $lastNumber = (int) $lastReceipt->number;
+        }
+
+        $newNumber = $lastNumber + 1;
+
+        return str_pad($newNumber, 6, '0', STR_PAD_LEFT);
+    }
 }

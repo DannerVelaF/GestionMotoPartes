@@ -19,7 +19,8 @@ class ProductController extends Controller
 {
     protected $service;
 
-    public function __construct(ProductService $service){
+    public function __construct(ProductService $service)
+    {
         $this->service = $service;
     }
 
@@ -36,7 +37,7 @@ class ProductController extends Controller
         $query = Products::query()
             ->with(['category:id_product_category,name_product_category', 'brand:id_brand,name_brand', 'productType:id_product_type,name_product_type'])
             ->when($search, function ($query, $search) {
-                $query->where(function($q) use ($search) {
+                $query->where(function ($q) use ($search) {
                     $q->where('product_name', 'like', "%{$search}%")
                         ->orWhere('product_code', 'like', "%{$search}%");
                 });
@@ -75,7 +76,8 @@ class ProductController extends Controller
         ]);
     }
 
-    public function create(){
+    public function create()
+    {
         $categories = ProductCategory::select("id_product_category", "name_product_category")->where("status", GenericStatus::ACTIVE)->get();
         $brands = Brand::select("id_brand", "name_brand")->where("status", GenericStatus::ACTIVE)->get();
         $types = ProductType::select("id_product_type", "name_product_type")->where("status", GenericStatus::ACTIVE)->get();
@@ -142,15 +144,13 @@ class ProductController extends Controller
 
     public function show($id)
     {
-        // 1. MODIFICACIÓN AQUÍ: Agregamos ->with(...)
-        $product = Products::with(['movements' => function($query) {
+        $product = Products::with(['movements' => function ($query) {
             $query->with('user')
                 ->orderBy('created_at', 'desc')
                 ->orderBy('id_movement', 'desc')
-                ->take(50);
+                ->take(20);
         }])->findOrFail($id);
 
-        // 2. El resto se mantiene igual
         $categories = ProductCategory::select("id_product_category", "name_product_category")
             ->where("status", GenericStatus::ACTIVE)
             ->get();
