@@ -9,6 +9,7 @@ import { edit as editPassword } from '@/routes/user-password';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
 import { type PropsWithChildren } from 'react';
+import configuracion from '@/routes/configuracion';
 
 const sidebarNavItems: NavItem[] = [
     {
@@ -31,6 +32,11 @@ const sidebarNavItems: NavItem[] = [
         href: editAppearance(),
         icon: null,
     },
+    {
+        title:"Empresa",
+        href: configuracion.negocio.url(),
+        icon: null,
+    }
 ];
 
 export default function SettingsLayout({ children }: PropsWithChildren) {

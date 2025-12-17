@@ -333,7 +333,6 @@ export default function CreateReceipt({
                 if (backendErrors.error) {
                     setFormError(backendErrors.error);
                 }
-                // Los errores de validación de Laravel (ej: series.required) se manejan automáticamente por useForm/Inertia
             },
         });
     };
@@ -354,26 +353,22 @@ export default function CreateReceipt({
                     <FloatingAlert message={formError} type="error" />
                 </div>
             )}
-            {/* Si usas flash messages de Laravel para el éxito, puedes hacer algo similar:
-            {page.props.flash.success && (
-                <div className="fixed top-6 right-6 z-[100]">
-                    <FloatingAlert message={page.props.flash.success} type="success" />
-                </div>
-            )}
-            */}
+
             <form
                 onSubmit={submit}
                 className="flex h-full flex-col bg-background"
             >
                 <div className="border-b px-6 py-4">
-                    <div className="mb-4 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-3xl font-light text-foreground">
-                                Nuevo /{' '}
-                                <span className="text-muted-foreground">
-                                    Borrador
-                                </span>
-                            </h1>
+                    <div className="flex items-center justify-between">
+                        <div className={"flex gap-2"}>
+                            <div className="flex items-center gap-2">
+                                <h1 className="text-xl font-light text-foreground">
+                                    Nuevo /{' '}
+                                    <span className="text-muted-foreground">
+                                        Borrador
+                                    </span>
+                                </h1>
+                            </div>
                         </div>
                         <div className="flex gap-2">
                             <Button
@@ -389,7 +384,7 @@ export default function CreateReceipt({
                                 disabled={processing}
                                 className="bg-blue-600 text-white shadow-sm hover:bg-blue-700"
                             >
-                                <Save className="mr-2 h-4 w-4" /> Guardar
+                                <Save className="mr-2 h-4 w-4" /> Registrar comprobante
                             </Button>
                         </div>
                     </div>
@@ -601,6 +596,27 @@ export default function CreateReceipt({
                                         </TableHeader>
                                         <TableBody>
                                             {rows.map((row) => {
+                                                // 1. Obtener los IDs de los productos ya seleccionados por OTRAS filas
+                                                const selectedProductIds = rows
+                                                    .filter(
+                                                        (r) => r.id !== row.id, // Excluye la fila actual
+                                                    )
+                                                    .map((r) =>
+                                                        String(r.id_product),
+                                                    );
+
+                                                // 2. Filtrar las opciones: Incluir solo el producto actual (si está seleccionado)
+                                                //    y los que no están en la lista de seleccionados por otras filas.
+                                                const availableProductOptions =
+                                                    productOptions.filter(
+                                                        (option) =>
+                                                            !selectedProductIds.includes(
+                                                                option.value,
+                                                            ) ||
+                                                            option.value ===
+                                                                row.id_product,
+                                                    );
+
                                                 // BUSCAMOS EL PRODUCTO SELECCIONADO PARA SABER SU PRECIO DE VENTA
                                                 const selectedProduct =
                                                     products.find(
@@ -616,7 +632,8 @@ export default function CreateReceipt({
                                                         <TableCell className="p-2">
                                                             <SearchableSelect
                                                                 options={
-                                                                    productOptions
+                                                                    // 3. Usar la lista de opciones filtrada
+                                                                    availableProductOptions
                                                                 }
                                                                 onCreate={
                                                                     goToCreateProduct
@@ -706,7 +723,7 @@ export default function CreateReceipt({
                                                                 className="h-8 border-transparent bg-transparent text-right shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-blue-500"
                                                                 value={
                                                                     row.sale_price
-                                                                } // ✅ USAR row.sale_price
+                                                                }
                                                                 onChange={(e) =>
                                                                     updateRow(
                                                                         row.id,

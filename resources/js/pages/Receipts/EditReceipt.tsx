@@ -63,6 +63,7 @@ import {
     Lock,
     MoreVertical,
     Paperclip,
+    Plus,
     RotateCcw,
     Save,
     Trash2,
@@ -459,6 +460,15 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                     {/* --- HEADER STICKY --- */}
                     <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b bg-background/95 px-8 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                         <div className="flex items-center gap-3">
+                            <Button
+                                type={'button'}
+                                className="bg-blue-700 font-medium text-white shadow-sm hover:bg-blue-800"
+                                onClick={() =>
+                                    router.visit(receipts.create().url)
+                                }
+                            >
+                                <Plus className="mr-2 h-4 w-4" /> Nuevo
+                            </Button>
                             <span className="flex items-center gap-2 font-mono text-xl font-bold tracking-tight text-foreground/90">
                                 <BookText />
                                 {receipt.receipt_code}

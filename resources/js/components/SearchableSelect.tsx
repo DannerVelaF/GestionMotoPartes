@@ -41,13 +41,12 @@ export function SearchableSelect({
     className,
 }: SearchableSelectProps) {
     const [open, setOpen] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
+    // Eliminamos 'searchQuery' ya que CommandInput lo maneja internamente.
 
     const selectedLabel = options.find((opt) => opt.value === value)?.label;
 
     return (
         <div className="flex w-full flex-col gap-1">
-            {/* Aseguramos ancho completo */}
             <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
                     <Button
@@ -82,29 +81,14 @@ export function SearchableSelect({
                             return 0;
                         }}
                     >
-                        <CommandInput
-                            placeholder="Buscar..."
-                            onValueChange={setSearchQuery}
-                        />
+                        <CommandInput placeholder="Buscar..." />
+
+                        {/* 1. Mantenemos CommandList para los resultados */}
                         <CommandList>
                             <CommandEmpty className="px-2 py-2 text-center text-sm">
                                 <p className="mb-2 text-muted-foreground">
-                                    No encontrado.
+                                    No se encontraron resultados.
                                 </p>
-                                {onCreate && (
-                                    <Button
-                                        variant="secondary"
-                                        size="sm"
-                                        className="w-full"
-                                        onClick={() => {
-                                            setOpen(false); // Cerramos al ir a crear
-                                            onCreate();
-                                        }}
-                                    >
-                                        <Plus className="mr-2 h-3 w-3" />
-                                        Crear nuevo
-                                    </Button>
-                                )}
                             </CommandEmpty>
                             <CommandGroup>
                                 {options.map((option) => (
@@ -135,6 +119,23 @@ export function SearchableSelect({
                                 ))}
                             </CommandGroup>
                         </CommandList>
+
+                        {onCreate && (
+                            <div className="border-t p-1">
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    className="w-full bg-blue-50/50 text-blue-600 hover:bg-blue-100/70 hover:text-blue-700"
+                                    onClick={() => {
+                                        setOpen(false); // Cerramos al ir a crear
+                                        onCreate();
+                                    }}
+                                >
+                                    <Plus className="mr-2 h-3 w-3" />
+                                    Crear nuevo
+                                </Button>
+                            </div>
+                        )}
                     </Command>
                 </PopoverContent>
             </Popover>

@@ -30,7 +30,7 @@ import {
     Lock,
     Mail,
     MoreVertical,
-    Phone,
+    Phone, Plus,
     RefreshCw,
     RotateCcw,
     Save,
@@ -273,6 +273,15 @@ export default function EditSupplier({ supplier }: Props) {
                 {/* --- HEADER STICKY --- */}
                 <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b bg-background/95 px-8 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                     <div className="flex items-center gap-3">
+                        <Button
+                            type={"button"}
+                            className="bg-blue-700 font-medium text-white shadow-sm hover:bg-blue-800"
+                            onClick={() =>
+                                router.visit(suppliersRoute.create().url)
+                            }
+                        >
+                            <Plus className="mr-2 h-4 w-4" /> Nuevo
+                        </Button>
                         <Truck className="h-6 w-6 text-muted-foreground" />
                         <span className="max-w-md truncate text-xl font-semibold text-foreground/90">
                             {supplier.company_name}

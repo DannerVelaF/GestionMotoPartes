@@ -122,9 +122,6 @@ export default function CreateSupplier() {
         setIsSearching(true);
 
         try {
-            // TODO: CONECTAR AQUÍ TU API DE SUNAT
-            // Ejemplo: const response = await axios.get(`/api/sunat/${data.ruc}`);
-
             // Simulación de espera
             await new Promise((resolve) => setTimeout(resolve, 1500));
 

@@ -36,12 +36,13 @@ import productsRoute from '@/routes/products';
 import receipts from '@/routes/receipts';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
-    AlertCircle,
+    AlertCircle, Box,
     Camera,
     CheckCircle2,
     Eye,
     MoreVertical,
     Pencil,
+    Plus,
     RotateCcw,
     Save,
     Trash2,
@@ -344,9 +345,20 @@ export default function EditProduct({
                 {/* --- HEADER --- */}
                 <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b bg-background/95 px-8 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                     <div className="flex items-center gap-3">
+                        <Button
+                            className="bg-blue-700 font-medium text-white shadow-sm hover:bg-blue-800 active:scale-95 dark:bg-blue-600 dark:hover:bg-blue-500"
+                            onClick={() =>
+                                router.visit(productsRoute.create().url)
+                            }
+                        >
+                            <Plus className="mr-2 h-4 w-4" /> Nuevo
+                        </Button>
+                        <div className="flex items-center gap-3">
+                        <Box />
                         <span className="max-w-md truncate text-xl font-semibold text-foreground/90">
                             {product.product_name}
                         </span>
+                        </div>
 
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>

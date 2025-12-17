@@ -8,6 +8,7 @@ enum DocumentType: string
     case INVOICE = 'factura'; // Factura
     case RECEIPT = 'boleta';  // Boleta
     case CREDIT_NOTE = 'nota_credito';
+    case NOTE = 'nota_venta';
     /**
      * Obtener el texto legible para el usuario (UI)
      */
@@ -17,6 +18,7 @@ enum DocumentType: string
             self::INVOICE => 'Factura',
             self::RECEIPT => 'Boleta',
             self::CREDIT_NOTE => 'Nota de Crédito',
+            self::NOTE    => 'Nota de Venta (Ticket)',
         };
     }
 
@@ -30,6 +32,7 @@ enum DocumentType: string
             self::INVOICE => '01',
             self::RECEIPT => '03',
             self::CREDIT_NOTE => '07',
+            self::NOTE => '08',
         };
     }
 
@@ -42,6 +45,7 @@ enum DocumentType: string
             self::INVOICE => 'blue',   // Azul corporativo
             self::RECEIPT => 'green',  // Verde común
             self::CREDIT_NOTE => 'red',
+            self::NOTE => 'white',
         };
     }
 }

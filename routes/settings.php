@@ -25,4 +25,11 @@ Route::middleware('auth')->group(function () {
 
     Route::get('settings/two-factor', [TwoFactorAuthenticationController::class, 'show'])
         ->name('two-factor.show');
+
+    Route::get("configuracion/negocio", [\App\Http\Controllers\Settings\BusinessConfigController::class, 'index'])
+        ->name('configuracion.negocio');
+
+    Route::put("configuracion/negocio", [\App\Http\Controllers\Settings\BusinessConfigController::class, 'update'])
+        ->name('configuracion.negocio.update');
+
 });
