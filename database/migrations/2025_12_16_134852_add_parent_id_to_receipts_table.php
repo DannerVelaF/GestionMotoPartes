@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('receipts', function (Blueprint $table) {
             // parent_id apunta al id_receipt original. Es nullable porque una factura no tiene padre.
-            $table->unsignedBigInteger('parent_id')->nullable()->after('id_supplier');
+            $table->unsignedBigInteger('id_parent')->nullable()->after('id_supplier');
 
             // Definir la clave foránea que apunta a la misma tabla
             $table->foreign('id_parent')
