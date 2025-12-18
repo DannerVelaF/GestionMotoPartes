@@ -14,5 +14,13 @@ Route::middleware('auth')->group(function () {
         Route::put('/ventas/{sale}', 'update')->name('sales.update');
         Route::delete('/ventas/{sale}', 'destroy')->name('sales.destroy');
         Route::delete('/ventas/bulk-delete', 'bulkDestroy')->name('sales.bulk-destroy');
+
+        Route::prefix('/ventas/reportes')->group(function () {
+            Route::get('/resumen-diario', [SalesController::class, 'reportDaily'])->name('reports.daily');
+            Route::get('/impuestos', [SalesController::class, 'reportTax'])->name('reports.tax');
+            Route::get('/productos-estrella', [SalesController::class, 'reportTopProducts'])->name('reports.top');
+            Route::get('/analisis-marcas', [SalesController::class, 'reportBrandAnalysis'])->name('reports.brands');
+        });
+
     });
 });

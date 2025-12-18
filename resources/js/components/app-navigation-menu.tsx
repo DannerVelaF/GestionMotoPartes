@@ -71,15 +71,54 @@ export function AppNavigationMenu() {
 
                 {isSalesModule && (
                     <MenubarMenu>
-                        <MenubarTrigger className="cursor-pointer font-medium text-primary">
-                            Reportes
+                        <MenubarTrigger className="cursor-pointer font-medium text-blue-700 text-primary">
+                            Analítica de Ventas
                         </MenubarTrigger>
                         <MenubarContent>
+                            <div className="px-2 py-1 text-[10px] font-black tracking-tighter text-muted-foreground uppercase">
+                                Finanzas
+                            </div>
                             <MenubarItem
-                                onClick={() => router.visit('/ventas/reportes')}
+                                onClick={() =>
+                                    router.visit(
+                                        '/ventas/reportes/resumen-diario',
+                                    )
+                                }
                             >
-                                Reportes
+                                Resumen Diario
                             </MenubarItem>
+                            <MenubarItem
+                                onClick={() =>
+                                    router.visit('/ventas/reportes/impuestos')
+                                }
+                            >
+                                Libro de Ventas (IGV)
+                            </MenubarItem>
+
+                            <MenubarSeparator />
+
+                            <div className="px-2 py-1 text-[10px] font-black tracking-tighter text-muted-foreground uppercase">
+                                Movimiento de Stock
+                            </div>
+                            <MenubarItem
+                                onClick={() =>
+                                    router.visit(
+                                        '/ventas/reportes/productos-estrella',
+                                    )
+                                }
+                            >
+                                Productos más Vendidos
+                            </MenubarItem>
+                            <MenubarItem
+                                onClick={() =>
+                                    router.visit(
+                                        '/ventas/reportes/analisis-marcas',
+                                    )
+                                }
+                            >
+                                Ventas por Marca / Categoría
+                            </MenubarItem>
+
                         </MenubarContent>
                     </MenubarMenu>
                 )}

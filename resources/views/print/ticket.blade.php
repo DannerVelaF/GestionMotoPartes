@@ -61,8 +61,8 @@
 <div class="divider"></div>
 
 <p class="text-right">
-    SUBTOTAL: S/ {{ number_format($sale->subtotal, 2) }}<br>
-    IGV (18%): S/ {{ number_format($sale->tax, 2) }}<br>
+    SUBTOTAL: S/ {{ number_format($sale->total / 1.18, 2) }}<br>
+    IGV (18%): S/ {{ number_format($sale->total - ($sale->total / 1.18), 2) }}<br>
     <strong>TOTAL: S/ {{ number_format($sale->total, 2) }}</strong>
 </p>
 

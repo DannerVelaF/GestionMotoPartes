@@ -40,7 +40,7 @@ import {
 } from 'lucide-react';
 import { KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'use-debounce';
-
+import { cn } from '@/lib/utils';
 interface Product {
     id_product: number;
     product_name: string;
@@ -176,19 +176,29 @@ export default function ListProducts({ products, filters }: Props) {
     const renderProductCard = (product: Product) => {
         const isSelected = selectedIds.includes(product.id_product);
         const isActive = product.status === 'active';
+        const isLowStock = product.stock > 0 && product.stock <= 5;
+        const isOutStock = product.stock <= 0;
 
         return (
             <Card
                 key={product.id_product}
                 onClick={() => handleCardClick(product)}
-                className={`group relative flex h-36 cursor-pointer flex-row overflow-hidden p-4 transition-all hover:border-blue-500/50 hover:shadow-md active:scale-[0.99] ${
+                className={cn(
+                    'group relative flex h-[280px] cursor-pointer flex-col overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-xl active:scale-[0.98]',
                     isSelected
-                        ? 'border-2 border-blue-600 bg-blue-50/10 dark:bg-blue-900/10'
-                        : 'bg-card'
-                } ${!isActive ? 'opacity-80 grayscale-[0.3]' : ''}`}
+                        ? 'border-transparent bg-blue-50/20 ring-2 shadow-blue-100 ring-blue-600'
+                        : 'border-muted/60 bg-card hover:border-blue-400/50',
+                    !isActive && 'opacity-70 grayscale-[0.8]',
+                )}
             >
+                {/* Checkbox Overlay */}
                 <div
-                    className="absolute top-2 left-2 z-20"
+                    className={cn(
+                        'absolute top-3 left-3 z-30 transition-opacity duration-300',
+                        isSelected
+                            ? 'opacity-100'
+                            : 'opacity-0 group-hover:opacity-100',
+                    )}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <Checkbox
@@ -196,83 +206,112 @@ export default function ListProducts({ products, filters }: Props) {
                         onCheckedChange={() =>
                             toggleSelection(product.id_product)
                         }
-                        className="h-5 w-5 border-gray-400 bg-white/90 shadow-sm data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white dark:border-gray-600 dark:bg-zinc-900"
+                        className="h-5 w-5 rounded-md border-muted-foreground/30 bg-white/90 shadow-md data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600"
                     />
                 </div>
 
-                <div className="flex w-36 shrink-0 items-center justify-center py-2">
+                {/* Badge de Estado / Stock en la imagen */}
+                <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-1">
+                    {!isActive && (
+                        <span className="rounded bg-zinc-800 px-2 py-0.5 text-[9px] font-black tracking-tighter text-white uppercase shadow-sm">
+                            Inactivo
+                        </span>
+                    )}
+                    {isOutStock ? (
+                        <span className="animate-pulse rounded bg-red-600 px-2 py-0.5 text-[9px] font-black tracking-tighter text-white uppercase shadow-sm">
+                            Sin Stock
+                        </span>
+                    ) : (
+                        isLowStock && (
+                            <span className="rounded bg-amber-500 px-2 py-0.5 text-[9px] font-black tracking-tighter text-white uppercase shadow-sm">
+                                Stock Bajo
+                            </span>
+                        )
+                    )}
+                </div>
+
+                {/* Contenedor de Imagen con fondo sutil */}
+                <div className="relative flex h-40 w-full items-center justify-center overflow-hidden bg-muted/30 transition-colors group-hover:bg-muted/10">
                     {product.url_image ? (
                         <img
                             src={`/storage/${product.url_image}`}
                             alt={product.product_name}
-                            className="h-full w-full object-cover mix-blend-multiply dark:mix-blend-normal"
-                            loading="lazy"
+                            className="h-full w-full object-contain p-2 transition-transform duration-500 group-hover:scale-110"
                         />
                     ) : (
-                        <ImageIcon className="h-12 w-12 text-muted-foreground/20" />
+                        <div className="flex flex-col items-center gap-2 opacity-20">
+                            <ImageIcon className="h-12 w-12" />
+                            <span className="text-[10px] font-bold tracking-widest uppercase">
+                                Sin imagen
+                            </span>
+                        </div>
                     )}
                 </div>
 
-                <div className="flex min-w-0 flex-1 flex-col justify-between p-4">
-                    <div className="flex flex-col gap-1">
-                        <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                                {product.product_code && (
-                                    <span className="text-[10px] font-bold tracking-wider text-muted-foreground/70 uppercase">
-                                        {product.product_code}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="flex items-center gap-1">
-                                {isActive ? (
-                                    <span
-                                        className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_4px_rgba(16,185,129,0.4)]"
-                                        title="Activo"
-                                    ></span>
-                                ) : (
-                                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-red-600 uppercase dark:bg-red-900/30 dark:text-red-400">
-                                        Inactivo
-                                    </span>
-                                )}
-                            </div>
+                {/* Cuerpo de la tarjeta */}
+                <div className="flex flex-1 flex-col p-4">
+                    <div className="mb-auto flex flex-col">
+                        <div className="mb-1 flex items-center gap-2">
+                            <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] font-bold text-muted-foreground">
+                                {product.product_code || 'S/C'}
+                            </span>
+                            <span className="truncate text-[10px] text-muted-foreground italic">
+                                {product.brand?.name_brand || 'Genérico'}
+                            </span>
                         </div>
 
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <h3 className="line-clamp-2 text-sm leading-snug font-bold text-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                                <h3 className="line-clamp-2 text-sm leading-tight font-black text-foreground transition-colors group-hover:text-blue-700">
                                     {product.product_name}
                                 </h3>
                             </TooltipTrigger>
                             <TooltipContent>
-                                <p className="max-w-xs text-center text-xs">
+                                <p className="max-w-xs text-xs font-bold">
                                     {product.product_name}
                                 </p>
                             </TooltipContent>
                         </Tooltip>
                     </div>
 
-                    <div className="mt-1 flex flex-col gap-1 border-t pt-2">
-                        <div className="flex items-end justify-between">
-                            <span className="text-xs text-muted-foreground">
-                                Precio:
+                    {/* Footer de la tarjeta: Precio y Stock */}
+                    <div className="mt-4 flex items-center justify-between border-t border-muted/60 pt-3">
+                        <div className="flex flex-col">
+                            <span className="mb-1 text-[10px] leading-none font-bold text-muted-foreground uppercase">
+                                Precio
                             </span>
-                            <span className="text-sm font-bold text-foreground">
-                                S/ {product.sale_price}
+                            <span className="text-sm font-black text-slate-900 dark:text-slate-100">
+                                S/ {Number(product.sale_price).toFixed(2)}
                             </span>
                         </div>
-                        <div className="flex items-end justify-between">
-                            <span className="text-xs text-muted-foreground">
-                                Stock:
+                        <div className="flex flex-col items-end">
+                            <span className="mb-1 text-[10px] leading-none font-bold text-muted-foreground uppercase">
+                                Disponible
                             </span>
-                            <span
-                                className={`text-sm font-bold ${product.stock > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}
-                            >
-                                {/* AQUÍ EL CAMBIO: */}
-                                {product.stock ?? 0}
-                                <span className="ml-1 text-[10px] font-normal text-muted-foreground">
-                                    Und
+                            <div className="flex items-center gap-1.5">
+                                <span
+                                    className={cn(
+                                        'h-2 w-2 rounded-full',
+                                        isOutStock
+                                            ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]'
+                                            : isLowStock
+                                              ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
+                                              : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]',
+                                    )}
+                                />
+                                <span
+                                    className={cn(
+                                        'text-sm font-black tabular-nums',
+                                        isOutStock
+                                            ? 'text-red-600'
+                                            : isLowStock
+                                              ? 'text-amber-600'
+                                              : 'text-emerald-600',
+                                    )}
+                                >
+                                    {product.stock ?? 0}
                                 </span>
-                            </span>
+                            </div>
                         </div>
                     </div>
                 </div>

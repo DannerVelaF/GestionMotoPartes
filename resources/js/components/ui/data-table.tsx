@@ -44,20 +44,26 @@ export function DataTable<TData, TValue>({
         data,
         columns,
         getCoreRowModel: getCoreRowModel(),
-        // Mantenemos paginación interna SOLO para que calcule bien las filas de la página actual,
-        // aunque no mostremos los botones.
         getPaginationRowModel: getPaginationRowModel(),
         onSortingChange: setSorting,
         getSortedRowModel: getSortedRowModel(),
         getFilteredRowModel: getFilteredRowModel(),
-        // Conectamos la selección con el estado del padre
         onRowSelectionChange: setRowSelection,
         state: {
             sorting,
             globalFilter: filterValue,
-            rowSelection, // Estado de selección inyectado
+            rowSelection,
         },
-        enableRowSelection: true, // Habilitar selección
+        // --- AGREGA ESTA CONFIGURACIÓN ---
+        initialState: {
+            pagination: {
+                pageSize: 100, // Ponemos un número alto para que muestre todo lo que mande el servidor
+            },
+        },
+        // Opcional: Si quieres que ignore la paginación cliente por completo:
+        manualPagination: true,
+        // ---------------------------------
+        enableRowSelection: true,
         onGlobalFilterChange: () => {},
         globalFilterFn: 'includesString',
     });

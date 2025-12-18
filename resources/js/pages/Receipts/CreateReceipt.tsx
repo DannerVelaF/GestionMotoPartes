@@ -24,20 +24,15 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     Tooltip,
     TooltipContent,
     TooltipProvider,
     TooltipTrigger,
-} from '@/components/ui/tooltip'; // Necesario para el detalle del margen
+} from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
-import productsRoute from '@/routes/products';
-import {
-    default as receipts,
-    default as receiptsRoute,
-} from '@/routes/receipts';
+import receiptsRoute from '@/routes/receipts';
 import suppliersRoute from '@/routes/suppliers';
 import { Head, router, useForm } from '@inertiajs/react';
 import { format } from 'date-fns';
@@ -46,15 +41,24 @@ import {
     AlertCircle,
     AlertTriangle,
     CalendarIcon,
-    CheckCircle2,
+    FileText,
     Paperclip,
     Plus,
+    RotateCcw,
     Save,
+    ShoppingBag,
     Trash2,
     TrendingDown,
     TrendingUp,
+    Truck,
 } from 'lucide-react';
 import { FormEventHandler, useState } from 'react';
+
+// --- Estilos Consistentes con Ventas ---
+const cleanInputClass =
+    'h-9 w-full rounded-none border-0 border-b border-muted bg-transparent px-0 text-sm shadow-none focus:ring-0 focus:border-blue-600 focus:outline-none transition-all font-medium';
+const tableInputClass =
+    'h-8 border-transparent bg-transparent text-right shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-blue-500 tabular-nums';
 
 // --- Interfaces ---
 interface Supplier {
@@ -67,7 +71,7 @@ interface Product {
     id_product: number;
     product_name: string;
     product_code: string | null;
-    sale_price: number; // <--- NUEVO CAMPO
+    sale_price: number;
 }
 
 interface DetailRow {
@@ -84,44 +88,7 @@ interface Props {
     documentTypes: { value: string; label: string }[];
 }
 
-function FloatingAlert({
-    message,
-    type = 'error',
-}: {
-    message?: string;
-    type?: 'error' | 'success';
-}) {
-    if (!message) return null;
-
-    const isSuccess = type === 'success';
-
-    return (
-        <div
-            // Ya está corregido a fixed top-6 right-6
-            className={`fixed top-6 right-6 z-50 w-auto max-w-md animate-in fade-in slide-in-from-top-2`}
-        >
-            <Alert
-                variant={isSuccess ? 'default' : 'destructive'}
-                className={`border-2 shadow-xl ${
-                    isSuccess
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100'
-                        : 'border-red-500 bg-white text-red-900 dark:border-red-700 dark:bg-slate-900 dark:text-red-300'
-                }`}
-            >
-                {isSuccess ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                ) : (
-                    <AlertCircle className="h-4 w-4" />
-                )}
-                <AlertTitle className="ml-2 font-bold">
-                    {isSuccess ? '¡Éxito!' : 'Error'}
-                </AlertTitle>
-                <AlertDescription className="ml-2">{message}</AlertDescription>
-            </Alert>
-        </div>
-    );
-}
-
+// --- Componente MarginIndicator ---
 const MarginIndicator = ({
     cost,
     salePrice,
@@ -129,40 +96,32 @@ const MarginIndicator = ({
     cost: number;
     salePrice: number;
 }) => {
-    // ✅ CORRECCIÓN 1: Asegurar que las entradas son números válidos.
     const numericCost = Number(cost) || 0;
     const numericSalePrice = Number(salePrice) || 0;
-
-    // Si no hay precio de venta configurado, no mostramos nada.
     if (numericSalePrice <= 0) return null;
 
     const margin = numericSalePrice - numericCost;
     const marginPercent = (margin / numericSalePrice) * 100;
-
-    // Texto de Ganancia/Pérdida para mostrar en la celda
     const marginText = `S/ ${margin.toFixed(2)}`;
-    const percentText = ` (${marginPercent.toFixed(0)}%)`;
 
-    // Caso 1: PÉRDIDA (Costo > Venta)
     if (numericCost > numericSalePrice) {
-        // Usar las variables convertidas
         return (
             <TooltipProvider>
                 <Tooltip>
                     <TooltipTrigger asChild>
                         <div className="flex cursor-help items-center gap-1 text-red-600">
                             <TrendingDown className="h-4 w-4" />
-                            <span className="text-xs font-bold whitespace-nowrap">
+                            <span className="text-[10px] font-bold">
                                 {marginText}
                             </span>
                         </div>
                     </TooltipTrigger>
                     <TooltipContent className="border-red-700 bg-red-600 text-white">
-                        <p>PÉRDIDA. Costo: S/ {numericCost.toFixed(2)}</p>
-                        <p>Venta: S/ {numericSalePrice.toFixed(2)}</p>
-                        <p>
-                            Pérdida neta: {marginText}
-                            {percentText}
+                        <p className="text-xs font-bold uppercase">
+                            Aviso de Pérdida
+                        </p>
+                        <p className="text-[10px]">
+                            El costo es mayor al precio de venta.
                         </p>
                     </TooltipContent>
                 </Tooltip>
@@ -170,7 +129,6 @@ const MarginIndicator = ({
         );
     }
 
-    // Caso 2 & 3: MARGEN (Ganancia)
     const colorClass =
         marginPercent < 15 ? 'text-yellow-600' : 'text-emerald-600';
     const Icon = marginPercent < 15 ? AlertTriangle : TrendingUp;
@@ -186,25 +144,24 @@ const MarginIndicator = ({
                         )}
                     >
                         <Icon className="h-4 w-4" />
-                        <span className="text-xs font-bold whitespace-nowrap">
+                        <span className="text-[10px] font-bold">
                             {marginText}
                         </span>
                     </div>
                 </TooltipTrigger>
                 <TooltipContent
                     className={cn(
-                        `border-emerald-700 text-white`,
-                        marginPercent < 15
-                            ? 'border-yellow-600 bg-yellow-500'
-                            : 'bg-emerald-600',
+                        'border-none text-white',
+                        marginPercent < 15 ? 'bg-yellow-500' : 'bg-emerald-600',
                     )}
                 >
-                    <p>
-                        {marginPercent < 15 ? 'Margen Bajo' : '¡Buen margen!'}
+                    <p className="text-[10px] font-bold uppercase">
+                        {marginPercent < 15
+                            ? 'Margen Ajustado'
+                            : '¡Margen Óptimo!'}
                     </p>
-                    <p>
-                        Ganancia: {marginText}
-                        {percentText}
+                    <p className="text-[10px]">
+                        Margen: {marginPercent.toFixed(0)}%
                     </p>
                 </TooltipContent>
             </Tooltip>
@@ -244,33 +201,12 @@ export default function CreateReceipt({
         if (errors[field]) clearErrors(field);
     };
 
-    // ... (Funciones addRow, removeRow, updateRow igual que antes) ...
-    const addRow = () => {
-        setRows([
-            ...rows,
-            {
-                id: Date.now(),
-                id_product: '',
-                quantity: 1,
-                unit_price: 0,
-                sale_price: 0,
-            },
-        ]);
-        if (errors.details) clearErrors('details');
-    };
-
-    const removeRow = (id: number) => {
-        if (rows.length === 1) return;
-        setRows(rows.filter((row) => row.id !== id));
-    };
-
     const updateRow = (id: number, field: keyof DetailRow, value: any) => {
-        setRows((prevRows) =>
-            prevRows.map((row) =>
+        setRows((prev) =>
+            prev.map((row) =>
                 row.id === id ? { ...row, [field]: value } : row,
             ),
         );
-        if (errors.details) clearErrors('details');
     };
 
     const totalAmount = rows.reduce(
@@ -280,7 +216,6 @@ export default function CreateReceipt({
     const igvAmount = totalAmount - totalAmount / 1.18;
     const subTotal = totalAmount - igvAmount;
 
-    // --- Helpers de Opciones ---
     const supplierOptions = suppliers.map((s) => ({
         value: String(s.id_supplier),
         label: s.company_name,
@@ -290,55 +225,34 @@ export default function CreateReceipt({
         label: p.product_code
             ? `[${p.product_code}] ${p.product_name}`
             : p.product_name,
+        salePrice: p.sale_price,
     }));
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-
-        const detailsToSend = rows.map((row) => ({
-            id_product: row.id_product,
-            quantity: row.quantity,
-            unit_price: row.unit_price,
-            sale_price: row.sale_price, // Incluir el precio de venta
-        }));
-
-        // 2. Validación de Pérdida en el FRONTEND (Regla de negocio)
         const hasLoss = rows.some(
             (row) =>
                 Number(row.unit_price) > Number(row.sale_price) &&
                 Number(row.sale_price) > 0,
         );
-
         if (hasLoss) {
             setFormError(
-                '¡Advertencia! Hay productos cuyo costo es superior al precio de venta. Revise la columna Margen.',
+                '¡Advertencia! Hay productos con costo superior al precio de venta.',
             );
-            // 🛑 Detener el envío a Inertia
             return;
-        } else {
-            setFormError(null); // Limpiar error si la validación pasa
         }
-
-        data.details = detailsToSend;
-
-        // 3. Envío con manejo de error del backend
-        post(receipts.store().url, {
+        data.details = rows.map((r) => ({
+            id_product: r.id_product,
+            quantity: r.quantity,
+            unit_price: r.unit_price,
+            sale_price: r.sale_price,
+        }));
+        post(receiptsRoute.store().url, {
             forceFormData: true,
-            onSuccess: () => {
-                // Opcional: Mostrar éxito si no hay redirección
-                // setManualAlert({ message: 'Comprobante registrado correctamente.', type: 'success' });
-            },
-            onError: (backendErrors) => {
-                // Capturar el error de validación de negocio lanzado en el controlador
-                if (backendErrors.error) {
-                    setFormError(backendErrors.error);
-                }
-            },
+            onError: (err) => err.error && setFormError(err.error),
         });
     };
 
-    const goToCreateSupplier = () => router.visit(suppliersRoute.create().url);
-    const goToCreateProduct = () => router.visit(productsRoute.create().url);
     return (
         <AppLayout
             breadcrumbs={[
@@ -348,57 +262,60 @@ export default function CreateReceipt({
         >
             <Head title="Nueva Compra" />
 
-            {formError && (
-                <div className="fixed top-0 right-0 z-[100]">
-                    <FloatingAlert message={formError} type="error" />
-                </div>
-            )}
-
             <form
                 onSubmit={submit}
                 className="flex h-full flex-col bg-background"
             >
-                <div className="border-b px-6 py-4">
-                    <div className="flex items-center justify-between">
-                        <div className={"flex gap-2"}>
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-xl font-light text-foreground">
-                                    Nuevo /{' '}
-                                    <span className="text-muted-foreground">
-                                        Borrador
-                                    </span>
-                                </h1>
-                            </div>
+                {/* --- HEADER STICKY (COMO VENTAS) --- */}
+                <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b bg-background/95 px-8 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                            <Truck className="h-6 w-6" />
                         </div>
-                        <div className="flex gap-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => reset()}
-                                disabled={processing}
-                            >
-                                Descartar
-                            </Button>
-                            <Button
-                                type="submit"
-                                disabled={processing}
-                                className="bg-blue-600 text-white shadow-sm hover:bg-blue-700"
-                            >
-                                <Save className="mr-2 h-4 w-4" /> Registrar comprobante
-                            </Button>
+                        <div className="flex flex-col">
+                            <h1 className="text-xl font-bold tracking-tight text-foreground">
+                                Nueva Compra
+                            </h1>
+                            <span className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
+                                Borrador de Abastecimiento
+                            </span>
                         </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <Button
+                            variant="outline"
+                            type="button"
+                            onClick={() => reset()}
+                            disabled={processing}
+                        >
+                            <RotateCcw className="mr-2 h-4 w-4" /> Descartar
+                        </Button>
+                        <Button
+                            type="submit"
+                            disabled={processing}
+                            className="bg-blue-600 text-white shadow-md hover:bg-blue-700 active:scale-95"
+                        >
+                            <Save className="mr-2 h-4 w-4" /> Registrar
+                            Comprobante
+                        </Button>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-auto p-6">
-                    <div className="mx-auto max-w-7xl space-y-8">
-                        <div className="grid grid-cols-1 gap-x-12 gap-y-6 md:grid-cols-2">
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-[120px_1fr] items-center gap-4">
-                                    <Label className="text-right font-semibold text-muted-foreground">
-                                        Proveedor
-                                    </Label>
-                                    <div className="w-full">
+                <div className="w-full animate-in px-8 py-8 duration-500 fade-in slide-in-from-bottom-4">
+                    <div className="mx-auto max-w-7xl space-y-10">
+                        {/* --- SECCIÓN CABECERA: PROVEEDOR Y DOCUMENTO --- */}
+                        <div className="grid grid-cols-1 gap-x-16 gap-y-10 md:grid-cols-2">
+                            {/* BLOQUE PROVEEDOR */}
+                            <div className="space-y-6">
+                                <h3 className="flex items-center gap-2 border-b pb-2 text-xs font-bold tracking-widest text-muted-foreground uppercase">
+                                    <Truck className="h-3 w-3" /> Información
+                                    del Proveedor
+                                </h3>
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase">
+                                            Proveedor Seleccionado
+                                        </Label>
                                         <SearchableSelect
                                             options={supplierOptions}
                                             value={data.id_supplier}
@@ -408,488 +325,430 @@ export default function CreateReceipt({
                                                     val,
                                                 )
                                             }
-                                            placeholder="Seleccionar proveedor..."
-                                            error={errors.id_supplier}
-                                            onCreate={goToCreateSupplier}
-                                            className="h-9 text-sm"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-[120px_1fr] items-center gap-4">
-                                    <Label className="text-right font-semibold text-muted-foreground">
-                                        Referencia
-                                    </Label>
-                                    <div className="flex gap-2">
-                                        <Input
-                                            placeholder="F001"
-                                            value={data.series}
-                                            onChange={(e) =>
-                                                onFieldChange(
-                                                    'series',
-                                                    e.target.value.toUpperCase(),
+                                            placeholder="Buscar proveedor..."
+                                            onCreate={() =>
+                                                router.visit(
+                                                    suppliersRoute.create().url,
                                                 )
                                             }
-                                            className={cn(
-                                                'h-9 w-24 uppercase focus-visible:ring-blue-500',
-                                                errors.series &&
-                                                    'border-red-500',
-                                            )}
-                                        />
-                                        <Input
-                                            placeholder="000123"
-                                            value={data.number}
-                                            onChange={(e) =>
-                                                onFieldChange(
-                                                    'number',
-                                                    e.target.value,
-                                                )
-                                            }
-                                            className={cn(
-                                                'h-9 flex-1 focus-visible:ring-blue-500',
-                                                errors.number &&
-                                                    'border-red-500',
-                                            )}
+                                            className={cleanInputClass}
                                         />
                                     </div>
-                                    <div></div>
-                                    <div className="flex gap-2">
-                                        {errors.series && (
-                                            <p className="mt-1 text-xs text-red-500">
-                                                {errors.series}
-                                            </p>
-                                        )}
-                                        {errors.number && (
-                                            <p className="mt-1 text-xs text-red-500">
-                                                {errors.number}
-                                            </p>
-                                        )}
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase">
+                                                Serie Comprobante
+                                            </Label>
+                                            <Input
+                                                value={data.series}
+                                                onChange={(e) =>
+                                                    onFieldChange(
+                                                        'series',
+                                                        e.target.value.toUpperCase(),
+                                                    )
+                                                }
+                                                className={cn(
+                                                    cleanInputClass,
+                                                    'text-center',
+                                                )}
+                                                placeholder="F001"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase">
+                                                Número Correlativo
+                                            </Label>
+                                            <Input
+                                                value={data.number}
+                                                onChange={(e) =>
+                                                    onFieldChange(
+                                                        'number',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                className={cleanInputClass}
+                                                placeholder="000123"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                            <div className="space-y-4">
-                                <div className="grid grid-cols-[140px_1fr] items-center gap-4">
-                                    <Label className="text-right font-semibold text-muted-foreground">
-                                        Fecha de Emisión
-                                    </Label>
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <Button
-                                                variant={'outline'}
-                                                className={cn(
-                                                    'h-9 w-full justify-start text-left font-normal focus-visible:ring-blue-500',
-                                                    !data.issue_date &&
-                                                        'text-muted-foreground',
-                                                )}
+
+                            {/* BLOQUE DOCUMENTO */}
+                            <div className="space-y-6">
+                                <h3 className="flex items-center gap-2 border-b pb-2 text-xs font-bold tracking-widest text-muted-foreground uppercase">
+                                    <FileText className="h-3 w-3" /> Detalles
+                                    del Documento
+                                </h3>
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase">
+                                            Tipo de Comprobante
+                                        </Label>
+                                        <Select
+                                            value={data.document_type}
+                                            onValueChange={(val) =>
+                                                onFieldChange(
+                                                    'document_type',
+                                                    val,
+                                                )
+                                            }
+                                        >
+                                            <SelectTrigger
+                                                className={cleanInputClass}
                                             >
-                                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                                {data.issue_date
-                                                    ? format(
-                                                          data.issue_date,
-                                                          'PPP',
-                                                          { locale: es },
-                                                      )
-                                                    : 'Seleccionar fecha'}
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0">
-                                            <Calendar
-                                                mode="single"
-                                                selected={data.issue_date}
-                                                onSelect={(date) =>
-                                                    date &&
-                                                    onFieldChange(
-                                                        'issue_date',
-                                                        date,
-                                                    )
-                                                }
-                                                initialFocus
-                                            />
-                                        </PopoverContent>
-                                    </Popover>
+                                                <SelectValue placeholder="Seleccionar..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {documentTypes.map((dt) => (
+                                                    <SelectItem
+                                                        key={dt.value}
+                                                        value={dt.value}
+                                                    >
+                                                        {dt.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase">
+                                            Fecha de Recepción
+                                        </Label>
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    className={cn(
+                                                        cleanInputClass,
+                                                        'text-left font-normal',
+                                                        !data.issue_date &&
+                                                            'text-muted-foreground',
+                                                    )}
+                                                >
+                                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                                    {data.issue_date
+                                                        ? format(
+                                                              data.issue_date,
+                                                              'PPP',
+                                                              { locale: es },
+                                                          )
+                                                        : 'Seleccionar'}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0">
+                                                <Calendar
+                                                    mode="single"
+                                                    selected={data.issue_date}
+                                                    onSelect={(d) =>
+                                                        d &&
+                                                        onFieldChange(
+                                                            'issue_date',
+                                                            d,
+                                                        )
+                                                    }
+                                                />
+                                            </PopoverContent>
+                                        </Popover>
+                                    </div>
                                 </div>
-                                <div className="grid grid-cols-[140px_1fr] items-center gap-4">
-                                    <Label className="text-right font-semibold text-muted-foreground">
-                                        Tipo Documento
+                                <div className="space-y-2">
+                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase">
+                                        Archivo Adjunto (PDF / Imagen)
                                     </Label>
-                                    <Select
-                                        value={data.document_type}
-                                        onValueChange={(val) =>
-                                            onFieldChange('document_type', val)
-                                        }
-                                    >
-                                        <SelectTrigger
+                                    <div className="group relative">
+                                        <div
                                             className={cn(
-                                                'h-9 focus:ring-blue-500',
-                                                errors.document_type &&
-                                                    'border-red-500',
+                                                'flex items-center gap-2 border-b border-muted transition-all group-focus-within:border-blue-600',
+                                                data.file ? 'py-1' : 'py-2',
                                             )}
                                         >
-                                            <SelectValue placeholder="Seleccionar..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {documentTypes.map((dt) => (
-                                                <SelectItem
-                                                    key={dt.value}
-                                                    value={dt.value}
+                                            <Paperclip className="h-4 w-4 text-muted-foreground" />
+                                            <span className="flex-1 truncate text-xs text-muted-foreground">
+                                                {data.file
+                                                    ? data.file.name
+                                                    : 'No hay archivo seleccionado'}
+                                            </span>
+                                            <Input
+                                                type="file"
+                                                className="absolute inset-0 cursor-pointer opacity-0"
+                                                onChange={(e) =>
+                                                    onFieldChange(
+                                                        'file',
+                                                        e.target.files?.[0] ||
+                                                            null,
+                                                    )
+                                                }
+                                            />
+                                            {data.file && (
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-5 w-5"
+                                                    onClick={() =>
+                                                        onFieldChange(
+                                                            'file',
+                                                            null,
+                                                        )
+                                                    }
                                                 >
-                                                    {dt.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <div></div>
-                                    {errors.document_type && (
-                                        <p className="mt-1 text-xs text-red-500">
-                                            {errors.document_type}
-                                        </p>
-                                    )}
+                                                    <Trash2 className="h-3 w-3 text-red-500" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* --- TABS --- */}
-                        <Tabs defaultValue="products" className="w-full">
-                            <TabsList className="mb-8 w-full justify-start rounded-none border-b border-border bg-transparent p-0">
-                                <TabsTrigger
-                                    value="products"
-                                    className="relative rounded-none px-8 py-4 text-sm font-bold tracking-wide text-muted-foreground uppercase transition-colors hover:bg-muted/50 hover:text-foreground data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:shadow-none data-[state=active]:after:absolute data-[state=active]:after:bottom-0 data-[state=active]:after:left-0 data-[state=active]:after:h-[3px] data-[state=active]:after:w-full data-[state=active]:after:bg-blue-600"
-                                >
-                                    Productos
-                                </TabsTrigger>
-                                <TabsTrigger
-                                    value="other"
-                                    className="relative rounded-none px-8 py-4 text-sm font-bold tracking-wide text-muted-foreground uppercase transition-colors hover:bg-muted/50 hover:text-foreground data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:shadow-none data-[state=active]:after:absolute data-[state=active]:after:bottom-0 data-[state=active]:after:left-0 data-[state=active]:after:h-[3px] data-[state=active]:after:w-full data-[state=active]:after:bg-blue-600"
-                                >
-                                    Otra Información
-                                </TabsTrigger>
-                            </TabsList>
-
-                            <TabsContent
-                                value="products"
-                                className="mt-4 space-y-4"
-                            >
-                                <div className="rounded-md border">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow className="bg-muted/50 hover:bg-muted/50">
-                                                <TableHead className="w-[35%] font-semibold text-foreground">
-                                                    Producto
-                                                </TableHead>
-                                                <TableHead className="w-[10%] text-right font-semibold text-foreground">
-                                                    Cantidad
-                                                </TableHead>
-                                                {/* REVISIÓN: Renombrar Costo Venta a Precio Venta */}
-                                                <TableHead className="w-[15%] text-right font-semibold text-foreground">
-                                                    Precio Venta
-                                                </TableHead>
-                                                <TableHead className="w-[15%] text-right font-semibold text-foreground">
-                                                    Costo Unit.
-                                                </TableHead>
-                                                <TableHead className="w-[15%] text-center font-semibold text-foreground">
-                                                    Margen
-                                                </TableHead>
-                                                <TableHead className="w-[10%] text-right font-semibold text-foreground">
-                                                    Subtotal
-                                                </TableHead>
-                                                <TableHead className="w-[5%]"></TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {rows.map((row) => {
-                                                // 1. Obtener los IDs de los productos ya seleccionados por OTRAS filas
-                                                const selectedProductIds = rows
-                                                    .filter(
-                                                        (r) => r.id !== row.id, // Excluye la fila actual
-                                                    )
-                                                    .map((r) =>
-                                                        String(r.id_product),
-                                                    );
-
-                                                // 2. Filtrar las opciones: Incluir solo el producto actual (si está seleccionado)
-                                                //    y los que no están en la lista de seleccionados por otras filas.
-                                                const availableProductOptions =
-                                                    productOptions.filter(
-                                                        (option) =>
-                                                            !selectedProductIds.includes(
-                                                                option.value,
-                                                            ) ||
-                                                            option.value ===
-                                                                row.id_product,
-                                                    );
-
-                                                // BUSCAMOS EL PRODUCTO SELECCIONADO PARA SABER SU PRECIO DE VENTA
-                                                const selectedProduct =
-                                                    products.find(
-                                                        (p) =>
-                                                            String(
-                                                                p.id_product,
-                                                            ) ===
-                                                            row.id_product,
-                                                    );
-
-                                                return (
-                                                    <TableRow key={row.id}>
-                                                        <TableCell className="p-2">
-                                                            <SearchableSelect
-                                                                options={
-                                                                    // 3. Usar la lista de opciones filtrada
-                                                                    availableProductOptions
-                                                                }
-                                                                onCreate={
-                                                                    goToCreateProduct
-                                                                }
-                                                                value={
-                                                                    row.id_product
-                                                                }
-                                                                onChange={(
-                                                                    val,
-                                                                ) => {
-                                                                    const newProduct =
-                                                                        products.find(
-                                                                            (
-                                                                                p,
-                                                                            ) =>
-                                                                                String(
-                                                                                    p.id_product,
-                                                                                ) ===
-                                                                                val,
-                                                                        );
-
-                                                                    setRows(
-                                                                        (
-                                                                            prevRows,
-                                                                        ) =>
-                                                                            prevRows.map(
-                                                                                (
-                                                                                    r,
-                                                                                ) => {
-                                                                                    if (
-                                                                                        r.id ===
-                                                                                        row.id
-                                                                                    ) {
-                                                                                        return {
-                                                                                            ...r,
-                                                                                            id_product:
-                                                                                                val,
-                                                                                            // 2. Asigna el precio de venta del producto seleccionado
-                                                                                            sale_price:
-                                                                                                newProduct
-                                                                                                    ? newProduct.sale_price
-                                                                                                    : 0,
-                                                                                        };
-                                                                                    }
-                                                                                    return r;
-                                                                                },
-                                                                            ),
-                                                                    );
-                                                                    if (
-                                                                        errors.details
-                                                                    )
-                                                                        clearErrors(
-                                                                            'details',
-                                                                        );
-                                                                }}
-                                                                placeholder="Seleccionar producto..."
-                                                                className="h-8 border-transparent bg-transparent text-sm shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-blue-500"
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell className="p-2">
-                                                            <Input
-                                                                type="number"
-                                                                min="0"
-                                                                step="0.01"
-                                                                className="h-8 border-transparent bg-transparent text-right shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-blue-500"
-                                                                value={
-                                                                    row.quantity
-                                                                }
-                                                                onChange={(e) =>
-                                                                    updateRow(
-                                                                        row.id,
-                                                                        'quantity',
-                                                                        parseFloat(
-                                                                            e
-                                                                                .target
-                                                                                .value,
-                                                                        ) || 0,
-                                                                    )
-                                                                }
-                                                            />
-                                                        </TableCell>
-                                                        <TableCell className="p-2">
-                                                            <Input
-                                                                type="number"
-                                                                min="0"
-                                                                step="0.01"
-                                                                className="h-8 border-transparent bg-transparent text-right shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-blue-500"
-                                                                value={
-                                                                    row.sale_price
-                                                                }
-                                                                onChange={(e) =>
-                                                                    updateRow(
-                                                                        row.id,
-                                                                        'sale_price',
-                                                                        parseFloat(
-                                                                            e
-                                                                                .target
-                                                                                .value,
-                                                                        ) || 0,
-                                                                    )
-                                                                }
-                                                            />
-                                                        </TableCell>
-
-                                                        <TableCell className="p-2">
-                                                            <Input
-                                                                type="number"
-                                                                min="0"
-                                                                step="0.01"
-                                                                className="h-8 border-transparent bg-transparent text-right shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-blue-500"
-                                                                value={
-                                                                    row.unit_price
-                                                                }
-                                                                onChange={(e) =>
-                                                                    updateRow(
-                                                                        row.id,
-                                                                        'unit_price',
-                                                                        parseFloat(
-                                                                            e
-                                                                                .target
-                                                                                .value,
-                                                                        ) || 0,
-                                                                    )
-                                                                }
-                                                            />
-                                                        </TableCell>
-
-                                                        {/* COLUMNA DE INDICADOR DE MARGEN */}
-                                                        <TableCell className="flex h-12 items-center justify-center p-2">
-                                                            {/* Solo mostramos el indicador si hay producto seleccionado */}
-                                                            {row.id_product && (
-                                                                <MarginIndicator
-                                                                    cost={
-                                                                        row.unit_price
-                                                                    }
-                                                                    salePrice={
-                                                                        row.sale_price
-                                                                    }
-                                                                />
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="p-2 text-right font-medium">
-                                                            S/{' '}
-                                                            {(
-                                                                row.quantity *
-                                                                row.unit_price
-                                                            ).toFixed(2)}
-                                                        </TableCell>
-                                                        <TableCell className="p-2 text-center">
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-6 w-6 text-muted-foreground hover:text-red-600"
-                                                                onClick={() =>
-                                                                    removeRow(
-                                                                        row.id,
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                        </TableBody>
-                                    </Table>
-                                </div>
-
-                                <div className="flex items-start justify-between">
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={addRow}
-                                        className="-ml-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                                    >
-                                        <Plus className="mr-2 h-4 w-4" />{' '}
-                                        Agregar un producto
-                                    </Button>
-                                    <div className="w-80 space-y-2 text-sm">
-                                        <div className="flex justify-between border-b py-2 text-muted-foreground">
-                                            <span>Base Imponible</span>
-                                            <span>
-                                                S/ {subTotal.toFixed(2)}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between border-b py-2 text-muted-foreground">
-                                            <span>Impuestos (IGV 18%)</span>
-                                            <span>
-                                                S/ {igvAmount.toFixed(2)}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between pt-2">
-                                            <span className="text-lg font-bold text-foreground">
-                                                Total
-                                            </span>
-                                            <span className="text-lg font-bold text-foreground">
-                                                S/ {totalAmount.toFixed(2)}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </TabsContent>
-
-                            {/* ... TAB OTRA INFO (Igual que antes) ... */}
-                            <TabsContent value="other" className="mt-6">
-                                <div className="grid grid-cols-2 gap-8">
-                                    <div className="space-y-4">
-                                        <h3 className="border-b pb-2 font-semibold text-foreground">
-                                            Archivos Adjuntos
-                                        </h3>
-                                        <div className="grid grid-cols-[120px_1fr] items-center gap-4">
-                                            <Label className="text-right text-muted-foreground">
-                                                Comprobante
-                                            </Label>
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    type="button"
-                                                    className="relative"
-                                                >
-                                                    <Paperclip className="mr-2 h-4 w-4" />
-                                                    {data.file
-                                                        ? 'Archivo seleccionado'
-                                                        : 'Adjuntar PDF'}
-                                                    <input
-                                                        type="file"
-                                                        className="absolute inset-0 cursor-pointer opacity-0"
-                                                        accept=".pdf,image/*"
+                        {/* --- TABLA DE LÍNEAS DE COMPRA --- */}
+                        <div className="space-y-4">
+                            <h3 className="flex items-center gap-2 border-b border-blue-100 pb-2 text-sm font-bold tracking-tight text-slate-800 uppercase">
+                                <ShoppingBag className="h-4 w-4 text-blue-600" />{' '}
+                                Líneas de Compra y Margen
+                            </h3>
+                            <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+                                <Table>
+                                    <TableHeader className="bg-muted/30">
+                                        <TableRow>
+                                            <TableHead className="w-[30%]">
+                                                Producto
+                                            </TableHead>
+                                            <TableHead className="w-[10%] text-right">
+                                                Cant.
+                                            </TableHead>
+                                            <TableHead className="w-[15%] text-right">
+                                                Costo Unit.
+                                            </TableHead>
+                                            <TableHead className="w-[15%] text-right">
+                                                P. Venta Ref.
+                                            </TableHead>
+                                            <TableHead className="w-[12%] text-center">
+                                                Margen
+                                            </TableHead>
+                                            <TableHead className="w-[12%] text-right">
+                                                Subtotal
+                                            </TableHead>
+                                            <TableHead className="w-[6%]"></TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {rows.map((row) => (
+                                            <TableRow
+                                                key={row.id}
+                                                className="transition-colors hover:bg-blue-50/20"
+                                            >
+                                                <TableCell className="p-2">
+                                                    <SearchableSelect
+                                                        options={productOptions}
+                                                        value={row.id_product}
+                                                        onChange={(val) => {
+                                                            const opt =
+                                                                productOptions.find(
+                                                                    (o) =>
+                                                                        o.value ===
+                                                                        val,
+                                                                );
+                                                            updateRow(
+                                                                row.id,
+                                                                'id_product',
+                                                                val,
+                                                            );
+                                                            updateRow(
+                                                                row.id,
+                                                                'sale_price',
+                                                                opt?.salePrice ||
+                                                                    0,
+                                                            );
+                                                        }}
+                                                        placeholder="Buscar producto..."
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="p-2 text-center">
+                                                    <Input
+                                                        type="number"
+                                                        className={
+                                                            tableInputClass
+                                                        }
+                                                        value={row.quantity}
                                                         onChange={(e) =>
-                                                            onFieldChange(
-                                                                'file',
-                                                                e.target
-                                                                    .files?.[0] ||
-                                                                    null,
+                                                            updateRow(
+                                                                row.id,
+                                                                'quantity',
+                                                                parseFloat(
+                                                                    e.target
+                                                                        .value,
+                                                                ) || 0,
                                                             )
                                                         }
                                                     />
-                                                </Button>
-                                                {data.file && (
-                                                    <span className="text-xs text-muted-foreground">
-                                                        {data.file.name}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </div>
+                                                </TableCell>
+                                                <TableCell className="p-2">
+                                                    <Input
+                                                        type="number"
+                                                        step="0.01"
+                                                        className={cn(
+                                                            tableInputClass,
+                                                            Number(
+                                                                row.unit_price,
+                                                            ) >
+                                                                Number(
+                                                                    row.sale_price,
+                                                                ) &&
+                                                                row.sale_price >
+                                                                    0 &&
+                                                                'font-bold text-red-600',
+                                                        )}
+                                                        value={row.unit_price}
+                                                        onChange={(e) =>
+                                                            updateRow(
+                                                                row.id,
+                                                                'unit_price',
+                                                                parseFloat(
+                                                                    e.target
+                                                                        .value,
+                                                                ) || 0,
+                                                            )
+                                                        }
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="p-2">
+                                                    <Input
+                                                        type="number"
+                                                        step="0.01"
+                                                        className={
+                                                            tableInputClass
+                                                        }
+                                                        value={row.sale_price}
+                                                        onChange={(e) =>
+                                                            updateRow(
+                                                                row.id,
+                                                                'sale_price',
+                                                                parseFloat(
+                                                                    e.target
+                                                                        .value,
+                                                                ) || 0,
+                                                            )
+                                                        }
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="p-2">
+                                                    <div className="flex justify-center">
+                                                        <MarginIndicator
+                                                            cost={
+                                                                row.unit_price
+                                                            }
+                                                            salePrice={
+                                                                row.sale_price
+                                                            }
+                                                        />
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="p-2 text-right font-bold text-slate-700 tabular-nums">
+                                                    S/{' '}
+                                                    {(
+                                                        row.quantity *
+                                                        row.unit_price
+                                                    ).toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="p-2 text-center">
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7 text-muted-foreground hover:text-red-600"
+                                                        onClick={() =>
+                                                            setRows(
+                                                                rows.filter(
+                                                                    (r) =>
+                                                                        r.id !==
+                                                                        row.id,
+                                                                ),
+                                                            )
+                                                        }
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+
+                            <div className="flex items-start justify-between pt-4">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                        setRows([
+                                            ...rows,
+                                            {
+                                                id: Date.now(),
+                                                id_product: '',
+                                                quantity: 1,
+                                                unit_price: 0,
+                                                sale_price: 0,
+                                            },
+                                        ])
+                                    }
+                                    className="text-blue-600 hover:bg-blue-50"
+                                >
+                                    <Plus className="mr-2 h-4 w-4" /> Añadir
+                                    línea de producto
+                                </Button>
+
+                                <div className="w-full max-w-xs space-y-3">
+                                    <div className="flex justify-between text-sm text-muted-foreground">
+                                        <span>Base Imponible</span>
+                                        <span>S/ {subTotal.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm text-muted-foreground">
+                                        <span>IGV (18%)</span>
+                                        <span>S/ {igvAmount.toFixed(2)}</span>
+                                    </div>
+                                    <div className="mt-4 flex justify-between border-t border-blue-200 pt-4">
+                                        <span className="text-lg font-bold tracking-tight text-slate-900 uppercase">
+                                            Total Compra
+                                        </span>
+                                        <span className="text-2xl font-black text-blue-700 tabular-nums">
+                                            S/ {totalAmount.toFixed(2)}
+                                        </span>
                                     </div>
                                 </div>
-                            </TabsContent>
-                        </Tabs>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </form>
+
+            {/* ALERTA FLOTANTE (ESTILO VENTAS) */}
+            {formError && (
+                <div className="fixed top-6 right-6 z-[100] w-auto max-w-md animate-in fade-in slide-in-from-top-2">
+                    <Alert
+                        variant="destructive"
+                        className="border-2 border-red-500 bg-white shadow-xl"
+                    >
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle className="ml-2 font-bold">
+                            Error de Validación
+                        </AlertTitle>
+                        <AlertDescription className="ml-2">
+                            {formError}
+                        </AlertDescription>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-2 right-2"
+                            onClick={() => setFormError(null)}
+                        >
+                            <RotateCcw className="h-3 w-3" />
+                        </Button>
+                    </Alert>
+                </div>
+            )}
         </AppLayout>
     );
 }
