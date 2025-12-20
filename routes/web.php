@@ -20,3 +20,4 @@ require __DIR__.'/settings.php';
 require __DIR__.'/Sales/sales.php';
 require __DIR__.'/Products/products.php';
 require __DIR__.'/Receipts/receipt.php';
+require __DIR__.'/Inventory/inventory.php';

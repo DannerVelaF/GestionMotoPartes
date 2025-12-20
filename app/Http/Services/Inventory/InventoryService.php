@@ -25,14 +25,9 @@ class InventoryService extends BaseService
 
         if (!$product) return null;
 
-        // 1. Calcular nuevo balance (Stock)
-        // Si es compra o devolución, suma. Si es venta, resta (la cantidad debe venir con signo desde el origen o manejarse aquí)
-        // Para simplificar: Asumimos que $quantity ya trae el signo correcto.
-        // Compra: +10, Venta: -5, Anulación de Compra: -10
         $currentStock = $product->stock ?? 0;
         $newBalance = $currentStock + $quantity;
 
-        // 2. Crear Movimiento (Kardex)
         $movement = $this->repo->create([
             'id_product'     => $productId,
             'type'           => $type,
@@ -45,10 +40,8 @@ class InventoryService extends BaseService
             'notes'          => $notes
         ]);
 
-        // 3. Actualizar Producto Maestro
         $product->stock = $newBalance;
 
-        // Si es una compra positiva, actualizamos el costo de compra referencial
         if ($type === 'purchase' && $quantity > 0) {
             $product->purchase_price = $unitCost;
         }

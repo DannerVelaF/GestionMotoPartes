@@ -14,16 +14,10 @@ import { dashboard } from '@/routes';
 import sales from '@/routes/sales';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import {
-    BookOpen,
-    BookText,
-    Folder,
-    LayoutGrid,
-    ShoppingCart,
-} from 'lucide-react';
+import { BookText, LayoutGrid, ShoppingCart, PackageOpen } from 'lucide-react';
 import AppLogo from './app-logo';
 import receipts from '@/routes/receipts';
-import Receipts from '@/routes/receipts';
+import inventory from '@/routes/inventory';
 
 const mainNavItems: NavItem[] = [
     {
@@ -37,23 +31,19 @@ const mainNavItems: NavItem[] = [
         icon: ShoppingCart,
     },
     {
-        title: "Comprobantes",
+        title: 'Comprobantes',
         href: receipts.index.url(),
         icon: BookText,
-    }
+    },
+    {
+        title: 'Inventario',
+        href: inventory.index.url(),
+        icon: PackageOpen
+    },
 ];
 
 const footerNavItems: NavItem[] = [
-    {
-        title: 'Repository',
-        href: 'https://github.com/laravel/react-starter-kit',
-        icon: Folder,
-    },
-    {
-        title: 'Documentation',
-        href: 'https://laravel.com/docs/starter-kits#react',
-        icon: BookOpen,
-    },
+
 ];
 
 export function AppSidebar() {
