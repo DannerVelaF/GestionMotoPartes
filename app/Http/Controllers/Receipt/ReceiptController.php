@@ -165,7 +165,7 @@ class ReceiptController extends Controller
             $query->with('supplier', 'details');
             $query->orderBy('issue_date', 'desc');
         }])->findOrFail($id);
-        if (Session::has('success')) {  
+        if (Session::has('success')) {
             Session::forget('success');
         }
         return Inertia::render('Receipts/EditReceipt', [
@@ -213,10 +213,31 @@ class ReceiptController extends Controller
     public function destroy($id)
     {
         try {
+            // 1. Verificación manual (Ya la tenías, pero asegúrate que use id_parent)
+            $hasChildren = Receipt::where('id_parent', $id)->exists();
+
+            if ($hasChildren) {
+                return back()->withErrors([
+                    'error' => 'No puedes borrar esta factura porque tiene notas de crédito (devoluciones) vinculadas. Primero debes eliminar las notas de crédito.'
+                ]);
+            }
+
+            // 2. Intentar eliminar a través del servicio
             $this->service->deleteReceipt($id);
-            return to_route('receipts.index')->with('success', 'Comprobante eliminado.');
+
+            return to_route('receipts.index')->with('success', 'Comprobante eliminado correctamente.');
+
+        } catch (\Illuminate\Database\QueryException $e) {
+            // ✅ CAPTURA DE ERROR DE BASE DE DATOS (Integrity constraint violation)
+            if ($e->getCode() == "23000") {
+                return back()->withErrors([
+                    'error' => 'Error de integridad: Este documento está siendo usado por otros registros (detalles o referencias) y no puede ser eliminado.'
+                ]);
+            }
+
+            return back()->withErrors(['error' => 'Error inesperado al intentar eliminar.']);
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'No se pudo eliminar el comprobante.']);
+            return back()->withErrors(['error' => 'No se pudo eliminar el comprobante: ' . $e->getMessage()]);
         }
     }
 

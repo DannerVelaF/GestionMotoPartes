@@ -146,7 +146,7 @@ function FloatingAlert({
 }
 
 export default function EditReceipt({ receipt, documentTypes }: Props) {
-    const { flash = {} } = usePage<any>().props;
+    const { flash = {}, errors: serverErrors } = usePage<any>().props;
     const [showSuccess, setShowSuccess] = useState(false);
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
     const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
@@ -161,7 +161,7 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
         quantity: Number(d.quantity),
         unit_price: Number(d.unit_price),
     }));
-
+    const errorMessage = formError || serverErrors.error || serverErrors[0];
     const [rows] = useState(initialRows);
     const isCreditNote = receipt.document_type === 'nota_credito';
     const {
@@ -420,8 +420,8 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                 {showSuccess && flash?.success && (
                     <FloatingAlert message={flash.success} type="success" />
                 )}
-                {formError && (
-                    <FloatingAlert message={formError} type="error" />
+                {errorMessage && (
+                    <FloatingAlert message={errorMessage} type="error" />
                 )}
 
                 <form

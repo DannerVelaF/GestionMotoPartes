@@ -137,11 +137,14 @@ class InventoryMovementsController extends Controller
             $query->whereIn('id_product', $ids);
         }
 
-        $movements = $query->orderBy('id_product')->orderBy('created_at', 'asc')->get();
+        $movements = $query->orderBy('id_product')
+            ->orderBy('created_at', 'asc')
+            ->orderBy('id_movement', 'asc')
+            ->get();
 
         $config = BusinessConfig::first();
         $companyName = $config ? $config->company_name : 'Empresa';
 
-        return Excel::download(new KardexExport($movements, $companyName), "kardex_valorizado_" . now()->format('Ymd') . ".xlsx");
+        return Excel::download(new KardexExport($movements, $companyName), "kardex_" . now()->format('Ymd') . ".xlsx");
     }
 }
