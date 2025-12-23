@@ -11,13 +11,20 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import inventory from '@/routes/inventory';
+import receipts from '@/routes/receipts';
 import sales from '@/routes/sales';
+import users from '@/routes/users';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { BookText, LayoutGrid, ShoppingCart, PackageOpen } from 'lucide-react';
+import {
+    BookText,
+    LayoutGrid,
+    PackageOpen,
+    ShoppingCart,
+    User2,
+} from 'lucide-react';
 import AppLogo from './app-logo';
-import receipts from '@/routes/receipts';
-import inventory from '@/routes/inventory';
 
 const mainNavItems: NavItem[] = [
     {
@@ -38,13 +45,16 @@ const mainNavItems: NavItem[] = [
     {
         title: 'Inventario',
         href: inventory.index.url(),
-        icon: PackageOpen
+        icon: PackageOpen,
+    },
+    {
+        title: 'Usuarios',
+        href: users.index.url(),
+        icon: User2,
     },
 ];
 
-const footerNavItems: NavItem[] = [
-
-];
+const footerNavItems: NavItem[] = [];
 
 export function AppSidebar() {
     return (
