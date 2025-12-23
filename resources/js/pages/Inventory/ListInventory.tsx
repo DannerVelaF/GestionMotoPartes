@@ -4,6 +4,7 @@ import { DataTable } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
+import { KardexExportModal } from '@/pages/Inventory/Reports/KardexExportModal';
 import inventoryRoutes from '@/routes/inventory';
 import { Head, router } from '@inertiajs/react';
 import { RowSelectionState } from '@tanstack/react-table';
@@ -18,7 +19,6 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'use-debounce';
 import { InventoryColumns, InventoryItem } from './Columns';
-import { KardexExportModal } from '@/pages/Inventory/Reports/KardexExportModal';
 
 interface PaginatedInventory {
     data: InventoryItem[];

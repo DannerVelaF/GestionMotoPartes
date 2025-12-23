@@ -21,16 +21,23 @@ class KardexExport implements FromCollection, WithHeadings, WithMapping, WithSty
         $this->companyName = $companyName;
     }
 
-    public function collection() { return $this->data; }
-    public function title(): string { return 'Kardex Valorizado'; }
+    public function collection()
+    {
+        return $this->data;
+    }
+
+    public function title(): string
+    {
+        return 'Kardex de Inventario';
+    }
 
     public function headings(): array
     {
         return [
-            ['Kardex Valorizado - ' . $this->companyName],
+            ['Kardex de Inventario - ' . $this->companyName],
             ['Generado el: ' . now()->format('d/m/Y H:i')],
             [],
-            ['Fecha', 'Producto', 'Tipo Operación', 'Entrada', 'Salida', 'Saldo Cant.', 'Costo Unit.', 'Saldo Valorizado']
+            ['Fecha', 'Producto', 'Tipo Operación', 'Entrada', 'Salida', 'Saldo Cant.']
         ];
     }
 
@@ -51,7 +58,6 @@ class KardexExport implements FromCollection, WithHeadings, WithMapping, WithSty
         $entrada = $qty > 0 ? $qty : null;
         $salida = $qty < 0 ? abs($qty) : null;
 
-        $costo = (float) $m->unit_cost;
         $saldoCant = (float) $m->balance;
 
         return [
@@ -61,8 +67,6 @@ class KardexExport implements FromCollection, WithHeadings, WithMapping, WithSty
             $entrada,
             $salida,
             $saldoCant,
-            $costo,
-            ($saldoCant * $costo) // Saldo Valorizado
         ];
     }
 
@@ -74,10 +78,8 @@ class KardexExport implements FromCollection, WithHeadings, WithMapping, WithSty
                 'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
                 'startColor' => ['rgb' => 'F1F5F9']
             ]],
-            // ✅ Formato Moneda Soles (Columnas G y H)
-            'G:H' => ['numberFormat' => ['formatCode' => '"S/" #,##0.00']],
-            // Alineaciones
-            'D:G' => ['alignment' => ['horizontal' => 'center']],
+            // Alineaciones centradas para las cantidades
+            'D:F' => ['alignment' => ['horizontal' => 'center']],
         ];
     }
 }

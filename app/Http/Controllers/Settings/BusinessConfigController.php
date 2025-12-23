@@ -7,7 +7,9 @@ use App\Http\Services\Settings\BusinessConfigService;
 use App\Models\BusinessConfig;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 
 class BusinessConfigController extends Controller
 {
@@ -27,27 +29,37 @@ class BusinessConfigController extends Controller
         ]);
     }
 
-    public function update(Request $request)
+    public function update(Request $request): RedirectResponse
     {
-        // 1. Validar (Asegúrate que el email no sea 'required' si está vacío)
-        $val = $request->validate([
-            'company_name' => 'required|string|max:255',
-            'ruc'          => 'required|string|size:11',
-            'email'        => 'nullable|email',
-            'api_service_url'   => 'nullable|url',
-            'api_service_token' => 'nullable|string',
+        $validated = $request->validate([
+            'company_name'      => ['required', 'string', 'max:255'],
+            'ruc'               => ['required', 'string', 'size:11'],
+            'address'           => ['nullable', 'string', 'max:500'],
+            'phone'             => ['nullable', 'string', 'max:20'],
+            'email'             => ['nullable', 'email', 'max:255'],
+            'city'              => ['nullable', 'string', 'max:100'],
+            'ticket_footer'     => ['nullable', 'string', 'max:1000'],
+            'api_service_url'   => ['nullable', 'url'],
+            'api_service_token' => ['nullable', 'string'],
+            'logo'              => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
         ]);
 
-        try {
-            // Log para ver si los datos llegan al servicio
-            \Log::info("Iniciando actualización de negocio", $request->all());
+        $config = BusinessConfig::first() ?? new BusinessConfig();
 
-            $this->service->updateSettings($request->all());
-
-            return redirect()->back()->with('success', 'Configuración actualizada con éxito.');
-        } catch (\Exception $e) {
-            // Esto enviará el error real de SQL o de PHP al frontend
-            return redirect()->back()->withErrors(['error' => 'Error interno: ' . $e->getMessage()]);
+        if ($request->hasFile('logo')) {
+            // Eliminar anterior para no llenar el servidor en Polybags Perú
+            if ($config->logo_path) {
+                Storage::disk('public')->delete($config->logo_path);
+            }
+            $path = $request->file('logo')->store('logos', 'public');
+            $config->logo_path = $path;
         }
+
+        // ✅ Limpiamos el array para que el 'logo' (objeto archivo) no intente entrar en la base de datos
+        $dataToSave = $request->except('logo');
+        $config->fill($dataToSave);
+        $config->save();
+
+        return back()->with('success', 'Configuración actualizada correctamente.');
     }
 }

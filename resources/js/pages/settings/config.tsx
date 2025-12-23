@@ -20,8 +20,10 @@ import {
     Building2,
     CheckCircle2,
     Globe,
+    ImageIcon,
     Key,
     Printer,
+    UploadCloud,
 } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
 
@@ -37,6 +39,7 @@ interface BusinessConfig {
     ticket_footer: string;
     api_service_token: string;
     api_service_url: string;
+    logo_path?: string; // Ruta del logo guardado en DB
 }
 
 interface Props {
@@ -91,8 +94,11 @@ export default function Config({ config, flash }: Props) {
         message: string;
         type: 'success' | 'error';
     } | null>(null);
+    const [logoPreview, setLogoPreview] = useState<string | null>(
+        config?.logo_path ? `/storage/${config.logo_path}` : null,
+    );
 
-    const { data, setData, put, processing, errors } = useForm({
+    const { data, setData, post, processing, errors } = useForm({
         company_name: config?.company_name || '',
         ruc: config?.ruc || '',
         address: config?.address || '',
@@ -102,6 +108,7 @@ export default function Config({ config, flash }: Props) {
         ticket_footer: config?.ticket_footer || '',
         api_service_token: config?.api_service_token || '',
         api_service_url: config?.api_service_url || '',
+        logo: null as File | null, // Nuevo campo para el archivo
     });
 
     // Escuchar mensajes flash del backend
@@ -110,27 +117,31 @@ export default function Config({ config, flash }: Props) {
             setAlert({ message: flash.success, type: 'success' });
         if (flash.error) setAlert({ message: flash.error, type: 'error' });
     }, [flash]);
-
+    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setData('logo', file);
+            setLogoPreview(URL.createObjectURL(file)); // Generar vista previa temporal
+        }
+    };
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         setAlert(null);
 
-        put(configuracion.negocio.update().url, {
+        // Enviamos directamente como POST
+        post(configuracion.negocio.update().url, {
+            forceFormData: true, // Crucial para archivos
             preserveScroll: true,
+            onSuccess: () =>
+                setAlert({
+                    message: 'Configuración actualizada correctamente',
+                    type: 'success',
+                }),
             onError: (errors) => {
-                // Esto te dirá en la consola de F12 exactamente qué falló
-                console.log('Errores detallados del servidor:', errors);
-
-                // Si el error viene de la base de datos (catch del controlador)
-                if (errors.error) {
-                    setAlert({ message: errors.error, type: 'error' });
-                } else {
-                    setAlert({
-                        message:
-                            'Faltan campos obligatorios o el formato es inválido.',
-                        type: 'error',
-                    });
-                }
+                setAlert({
+                    message: errors.error || 'Error al validar los campos.',
+                    type: 'error',
+                });
             },
         });
     };
@@ -165,6 +176,60 @@ export default function Config({ config, flash }: Props) {
                     </div>
 
                     <form onSubmit={submit} className="space-y-6">
+                        <Card className="border border-border shadow-none">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                    <ImageIcon className="h-4 w-4 text-purple-600" />
+                                    Identidad de Marca
+                                </CardTitle>
+                                <CardDescription>
+                                    Sube el logo que aparecerá en tus
+                                    comprobantes y reportes.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex flex-col items-center gap-6 md:flex-row">
+                                    {/* Preview del Logo */}
+                                    <div className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-muted/50">
+                                        {logoPreview ? (
+                                            <img
+                                                src={logoPreview}
+                                                alt="Logo preview"
+                                                className="h-full w-full object-contain p-2"
+                                            />
+                                        ) : (
+                                            <UploadCloud className="h-8 w-8 text-muted-foreground" />
+                                        )}
+                                    </div>
+
+                                    {/* Input de archivo personalizado */}
+                                    <div className="flex-1 space-y-2">
+                                        <Label htmlFor="logo">
+                                            Seleccionar imagen (PNG, JPG - Máx
+                                            2MB)
+                                        </Label>
+                                        <Input
+                                            id="logo"
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleLogoChange}
+                                            className="cursor-pointer"
+                                        />
+                                        {errors.logo && (
+                                            <p className="text-xs text-destructive">
+                                                {errors.logo}
+                                            </p>
+                                        )}
+                                        <p className="text-[10px] text-muted-foreground italic">
+                                            Se recomienda un logo con fondo
+                                            transparente y formato cuadrado o
+                                            rectangular horizontal.
+                                        </p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
                         {/* SECCIÓN 1: DATOS DE LA EMPRESA */}
                         <Card className="border border-border shadow-none">
                             <CardHeader>

@@ -10,8 +10,16 @@ class BusinessConfig extends Model
     protected $primaryKey = 'id_business_config';
 
     protected $fillable = [
-        'company_name', 'ruc', 'address', 'phone', 'email',
-        'city', 'ticket_footer', 'api_service_token', 'api_service_url'
+        'company_name',
+        'ruc',
+        'address',
+        'phone',
+        'email',
+        'city',
+        'ticket_footer',
+        'api_service_token',
+        'api_service_url',
+        "logo_path"
     ];
 
     protected function casts(): array

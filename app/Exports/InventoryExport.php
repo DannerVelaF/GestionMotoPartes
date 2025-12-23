@@ -28,26 +28,44 @@ class InventoryExport implements FromCollection, WithHeadings, WithMapping, With
     public function headings(): array
     {
         return [
-            ['Reporte de Inventario y Rentabilidad - ' . $this->companyName],
+            ['Reporte Detallado de Inventario y Rentabilidad - ' . $this->companyName],
             ['Generado el: ' . now()->format('d/m/Y H:i')],
             [],
-            ['SKU', 'Producto', 'Stock', 'Costo Unit.', 'Precio Venta', 'Margen Unit.', 'Ganancia Estimada', 'Valorización']
+            [
+                'SKU',
+                'Producto',
+                'Stock Actual',
+                'Costo Unit.',
+                'P. Venta',
+                'Margen (%)', // Nueva columna coincidente con la web
+                'Ganancia Est.',
+                'Valorización'
+            ]
         ];
     }
 
     public function map($p): array
     {
-        $marginUnit = $p->sale_price - $p->purchase_price;
-        $totalProfit = $marginUnit * $p->stock;
-        $valuation = $p->stock * $p->purchase_price;
+        $cost = (float) $p->purchase_price;
+        $sale = (float) $p->sale_price;
+        $stock = (float) $p->stock;
+
+        // Lógica de Margen (%) coincidente con el Frontend
+        $marginPercentage = $sale > 0 ? (($sale - $cost) / $sale) * 100 : 0;
+
+        // Ganancia Estimada: (Precio - Costo) * Stock
+        $totalProfit = ($sale - $cost) * $stock;
+
+        // Valorización: Stock * Costo
+        $valuation = $stock * $cost;
 
         return [
             $p->product_code,
             $p->product_name,
-            $p->stock,
-            $p->purchase_price,
-            $p->sale_price,
-            $marginUnit,
+            $stock,
+            $cost,
+            $sale,
+            round($marginPercentage, 1) . '%',
             $totalProfit,
             $valuation
         ];
@@ -57,13 +75,21 @@ class InventoryExport implements FromCollection, WithHeadings, WithMapping, With
     {
         return [
             1 => ['font' => ['bold' => true, 'size' => 14]],
-            4 => ['font' => ['bold' => true], 'fill' => [
-                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                'startColor' => ['rgb' => 'F1F5F9']
-            ]],
-            // Formatos de moneda para columnas D hasta H
-            'D4:H500' => ['numberFormat' => ['formatCode' => '"S/" #,##0.00']],
-            'C' => ['alignment' => ['horizontal' => 'right']],
+            2 => ['font' => ['italic' => true, 'size' => 10]],
+            4 => [
+                'font' => ['bold' => true],
+                'fill' => [
+                    'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => 'F1F5F9']
+                ]
+            ],
+            // Formato de Moneda para Costo, Venta, Ganancia y Valorización
+            'D4:E2000' => ['numberFormat' => ['formatCode' => '"S/" #,##0.00']],
+            'G4:H2000' => ['numberFormat' => ['formatCode' => '"S/" #,##0.00']],
+
+            // Alineación
+            'C' => ['alignment' => ['horizontal' => 'center']], // Stock centrado
+            'F' => ['alignment' => ['horizontal' => 'right']],  // Margen % a la derecha
         ];
     }
 }

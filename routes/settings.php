@@ -29,7 +29,6 @@ Route::middleware('auth')->group(function () {
     Route::get("configuracion/negocio", [\App\Http\Controllers\Settings\BusinessConfigController::class, 'index'])
         ->name('configuracion.negocio');
 
-    Route::put("configuracion/negocio", [\App\Http\Controllers\Settings\BusinessConfigController::class, 'update'])
+    Route::post("configuracion/negocio", [\App\Http\Controllers\Settings\BusinessConfigController::class, 'update'])
         ->name('configuracion.negocio.update');
-
 });
