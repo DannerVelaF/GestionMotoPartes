@@ -1,6 +1,4 @@
 import { SearchableSelect } from '@/components/SearchableSelect';
-import { format } from 'date-fns'; // <--- ASEGÚRATE DE AÑADIR ESTO
-import { es } from 'date-fns/locale';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
     AlertDialog,
@@ -13,6 +11,7 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
     DropdownMenu,
@@ -30,7 +29,9 @@ import categoriesRoute from '@/routes/product-categories';
 import typesRoute from '@/routes/product-types';
 import productsRoute from '@/routes/products';
 import receipts from '@/routes/receipts';
+import sales from '@/routes/sales';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { format } from 'date-fns'; // <--- ASEGÚRATE DE AÑADIR ESTO
 import {
     AlertCircle,
     Barcode,
@@ -57,7 +58,6 @@ import {
     Warehouse,
 } from 'lucide-react';
 import { FormEventHandler, useEffect, useRef, useState } from 'react';
-import sales from '@/routes/sales';
 
 // --- INTERFACES ---
 interface FlashProps {
@@ -214,7 +214,10 @@ export default function EditProduct({
 
     const inputClasses =
         'h-10 w-full rounded-none border-0 border-b bg-transparent px-0 text-xs shadow-none transition-all placeholder:text-muted-foreground/30 focus:ring-0 focus:border-blue-600 focus:outline-none font-medium';
-
+    const saleMovements =
+        product.movements?.filter((m: any) => m.type === 'sale') || [];
+    const purchaseMovements =
+        product.movements?.filter((m: any) => m.type === 'purchase') || [];
     return (
         <AppLayout
             breadcrumbs={[
@@ -652,6 +655,105 @@ export default function EditProduct({
                             </TabsContent>
 
                             <TabsContent
+                                value="sales"
+                                className="animate-in space-y-6 fade-in"
+                            >
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                    <StatCard
+                                        title="Unidades Vendidas"
+                                        value={
+                                            product.analytics?.sales_qty || 0
+                                        }
+                                        icon={
+                                            <TrendingUp className="text-blue-600" />
+                                        }
+                                        description="Volumen total de salida"
+                                    />
+                                    <StatCard
+                                        title="Ingresos Totales"
+                                        value={`S/ ${(product.analytics?.sales_revenue || 0).toFixed(2)}`}
+                                        icon={
+                                            <DollarSign className="text-emerald-500" />
+                                        }
+                                        description="Recaudación bruta"
+                                    />
+                                    <StatCard
+                                        title="Precio Prom. Venta"
+                                        value={`S/ ${(product.analytics?.sales_avg_price || 0).toFixed(2)}`}
+                                        icon={
+                                            <Info className="text-purple-500" />
+                                        }
+                                        description="Ticket promedio"
+                                    />
+                                </div>
+
+                                <Card className="overflow-hidden border-none shadow-sm dark:bg-neutral-900/50">
+                                    <CardHeader className="border-b bg-muted/20 py-4">
+                                        <CardTitle className="text-[10px] font-black tracking-widest uppercase">
+                                            Historial Detallado de Ventas
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="p-0">
+                                        <TransactionTable
+                                            movements={saleMovements}
+                                            type="sale"
+                                            emptyMessage="No hay ventas registradas para este producto."
+                                        />
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+
+                            {/* --- TAB: COMPRAS --- */}
+                            <TabsContent
+                                value="purchase"
+                                className="animate-in space-y-6 fade-in"
+                            >
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                    <StatCard
+                                        title="Stock Ingresado"
+                                        value={
+                                            product.analytics?.purchases_qty ||
+                                            0
+                                        }
+                                        icon={
+                                            <TrendingDown className="text-orange-600" />
+                                        }
+                                        description="Abastecimiento histórico"
+                                    />
+                                    <StatCard
+                                        title="Inversión Total"
+                                        value={`S/ ${(product.analytics?.purchases_investment || 0).toFixed(2)}`}
+                                        icon={
+                                            <Warehouse className="text-blue-500" />
+                                        }
+                                        description="Costo total acumulado"
+                                    />
+                                    <StatCard
+                                        title="Costo Prom. Unitario"
+                                        value={`S/ ${(product.analytics?.purchases_avg_cost || 0).toFixed(2)}`}
+                                        icon={
+                                            <History className="text-amber-500" />
+                                        }
+                                        description="Valor ponderado"
+                                    />
+                                </div>
+
+                                <Card className="overflow-hidden border-none shadow-sm dark:bg-neutral-900/50">
+                                    <CardHeader className="border-b bg-muted/20 py-4">
+                                        <CardTitle className="text-[10px] font-black tracking-widest uppercase">
+                                            Historial de Abastecimiento
+                                        </CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="p-0">
+                                        <TransactionTable
+                                            movements={purchaseMovements}
+                                            type="purchase"
+                                            emptyMessage="No hay compras registradas para este producto."
+                                        />
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+                            <TabsContent
                                 value="inventory"
                                 className="animate-in space-y-8 duration-300 fade-in-50"
                             >
@@ -769,8 +871,7 @@ export default function EditProduct({
                                                                             'return'
                                                                             ? sales.show(
                                                                                   {
-                                                                                      sale:
-                                                                                          move.reference_id,
+                                                                                      sale: move.reference_id,
                                                                                   },
                                                                               )
                                                                             : receipts.show(
@@ -887,5 +988,123 @@ export default function EditProduct({
                 </div>
             </form>
         </AppLayout>
+    );
+}
+
+function StatCard({ title, value, icon, description, highlight = false }: any) {
+    return (
+        <Card
+            className={cn(
+                'border-none shadow-sm transition-all hover:scale-[1.02]',
+                highlight
+                    ? 'bg-red-50 ring-2 ring-red-500/50 dark:bg-red-950/20'
+                    : 'bg-white dark:bg-neutral-900/50',
+            )}
+        >
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                    {title}
+                </CardTitle>
+                <div className="rounded-lg bg-neutral-50 p-2 dark:bg-neutral-800">
+                    {icon}
+                </div>
+            </CardHeader>
+            <CardContent>
+                <div className="text-2xl font-black tracking-tighter tabular-nums">
+                    {value}
+                </div>
+                <p className="mt-1 text-[10px] font-medium text-muted-foreground italic">
+                    {description}
+                </p>
+            </CardContent>
+        </Card>
+    );
+}
+
+function TransactionTable({
+    movements,
+    type,
+    emptyMessage,
+}: {
+    movements: any[];
+    type: 'sale' | 'purchase';
+    emptyMessage: string;
+}) {
+    if (!movements.length) {
+        return (
+            <div className="py-20 text-center text-sm font-medium text-muted-foreground">
+                {emptyMessage}
+            </div>
+        );
+    }
+
+    return (
+        <div className="overflow-auto">
+            <table className="w-full text-sm">
+                <thead className="bg-muted/10">
+                    <tr className="border-b text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                        <th className="px-6 py-3 text-left">Fecha</th>
+                        <th className="px-6 py-3 text-left">
+                            Documento / Referencia
+                        </th>
+                        <th className="px-6 py-3 text-right">Cantidad</th>
+                        <th className="px-6 py-3 text-right">
+                            {type === 'sale' ? 'P. Venta' : 'Costo Compra'}
+                        </th>
+                        <th className="px-6 py-3 text-right">Total</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y">
+                    {movements.map((move) => (
+                        <tr
+                            key={move.id_movement}
+                            className="cursor-pointer transition-colors hover:bg-muted/20"
+                            onClick={() => {
+                                if (!move.reference_id) return;
+                                const url = move.reference_type.includes(
+                                    'Sales',
+                                )
+                                    ? sales.show({ sale: move.reference_id })
+                                          .url
+                                    : receipts.show({
+                                          receipt: move.reference_id,
+                                      }).url;
+                                router.visit(url);
+                            }}
+                        >
+                            <td className="px-6 py-4 font-medium">
+                                {format(
+                                    new Date(move.created_at),
+                                    'dd/MM/yyyy HH:mm',
+                                )}
+                            </td>
+                            <td className="px-6 py-4">
+                                <div className="flex flex-col">
+                                    <span className="font-bold text-blue-600 dark:text-blue-400">
+                                        {move.reference_label || 'Movimiento'}
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground uppercase">
+                                        {move.user?.name || 'Sistema'}
+                                    </span>
+                                </div>
+                            </td>
+                            <td className="px-6 py-4 text-right font-bold tabular-nums">
+                                {Math.abs(move.quantity)}
+                            </td>
+                            <td className="px-6 py-4 text-right tabular-nums">
+                                S/ {parseFloat(move.unit_cost || 0).toFixed(2)}
+                            </td>
+                            <td className="px-6 py-4 text-right font-black text-foreground tabular-nums">
+                                S/{' '}
+                                {(
+                                    Math.abs(move.quantity) *
+                                    parseFloat(move.unit_cost || 0)
+                                ).toFixed(2)}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
     );
 }

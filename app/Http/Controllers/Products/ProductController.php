@@ -10,6 +10,7 @@ use App\Models\ProductCategory;
 use App\Models\Products;
 use App\Models\ProductType;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
@@ -144,30 +145,76 @@ class ProductController extends Controller
 
     public function show($id)
     {
+        // 1. Cargamos movimientos con su usuario y su referencia polimórfica
         $product = Products::with(['movements' => function ($query) {
-            $query->with('user')
+            $query->with(['user', 'reference']) // <--- AGREGAR 'reference' AQUÍ
                 ->orderBy('created_at', 'desc')
                 ->orderBy('id_movement', 'desc')
                 ->take(20);
         }])->findOrFail($id);
 
-        $categories = ProductCategory::select("id_product_category", "name_product_category")
-            ->where("status", GenericStatus::ACTIVE)
-            ->get();
+        // 2. Mapeamos los movimientos para generar el label que el componente React necesita
+        $mappedMovements = $product->movements->map(function ($move) {
+            $refLabel = $move->notes ?? 'Movimiento manual';
 
-        $brands = Brand::select("id_brand", "name_brand")
-            ->where("status", GenericStatus::ACTIVE)
-            ->get();
+            if ($move->reference) {
+                // Si la referencia es una Venta
+                if ($move->reference_type === \App\Models\Sales::class) {
+                    $refLabel = "Venta " . ($move->reference->code_sales ?? "#{$move->reference_id}");
+                }
+                // Si la referencia es un Recibo (Compra o Devolución)
+                elseif ($move->reference_type === \App\Models\Receipt::class) {
+                    $tipo = ($move->reference->document_type === 'nota_credito') ? 'Devolución' : 'Compra';
+                    $refLabel = $tipo . " " . ($move->reference->receipt_code ?? "#{$move->reference_id}");
+                }
+            }
 
-        $types = ProductType::select("id_product_type", "name_product_type")
-            ->where("status", GenericStatus::ACTIVE)
-            ->get();
+            return [
+                'id_movement'    => $move->id_movement,
+                'type'           => $move->type,
+                'quantity'       => $move->quantity,
+                'unit_cost'      => $move->unit_cost,
+                'balance'        => $move->balance,
+                'reference_label' => $refLabel, // <--- ESTO ES LO QUE LEERÁ TU TABLA
+                'reference_type' => $move->reference_type,
+                'reference_id'   => $move->reference_id,
+                'created_at'     => $move->created_at,
+                'user'           => $move->user,
+                'notes'          => $move->notes,
+            ];
+        });
+
+        // 3. (Analítica - Mantén tu lógica anterior aquí)
+        $salesAnalytics = DB::table('sale_details')
+            ->where('id_product', $id)
+            ->select(DB::raw('SUM(quantity) as total_qty'), DB::raw('SUM(quantity * unit_price) as total_revenue'), DB::raw('AVG(unit_price) as avg_price'))
+            ->first();
+
+        $purchasesAnalytics = DB::table('receipt_details')
+            ->where('id_product', $id)
+            ->select(DB::raw('SUM(quantity) as total_qty'), DB::raw('SUM(quantity * unit_price) as total_investment'), DB::raw('AVG(unit_price) as avg_cost'))
+            ->first();
+
+        // 4. Datos maestros
+        $categories = ProductCategory::where("status", GenericStatus::ACTIVE)->get();
+        $brands = Brand::where("status", GenericStatus::ACTIVE)->get();
+        $types = ProductType::where("status", GenericStatus::ACTIVE)->get();
 
         return Inertia::render("Products/EditProduct", [
-            'product' => $product,
+            'product' => array_merge($product->only(['id_product', 'product_name', 'product_code', 'sale_price', 'id_category', 'id_brand', 'id_product_type', 'notes', 'status', 'url_image', 'purchase_price', 'stock']), [
+                'movements' => $mappedMovements, // <--- ENVIAMOS LOS MOVIMIENTOS MAPEADOS
+                'analytics' => [
+                    'sales_qty' => (float)($salesAnalytics->total_qty ?? 0),
+                    'sales_revenue' => (float)($salesAnalytics->total_revenue ?? 0),
+                    'sales_avg_price' => (float)($salesAnalytics->avg_price ?? 0),
+                    'purchases_qty' => (float)($purchasesAnalytics->total_qty ?? 0),
+                    'purchases_investment' => (float)($purchasesAnalytics->total_investment ?? 0),
+                    'purchases_avg_cost' => (float)($purchasesAnalytics->avg_cost ?? 0),
+                ]
+            ]),
             'categories' => $categories,
             'brands' => $brands,
-            "types" => $types
+            'types' => $types
         ]);
     }
 

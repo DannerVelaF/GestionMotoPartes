@@ -3,40 +3,38 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn, isSameUrl, resolveUrl } from '@/lib/utils';
 import { edit as editAppearance } from '@/routes/appearance';
-import { edit } from '@/routes/profile';
-import { show } from '@/routes/two-factor';
+import configuracion from '@/routes/configuracion';
 import { edit as editPassword } from '@/routes/user-password';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
 import { type PropsWithChildren } from 'react';
-import configuracion from '@/routes/configuracion';
 
 const sidebarNavItems: NavItem[] = [
-    {
+    /*{
         title: 'Profile',
         href: edit(),
         icon: null,
+    },*/
+    {
+        title: 'Empresa',
+        href: configuracion.negocio.url(),
+        icon: null,
     },
     {
-        title: 'Password',
+        title: 'Cambio de contraseña',
         href: editPassword(),
         icon: null,
     },
-    {
+    /*{
         title: 'Two-Factor Auth',
         href: show(),
         icon: null,
-    },
+    },*/
     {
-        title: 'Appearance',
+        title: 'Apariencia',
         href: editAppearance(),
         icon: null,
     },
-    {
-        title:"Empresa",
-        href: configuracion.negocio.url(),
-        icon: null,
-    }
 ];
 
 export default function SettingsLayout({ children }: PropsWithChildren) {
@@ -50,8 +48,8 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
     return (
         <div className="px-4 py-6">
             <Heading
-                title="Settings"
-                description="Manage your profile and account settings"
+                title="Configuración"
+                description="Manega la información de tu empresa y cuenta."
             />
 
             <div className="flex flex-col lg:flex-row lg:space-x-12">

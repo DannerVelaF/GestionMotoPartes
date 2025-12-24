@@ -50,6 +50,10 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn() => $request->session()->get('error'),
                 'saleId'  => fn() => $request->session()->get('saleId'),
             ],
+            'business' => [
+                'company_name' => \App\Models\BusinessConfig::first()?->company_name ?? 'Empresa Sin Nombre',
+                'logo_path' => \App\Models\BusinessConfig::first()?->logo_path,
+            ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }

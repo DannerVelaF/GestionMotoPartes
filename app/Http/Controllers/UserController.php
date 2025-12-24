@@ -12,10 +12,35 @@ use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
+        $search = $request->input('search');
+        $perPage = $request->input('per_page', 10);
+
+        if (!is_numeric($perPage) || $perPage < 1) {
+            $perPage = 10;
+        }
+
+        $query = User::query()
+            ->when($search, function ($query, $search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('father_last_name', 'like', "%{$search}%")
+                        ->orWhere('mother_last_name', 'like', "%{$search}%")
+                        ->orWhere('username', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%");
+                });
+            })
+            ->orderBy('name', 'asc');
+
+        $users = $query->paginate((int)$perPage)->withQueryString();
+
         return Inertia::render('Users/ListUsers', [
-            'users' => User::orderBy('name')->get(),
+            'users' => $users,
+            'filters' => [
+                'search' => $search,
+                'per_page' => (int)$perPage,
+            ]
         ]);
     }
 
