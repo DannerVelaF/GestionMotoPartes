@@ -10,8 +10,8 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
+import receiptsRoute from '@/routes/receipts';
 import reports from '@/routes/reports';
-import sales from '@/routes/sales';
 import { Head, router } from '@inertiajs/react';
 import {
     ArrowLeft,
@@ -21,24 +21,24 @@ import {
     FileText,
     Filter,
     Percent,
-    PieChart,
+    PieChart as PieIcon,
 } from 'lucide-react';
 import {
     Bar,
     BarChart,
     CartesianGrid,
     Cell,
-    Tooltip as ChartTooltip,
     ResponsiveContainer,
+    Tooltip as ChartTooltip,
     XAxis,
     YAxis,
 } from 'recharts';
 
 interface TaxItem {
     document_type: string;
-    base_imponible: string | number;
-    igv: string | number;
-    total: string | number;
+    base_imponible: number;
+    igv: number;
+    total: number;
 }
 
 interface Props {
@@ -48,15 +48,12 @@ interface Props {
 
 const COLORS = ['#2563eb', '#10b981', '#f59e0b', '#6366f1'];
 
-export default function TaxReport({
-    reportData = [],
-    filters = { from: '', to: '' },
-}: Props) {
+export default function TaxReport({ reportData, filters }: Props) {
     const totals = reportData.reduce(
         (acc, item) => ({
-            base: acc.base + Number(item.base_imponible),
-            igv: acc.igv + Number(item.igv),
-            total: acc.total + Number(item.total),
+            base: acc.base + item.base_imponible,
+            igv: acc.igv + item.igv,
+            total: acc.total + item.total,
         }),
         { base: 0, igv: 0, total: 0 },
     );
@@ -64,14 +61,14 @@ export default function TaxReport({
     const documentNames: Record<string, string> = {
         factura: 'Facturas',
         boleta: 'Boletas',
-        nota_venta: 'Notas de Venta',
+        nota_credito: 'Notas de Crédito',
     };
 
     const handleFilterChange = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         router.get(
-            reports.tax().url,
+            reports.tax().url, // Asegúrate de que esta ruta apunte a ReceiptController@taxReport
             { from: formData.get('from'), to: formData.get('to') },
             { preserveState: true, preserveScroll: true },
         );
@@ -80,23 +77,31 @@ export default function TaxReport({
     return (
         <AppLayout
             breadcrumbs={[
-                { title: 'Ventas', href: sales.index().url },
+                { title: 'Comprobantes', href: receiptsRoute.index().url },
                 { title: 'Reportes', href: '#' },
-                { title: 'Libro de Ventas / IGV', href: '' },
+                { title: 'Libro de Compras / IGV', href: '' },
             ]}
         >
-            <Head title="Reporte de Impuestos" />
+            <Head title="Libro de Compras / IGV" />
 
             <div className="flex h-full flex-col bg-background">
-                {/* --- HEADER STICKY (Estilo Neutral) --- */}
+                {/* --- HEADER STICKY --- */}
                 <div className="sticky top-0 z-20 flex items-center justify-between border-b bg-background/95 px-8 py-4 backdrop-blur dark:border-neutral-800">
                     <div className="flex items-center gap-4">
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={() => window.history.back()}
+                            className="h-9 w-9 rounded-full dark:border-neutral-800 dark:hover:bg-neutral-900"
+                        >
+                            <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+                        </Button>
                         <div>
                             <h1 className="text-lg font-bold tracking-tight text-foreground">
-                                Libro de Ventas
+                                Libro de Compras (IGV)
                             </h1>
                             <p className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
-                                Impuestos y Base Imponible
+                                Auditoría Contable de Gastos
                             </p>
                         </div>
                     </div>
@@ -111,14 +116,14 @@ export default function TaxReport({
                                 type="date"
                                 name="from"
                                 defaultValue={filters.from}
-                                className="h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0 dark:text-neutral-200"
+                                className="h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0"
                             />
                             <span className="text-muted-foreground/30">|</span>
                             <Input
                                 type="date"
                                 name="to"
                                 defaultValue={filters.to}
-                                className="h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0 dark:text-neutral-200"
+                                className="h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0"
                             />
                         </div>
                         <Button
@@ -133,46 +138,46 @@ export default function TaxReport({
                             size="sm"
                             className="dark:border-neutral-800 dark:hover:bg-neutral-900"
                         >
-                            <Download className="mr-2 h-3.5 w-3.5" /> SUNAT
-                            (CSV)
+                            <Download className="mr-2 h-3.5 w-3.5" /> Exportar
+                            CSV
                         </Button>
                     </form>
                 </div>
 
                 <div className="flex-1 overflow-auto bg-muted/5 p-8 dark:bg-neutral-950/20">
                     <div className="mx-auto max-w-7xl space-y-8">
-                        {/* --- KPI CARDS (Consistentes) --- */}
+                        {/* --- KPI CARDS --- */}
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <TaxStatCard
+                                title="Crédito Fiscal (IGV 18%)"
+                                value={`S/ ${totals.igv.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                                icon={<Percent className="h-4 w-4" />}
+                                colorClass="text-emerald-600 dark:text-emerald-400"
+                                description="Impuesto recuperable"
+                            />
                             <TaxStatCard
                                 title="Base Imponible"
                                 value={`S/ ${totals.base.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
                                 icon={<Calculator className="h-4 w-4" />}
                                 colorClass="text-blue-600 dark:text-blue-400"
-                                description="Monto neto sin impuestos"
+                                description="Total neto de compras"
                             />
-                            <TaxStatCard
-                                title="IGV Recaudado (18%)"
-                                value={`S/ ${totals.igv.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
-                                icon={<Percent className="h-4 w-4" />}
-                                colorClass="text-emerald-600 dark:text-emerald-400"
-                                description="Débito fiscal generado"
-                            />
-                            <Card className="rounded-3xl border-none bg-blue-600 text-white shadow-sm ring-1 ring-slate-200 dark:ring-blue-900">
+                            <Card className="rounded-3xl border-none bg-neutral-900 text-white shadow-xl dark:bg-white dark:text-black">
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <CardTitle className="text-[10px] font-black tracking-widest text-blue-100 uppercase">
-                                        Total General
+                                    <CardTitle className="text-[10px] font-black tracking-widest uppercase opacity-70">
+                                        Total Egresos
                                     </CardTitle>
-                                    <FileText className="h-4 w-4 text-blue-100" />
+                                    <FileText className="h-4 w-4 opacity-70" />
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="text-2xl font-black tracking-tight tabular-nums">
+                                    <div className="text-2xl font-black tracking-tighter tabular-nums">
                                         S/{' '}
                                         {totals.total.toLocaleString('es-PE', {
                                             minimumFractionDigits: 2,
                                         })}
                                     </div>
-                                    <p className="mt-1 text-[10px] font-medium text-blue-100 opacity-80">
-                                        Suma total con IGV
+                                    <p className="mt-1 text-[10px] font-medium opacity-60">
+                                        Gasto total documentado
                                     </p>
                                 </CardContent>
                             </Card>
@@ -180,12 +185,12 @@ export default function TaxReport({
 
                         {/* --- CHART Y TABLA --- */}
                         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-                            {/* Gráfico de Barras */}
-                            <Card className="overflow-hidden rounded-3xl border-none shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900/50 dark:ring-neutral-800">
+                            {/* Gráfico de Distribución */}
+                            <Card className="rounded-3xl border-none shadow-sm ring-1 ring-neutral-200 dark:bg-neutral-900/50 dark:ring-neutral-800">
                                 <CardHeader className="border-b bg-muted/30 dark:border-neutral-800">
                                     <CardTitle className="flex items-center gap-2 text-xs font-black tracking-widest uppercase">
-                                        <PieChart className="h-4 w-4 text-blue-600" />{' '}
-                                        Distribución
+                                        <PieIcon className="h-4 w-4 text-blue-600" />{' '}
+                                        Composición del Gasto
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="pt-8">
@@ -202,7 +207,7 @@ export default function TaxReport({
                                                     strokeDasharray="3 3"
                                                     horizontal={true}
                                                     vertical={false}
-                                                    strokeOpacity={0.1}
+                                                    strokeOpacity={0.05}
                                                 />
                                                 <XAxis type="number" hide />
                                                 <YAxis
@@ -262,10 +267,10 @@ export default function TaxReport({
                                 </CardContent>
                             </Card>
 
-                            {/* Detalle en Tabla */}
-                            <div className="flex flex-col rounded-3xl border border-slate-200 bg-card p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/20">
+                            {/* Detalle Contable */}
+                            <div className="flex flex-col rounded-3xl border border-neutral-200 bg-card p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/20">
                                 <h3 className="mb-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
-                                    Detalle Contable
+                                    Desglose por Documento
                                 </h3>
                                 <div className="flex-1 overflow-hidden rounded-2xl border dark:border-neutral-800">
                                     <Table>
@@ -332,8 +337,10 @@ export default function TaxReport({
                                 </div>
                                 <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-3 dark:border-blue-900/30 dark:bg-blue-900/10">
                                     <p className="text-[10px] leading-relaxed font-medium text-blue-700 dark:text-blue-300">
-                                        * Tasa impositiva del 18% aplicada según
-                                        normativa SUNAT vigente.
+                                        * Libro auxiliar de compras. Estos
+                                        montos representan crédito fiscal
+                                        disponible para deducción de impuestos
+                                        mensuales.
                                     </p>
                                 </div>
                             </div>
@@ -347,7 +354,7 @@ export default function TaxReport({
 
 function TaxStatCard({ title, value, icon, colorClass, description }: any) {
     return (
-        <Card className="rounded-3xl border-none shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900/50 dark:ring-neutral-800">
+        <Card className="rounded-3xl border-none shadow-sm ring-1 ring-neutral-200 dark:bg-neutral-900/50 dark:ring-neutral-800">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
                     {title}
@@ -357,7 +364,7 @@ function TaxStatCard({ title, value, icon, colorClass, description }: any) {
                 </div>
             </CardHeader>
             <CardContent>
-                <div className="text-2xl font-black tracking-tight text-foreground tabular-nums">
+                <div className="text-2xl font-black tracking-tighter text-foreground tabular-nums">
                     {value}
                 </div>
                 <p className="mt-1 text-[10px] font-medium text-muted-foreground">

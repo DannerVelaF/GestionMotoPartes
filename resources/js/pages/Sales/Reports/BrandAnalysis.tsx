@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import reports from '@/routes/reports';
+import sales from '@/routes/sales';
 import { Head, router } from '@inertiajs/react';
 import {
     ArrowLeft,
@@ -28,7 +29,6 @@ import {
     PieChart,
     ResponsiveContainer,
 } from 'recharts';
-import sales from '@/routes/sales';
 
 interface BrandItem {
     label: string;
@@ -40,15 +40,14 @@ interface Props {
     filters: { from: string; to: string };
 }
 
-// Paleta de colores profesional para Data Science
 const COLORS = [
-    '#2563eb',
-    '#10b981',
-    '#f59e0b',
-    '#ef4444',
-    '#8b5cf6',
-    '#06b6d4',
-    '#f43f5e',
+    '#2563eb', // Blue
+    '#10b981', // Emerald
+    '#f59e0b', // Amber
+    '#ef4444', // Red
+    '#8b5cf6', // Violet
+    '#06b6d4', // Cyan
+    '#f43f5e', // Rose
 ];
 
 export default function BrandAnalysis({
@@ -65,10 +64,7 @@ export default function BrandAnalysis({
         const formData = new FormData(e.currentTarget);
         router.get(
             reports.brands().url,
-            {
-                from: formData.get('from'),
-                to: formData.get('to'),
-            },
+            { from: formData.get('from'), to: formData.get('to') },
             { preserveState: true, preserveScroll: true },
         );
     };
@@ -76,34 +72,23 @@ export default function BrandAnalysis({
     return (
         <AppLayout
             breadcrumbs={[
-                {
-                    title: 'Ventas',
-                    href: sales.index().url,
-                },
+                { title: 'Ventas', href: sales.index().url },
                 { title: 'Reportes', href: '#' },
                 { title: 'Análisis de Marcas', href: '' },
             ]}
         >
             <Head title="Participación por Marca" />
 
-            <div className="flex h-full flex-col bg-slate-50/50">
-                {/* --- HEADER --- */}
-                <div className="sticky top-0 z-20 flex items-center justify-between border-b bg-white px-8 py-4 shadow-sm">
+            <div className="flex h-full flex-col bg-background">
+                {/* --- HEADER STICKY (Sincronizado) --- */}
+                <div className="sticky top-0 z-20 flex items-center justify-between border-b bg-background/95 px-8 py-4 backdrop-blur dark:border-neutral-800">
                     <div className="flex items-center gap-4">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => window.history.back()}
-                            className="h-9 w-9 rounded-full"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                        </Button>
                         <div>
-                            <h1 className="text-lg font-bold tracking-tight text-slate-900">
+                            <h1 className="text-lg font-bold tracking-tight text-foreground">
                                 Análisis de Marcas
                             </h1>
-                            <p className="text-[10px] font-black tracking-widest text-slate-500 uppercase">
-                                Distribución de ingresos por fabricante
+                            <p className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                                Participación de Mercado
                             </p>
                         </div>
                     </div>
@@ -112,20 +97,20 @@ export default function BrandAnalysis({
                         onSubmit={handleFilterChange}
                         className="flex items-center gap-3"
                     >
-                        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1">
-                            <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                        <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-1 dark:border-neutral-800 dark:bg-neutral-900/50">
+                            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                             <Input
                                 type="date"
                                 name="from"
                                 defaultValue={filters.from}
-                                className="h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0"
+                                className="h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0 dark:text-neutral-200"
                             />
-                            <span className="text-slate-300">|</span>
+                            <span className="text-muted-foreground/30">|</span>
                             <Input
                                 type="date"
                                 name="to"
                                 defaultValue={filters.to}
-                                className="h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0"
+                                className="h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0 dark:text-neutral-200"
                             />
                         </div>
                         <Button
@@ -138,15 +123,15 @@ export default function BrandAnalysis({
                     </form>
                 </div>
 
-                <div className="flex-1 overflow-auto p-8">
+                <div className="flex-1 overflow-auto bg-muted/5 p-8 dark:bg-neutral-950/20">
                     <div className="mx-auto max-w-7xl space-y-8">
                         <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-                            {/* --- GRÁFICO DE DONA --- */}
-                            <Card className="overflow-hidden rounded-3xl border-none shadow-sm ring-1 ring-slate-200">
-                                <CardHeader className="border-b border-slate-100 bg-slate-50/50">
-                                    <CardTitle className="flex items-center gap-2 text-sm font-bold text-slate-700">
+                            {/* --- GRÁFICO DE DONA (Modernizado) --- */}
+                            <Card className="overflow-hidden rounded-3xl border-none shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900/50 dark:ring-neutral-800">
+                                <CardHeader className="border-b bg-muted/30 dark:border-neutral-800">
+                                    <CardTitle className="flex items-center gap-2 text-xs font-black tracking-widest uppercase">
                                         <PieIcon className="h-4 w-4 text-blue-600" />{' '}
-                                        Composición del Market Share
+                                        Market Share
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="flex flex-col items-center pt-10">
@@ -167,7 +152,7 @@ export default function BrandAnalysis({
                                                     nameKey="label"
                                                 >
                                                     {reportData.map(
-                                                        (entry, index) => (
+                                                        (_, index) => (
                                                             <Cell
                                                                 key={`cell-${index}`}
                                                                 fill={
@@ -185,8 +170,9 @@ export default function BrandAnalysis({
                                                     contentStyle={{
                                                         borderRadius: '12px',
                                                         border: 'none',
-                                                        boxShadow:
-                                                            '0 10px 15px -3px rgb(0 0 0 / 0.1)',
+                                                        backgroundColor: '#000',
+                                                        color: '#fff',
+                                                        fontSize: '12px',
                                                     }}
                                                     formatter={(value) =>
                                                         `S/ ${Number(value).toFixed(2)}`
@@ -194,25 +180,21 @@ export default function BrandAnalysis({
                                                 />
                                                 <Legend
                                                     iconType="circle"
-                                                    layout="horizontal"
-                                                    verticalAlign="bottom"
-                                                    align="center"
                                                     wrapperStyle={{
                                                         fontSize: '10px',
                                                         fontWeight: 'bold',
-                                                        textTransform:
-                                                            'uppercase',
                                                         paddingTop: '20px',
+                                                        color: '#888',
                                                     }}
                                                 />
                                             </PieChart>
                                         </ResponsiveContainer>
                                     </div>
                                     <div className="mt-4 text-center">
-                                        <p className="text-[10px] font-bold tracking-widest text-slate-400 uppercase">
-                                            Ingreso Total Agrupado
+                                        <p className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                                            Ingreso Total
                                         </p>
-                                        <p className="text-3xl font-black text-blue-700 tabular-nums">
+                                        <p className="text-3xl font-black tracking-tighter text-blue-600 tabular-nums dark:text-blue-400">
                                             S/{' '}
                                             {totalValue.toLocaleString(
                                                 'es-PE',
@@ -223,23 +205,23 @@ export default function BrandAnalysis({
                                 </CardContent>
                             </Card>
 
-                            {/* --- TABLA DE DATOS Y PARTICIPACIÓN --- */}
-                            <div className="flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                                <h3 className="mb-4 flex items-center gap-2 text-sm font-bold tracking-tight text-slate-900 uppercase">
+                            {/* --- RANKING DE MARCAS (Estilo Tabla Neutral) --- */}
+                            <div className="flex flex-col rounded-3xl border border-slate-200 bg-card p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/20">
+                                <h3 className="mb-4 flex items-center gap-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
                                     <Briefcase className="h-4 w-4 text-blue-600" />{' '}
                                     Ranking de Marcas
                                 </h3>
-                                <div className="flex-1 overflow-hidden rounded-xl border border-slate-100">
+                                <div className="flex-1 overflow-hidden rounded-2xl border dark:border-neutral-800">
                                     <Table>
-                                        <TableHeader className="bg-slate-50">
-                                            <TableRow>
-                                                <TableHead className="font-bold text-slate-700">
+                                        <TableHeader className="bg-muted/50 dark:bg-neutral-800/50">
+                                            <TableRow className="border-none hover:bg-transparent">
+                                                <TableHead className="font-bold">
                                                     Marca
                                                 </TableHead>
-                                                <TableHead className="text-right font-bold text-slate-700">
+                                                <TableHead className="text-right font-bold">
                                                     Ventas (S/)
                                                 </TableHead>
-                                                <TableHead className="text-right font-bold text-slate-700">
+                                                <TableHead className="text-right font-bold">
                                                     Part. %
                                                 </TableHead>
                                             </TableRow>
@@ -254,11 +236,11 @@ export default function BrandAnalysis({
                                                     return (
                                                         <TableRow
                                                             key={idx}
-                                                            className="hover:bg-slate-50/50"
+                                                            className="transition-colors hover:bg-muted/50 dark:border-neutral-800"
                                                         >
-                                                            <TableCell className="flex items-center gap-2 font-bold text-slate-800">
+                                                            <TableCell className="flex items-center gap-3 font-bold">
                                                                 <div
-                                                                    className="h-2 w-2 rounded-full"
+                                                                    className="h-2 w-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.1)]"
                                                                     style={{
                                                                         backgroundColor:
                                                                             COLORS[
@@ -269,22 +251,22 @@ export default function BrandAnalysis({
                                                                 />
                                                                 {item.label}
                                                             </TableCell>
-                                                            <TableCell className="text-right font-bold text-slate-600 tabular-nums">
+                                                            <TableCell className="text-right font-bold text-muted-foreground tabular-nums">
                                                                 {Number(
                                                                     item.value,
                                                                 ).toFixed(2)}
                                                             </TableCell>
                                                             <TableCell className="text-right">
                                                                 <div className="flex flex-col items-end">
-                                                                    <span className="text-xs font-black text-blue-600">
+                                                                    <span className="text-xs font-black text-blue-600 dark:text-blue-400">
                                                                         {percentage.toFixed(
                                                                             1,
                                                                         )}
                                                                         %
                                                                     </span>
-                                                                    <div className="mt-1 h-1 w-16 overflow-hidden rounded-full bg-slate-100">
+                                                                    <div className="mt-1 h-1 w-16 overflow-hidden rounded-full bg-muted">
                                                                         <div
-                                                                            className="h-full bg-blue-600"
+                                                                            className="h-full bg-blue-600 dark:bg-blue-500"
                                                                             style={{
                                                                                 width: `${percentage}%`,
                                                                             }}
@@ -299,9 +281,9 @@ export default function BrandAnalysis({
                                                 <TableRow>
                                                     <TableCell
                                                         colSpan={3}
-                                                        className="h-40 text-center font-medium text-slate-400"
+                                                        className="h-40 text-center text-muted-foreground"
                                                     >
-                                                        No hay datos de marcas
+                                                        No hay datos
                                                         registrados.
                                                     </TableCell>
                                                 </TableRow>
@@ -309,27 +291,22 @@ export default function BrandAnalysis({
                                         </TableBody>
                                     </Table>
                                 </div>
-                                <div className="mt-6 flex items-center gap-4 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-                                    <div className="rounded-lg bg-white p-2 text-emerald-600 shadow-sm">
+
+                                {/* --- INSIGHT CARD (Adaptado) --- */}
+                                <div className="mt-6 flex items-center gap-4 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-4 dark:border-emerald-900/30 dark:bg-emerald-900/10">
+                                    <div className="rounded-lg bg-white p-2 text-emerald-600 shadow-sm dark:bg-neutral-800">
                                         <TrendingUp className="h-5 w-5" />
                                     </div>
                                     <div>
-                                        <p className="text-[10px] font-black tracking-tighter text-emerald-800 uppercase">
-                                            Insights de Datos
+                                        <p className="text-[10px] font-black tracking-tighter text-emerald-800 uppercase dark:text-emerald-400">
+                                            Insight del Mercado
                                         </p>
-                                        <p className="text-xs leading-tight font-medium text-emerald-700">
-                                            La marca{' '}
+                                        <p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">
                                             <span className="font-bold underline">
                                                 {reportData[0]?.label}
                                             </span>{' '}
-                                            lidera el mercado con una
-                                            participación del{' '}
-                                            {(
-                                                (Number(reportData[0]?.value) /
-                                                    totalValue) *
-                                                100
-                                            ).toFixed(1)}
-                                            %.
+                                            es tu marca más rentable
+                                            actualmente.
                                         </p>
                                     </div>
                                 </div>

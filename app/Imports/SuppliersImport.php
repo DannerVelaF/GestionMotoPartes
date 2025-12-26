@@ -3,6 +3,7 @@
 namespace App\Imports;
 
 use App\Models\Supplier;
+use App\Http\Services\Receipt\SupplierService; // Importamos el servicio
 use Illuminate\Support\Facades\Http;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
@@ -12,19 +13,28 @@ use Exception;
 class SuppliersImport implements ToModel, WithHeadingRow, WithValidation
 {
     public $rows = 0;
+    protected $service;
+
+    public function __construct()
+    {
+        // Inyectamos el servicio manualmente usando el helper app()
+        $this->service = app(SupplierService::class);
+    }
 
     public function model(array $row)
     {
         $ruc = trim($row['ruc']);
-        // Usamos null coalescing operator para asegurar que exista la clave
-        $razonSocial = isset($row['razon_social']) ? trim($row['razon_social']) : null;
 
-        // Lógica de Auto-completado
+        // Verificamos si la razón social viene en el excel (admite columnas 'razon_social' o 'empresa')
+        $razonSocial = isset($row['razon_social']) ? trim($row['razon_social']) : (isset($row['empresa']) ? trim($row['empresa']) : null);
+
+        // Lógica de Auto-completado con SUNAT
         if (empty($razonSocial) && !empty($ruc)) {
-            $razonSocial = $this->consultarSunat($ruc);
+            // Llamamos al servicio real
+            $razonSocial = $this->service->getRazonSocialFromSunat($ruc);
 
             if (!$razonSocial) {
-                // Mensaje de error manual en español
+                // Si la API no lo encuentra y el Excel no lo tiene, lanzamos error
                 throw new Exception("El RUC {$ruc} no tiene Razón Social en el Excel y no se pudo obtener de SUNAT.");
             }
         }
@@ -34,51 +44,29 @@ class SuppliersImport implements ToModel, WithHeadingRow, WithValidation
         return new Supplier([
             'company_name'   => strtoupper($razonSocial),
             'ruc'            => $ruc,
-            'supplier_name'  => $row['nombre_contacto'] ?? null,
+            'supplier_name'  => $row['nombre_contacto'] ?? $row['contacto'] ?? null,
             'supplier_email' => isset($row['email']) ? strtolower($row['email']) : null,
-            'supplier_phone' => $row['telefono'] ?? null,
+            'supplier_phone' => $row['telefono'] ?? $row['celular'] ?? null,
         ]);
     }
 
     public function rules(): array
     {
         return [
-            // 'nullable' permite que esté vacío para que lo busquemos por API,
-            // pero si viene algo, validamos que sea texto.
             'razon_social' => 'nullable|string',
             'ruc'          => 'required|digits:11|unique:suppliers,ruc',
             'email'        => 'nullable|email',
         ];
     }
 
-    // AQUÍ ESTÁN LAS TRADUCCIONES
     public function customValidationMessages()
     {
         return [
-            'ruc.required'        => 'El campo RUC es obligatorio (columna vacía).',
-            'ruc.digits'          => 'El RUC :input debe tener exactamente 11 dígitos.',
-            'ruc.unique'          => 'El RUC :input ya se encuentra registrado en el sistema.',
-
-            'razon_social.string' => 'La Razón Social debe ser texto. (Verifique que no haya puesto el RUC en esta columna).',
-
-            'email.email'         => 'El correo electrónico :input no tiene un formato válido.',
+            'ruc.required'        => 'El campo RUC es obligatorio.',
+            'ruc.digits'          => 'El RUC :input debe tener 11 dígitos.',
+            'ruc.unique'          => 'El RUC :input ya existe en el sistema.',
+            'razon_social.string' => 'La Razón Social debe ser texto.',
+            'email.email'         => 'El correo :input no es válido.',
         ];
-    }
-
-    private function consultarSunat($ruc)
-    {
-        try {
-            // TU LÓGICA DE API AQUÍ
-            // ...
-
-            // Simulación
-            if (strlen($ruc) === 11) {
-                sleep(1);
-                return "EMPRESA AUTO-ENCONTRADA S.A.C.";
-            }
-            return null;
-        } catch (\Exception $e) {
-            return null;
-        }
     }
 }

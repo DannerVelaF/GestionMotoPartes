@@ -14,6 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
+import { cn } from '@/lib/utils';
 import users from '@/routes/users';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -22,9 +23,11 @@ import {
     Check,
     CheckCircle2,
     Copy,
+    Fingerprint,
     Key,
     Mail,
     RefreshCcw,
+    RotateCcw, // Importado para el botón descartar
     Save,
     User as UserIcon,
 } from 'lucide-react';
@@ -35,7 +38,6 @@ interface Props {
     generated_password?: string;
 }
 
-// --- ALERTA FLOTANTE (ESTILO SHADCN) ---
 function FloatingAlert({
     message,
     type = 'error',
@@ -71,11 +73,21 @@ export default function EditUser({ user, generated_password }: Props) {
     const [isResetAlertOpen, setIsResetAlertOpen] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    const { data, setData, put, processing, errors, clearErrors } = useForm({
+    const {
+        data,
+        setData,
+        put,
+        processing,
+        errors,
+        clearErrors,
+        isDirty,
+        reset,
+    } = useForm({
+        username: user?.username || '',
+        dni: user?.dni || '',
         name: user?.name || '',
         father_last_name: user?.father_last_name || '',
         mother_last_name: user?.mother_last_name || '',
-        username: user?.username || '',
         email: user?.email || '',
         is_active: !!user?.is_active,
     });
@@ -117,16 +129,18 @@ export default function EditUser({ user, generated_password }: Props) {
         }
     };
 
-    const breadcrumbs = [
-        { title: 'Usuarios', href: users.index().url },
-        { title: user?.username || 'Editar', href: '' },
-    ];
+    const lockedInputClasses =
+        'h-10 rounded-none border-0 border-b bg-transparent px-0 text-lg shadow-none focus-visible:ring-0 text-muted-foreground/60 cursor-not-allowed border-muted/50 font-medium';
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AppLayout
+            breadcrumbs={[
+                { title: 'Usuarios', href: users.index().url },
+                { title: user?.username, href: '' },
+            ]}
+        >
             <Head title={`Editar: ${user?.username}`} />
 
-            {/* --- DIALOGO DE CONFIRMACIÓN (SHADCN) --- */}
             <AlertDialog
                 open={isResetAlertOpen}
                 onOpenChange={setIsResetAlertOpen}
@@ -134,13 +148,12 @@ export default function EditUser({ user, generated_password }: Props) {
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle className="flex items-center gap-2">
-                            <RefreshCcw className="h-5 w-5 text-amber-600" />
+                            <RefreshCcw className="h-5 w-5 text-amber-600" />{' '}
                             ¿Restablecer contraseña?
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                            Esta acción generará una nueva clave temporal para{' '}
-                            <strong>{user?.username}</strong>. El acceso actual
-                            del usuario será invalidado de inmediato.
+                            Se generará una nueva clave temporal para{' '}
+                            <strong>{user?.username}</strong>.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -149,13 +162,12 @@ export default function EditUser({ user, generated_password }: Props) {
                             onClick={executeResetPassword}
                             className="bg-amber-600 hover:bg-amber-700"
                         >
-                            Confirmar Restablecimiento
+                            Confirmar
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
 
-            {/* --- NOTIFICACIONES FLOTANTES --- */}
             {showSuccess && flash?.success && (
                 <FloatingAlert message={flash.success} type="success" />
             )}
@@ -179,6 +191,13 @@ export default function EditUser({ user, generated_password }: Props) {
                         <span className="text-xl font-semibold text-foreground/90">
                             Ficha de Usuario
                         </span>
+
+                        {/* INDICADOR DE CAMBIOS SIN GUARDAR */}
+                        {isDirty && (
+                            <span className="ml-2 animate-pulse rounded-full bg-amber-100 px-3 py-1 text-[10px] font-bold text-amber-700 uppercase">
+                                Sin guardar
+                            </span>
+                        )}
                     </div>
                     <div className="flex items-center gap-3">
                         <Button
@@ -189,10 +208,27 @@ export default function EditUser({ user, generated_password }: Props) {
                         >
                             <ArrowLeft className="mr-2 h-4 w-4" /> Volver
                         </Button>
+
+                        {/* BOTÓN DESCARTAR DINÁMICO */}
+                        <Button
+                            variant="ghost"
+                            type="button"
+                            onClick={() => reset()}
+                            disabled={!isDirty || processing}
+                            className="text-muted-foreground hover:text-foreground"
+                        >
+                            <RotateCcw className="mr-2 h-4 w-4" /> Descartar
+                        </Button>
+
                         <Button
                             type="submit"
-                            disabled={processing}
-                            className="bg-blue-600 text-white shadow-sm transition-all hover:bg-blue-700 active:scale-95"
+                            disabled={!isDirty || processing}
+                            className={cn(
+                                'px-6 font-bold shadow-sm transition-all',
+                                isDirty
+                                    ? 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
+                                    : 'cursor-not-allowed bg-muted text-muted-foreground',
+                            )}
                         >
                             <Save className="mr-2 h-4 w-4" /> Actualizar Datos
                         </Button>
@@ -200,7 +236,6 @@ export default function EditUser({ user, generated_password }: Props) {
                 </div>
 
                 <div className="w-full animate-in px-8 py-8 duration-500 fade-in slide-in-from-bottom-4">
-                    {/* --- CONTRASEÑA TEMPORAL --- */}
                     {generated_password && (
                         <div className="mb-10 flex items-center justify-between rounded-2xl border-2 border-dashed border-amber-200 bg-amber-50 p-6 dark:bg-amber-950/20">
                             <div className="flex items-center gap-4">
@@ -214,11 +249,6 @@ export default function EditUser({ user, generated_password }: Props) {
                                     <p className="mt-1 font-mono text-3xl font-bold text-amber-950">
                                         {generated_password}
                                     </p>
-                                    <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-amber-700">
-                                        <AlertCircle className="h-3.5 w-3.5" />{' '}
-                                        Entrega esta clave al usuario. No se
-                                        volverá a mostrar al recargar.
-                                    </p>
                                 </div>
                             </div>
                             <Button
@@ -231,90 +261,91 @@ export default function EditUser({ user, generated_password }: Props) {
                                     <Check className="h-5 w-5 text-green-600" />
                                 ) : (
                                     <Copy className="h-5 w-5" />
-                                )}
+                                )}{' '}
                                 {copied ? 'Copiado' : 'Copiar Clave'}
                             </Button>
                         </div>
                     )}
 
-                    {/* --- NOMBRE GIGANTE --- */}
+                    {/* --- USERNAME EN GRANDE (BLOQUEADO) --- */}
                     <div className="mb-12 max-w-3xl">
                         <Label className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                            Nombres
+                            ID de Usuario (Username)
                         </Label>
-                        <input
-                            value={data.name}
-                            onChange={(e) =>
-                                onFieldChange('name', e.target.value)
-                            }
-                            className={`h-auto w-full border-0 border-b-2 bg-transparent px-0 py-2 text-4xl font-extrabold tracking-tight transition-all focus:ring-0 focus:outline-none ${
-                                errors.name
-                                    ? 'border-red-500 text-red-900'
-                                    : 'border-muted text-foreground focus:border-blue-600'
-                            }`}
-                        />
+                        <div className="flex items-center">
+                            <span className="mr-2 text-4xl font-extrabold text-muted-foreground/20">
+                                @
+                            </span>
+                            <input
+                                readOnly
+                                tabIndex={-1}
+                                value={data.username}
+                                className="h-auto w-full cursor-default border-0 border-b-2 border-muted bg-transparent px-0 py-2 text-4xl font-extrabold tracking-tight text-muted-foreground uppercase transition-all focus:ring-0 focus:outline-none"
+                            />
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 gap-x-20 gap-y-10 md:grid-cols-2">
                         <div className="space-y-8">
                             <div className="group space-y-2">
                                 <Label className="text-xs font-bold text-muted-foreground uppercase">
-                                    Apellido Paterno
+                                    Nombres
                                 </Label>
                                 <Input
-                                    value={data.father_last_name}
-                                    onChange={(e) =>
-                                        onFieldChange(
-                                            'father_last_name',
-                                            e.target.value,
-                                        )
-                                    }
-                                    className="h-10 rounded-none border-0 border-b bg-transparent px-0 text-lg shadow-none focus-visible:border-blue-600 focus-visible:ring-0"
+                                    readOnly
+                                    tabIndex={-1}
+                                    value={data.name}
+                                    className={lockedInputClasses}
                                 />
                             </div>
+
                             <div className="group space-y-2">
-                                <Label className="text-xs font-bold text-muted-foreground uppercase">
-                                    Apellido Materno
+                                <Label className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase">
+                                    <Fingerprint className="h-3 w-3" />{' '}
+                                    Documento (DNI)
                                 </Label>
                                 <Input
-                                    value={data.mother_last_name}
-                                    onChange={(e) =>
-                                        onFieldChange(
-                                            'mother_last_name',
-                                            e.target.value,
-                                        )
-                                    }
-                                    className="h-10 rounded-none border-0 border-b bg-transparent px-0 text-lg shadow-none focus-visible:border-blue-600 focus-visible:ring-0"
+                                    readOnly
+                                    tabIndex={-1}
+                                    value={data.dni}
+                                    className={cn(
+                                        lockedInputClasses,
+                                        'font-mono tracking-widest',
+                                    )}
                                 />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-8">
+                                <div className="group space-y-2">
+                                    <Label className="text-xs font-bold text-muted-foreground uppercase">
+                                        Apellido Paterno
+                                    </Label>
+                                    <Input
+                                        readOnly
+                                        tabIndex={-1}
+                                        value={data.father_last_name}
+                                        className={lockedInputClasses}
+                                    />
+                                </div>
+                                <div className="group space-y-2">
+                                    <Label className="text-xs font-bold text-muted-foreground uppercase">
+                                        Apellido Materno
+                                    </Label>
+                                    <Input
+                                        readOnly
+                                        tabIndex={-1}
+                                        value={data.mother_last_name}
+                                        className={lockedInputClasses}
+                                    />
+                                </div>
                             </div>
                         </div>
 
                         <div className="space-y-8">
                             <div className="group space-y-2">
-                                <Label className="text-xs font-bold text-muted-foreground uppercase">
-                                    ID Usuario (Login)
-                                </Label>
-                                <Input
-                                    value={data.username}
-                                    onChange={(e) =>
-                                        onFieldChange(
-                                            'username',
-                                            e.target.value,
-                                        )
-                                    }
-                                    className="h-10 rounded-none border-0 border-b bg-transparent px-0 font-mono text-lg focus-visible:border-blue-600 focus-visible:ring-0"
-                                />
-                                {errors.username && (
-                                    <p className="text-sm font-medium text-red-500">
-                                        {errors.username}
-                                    </p>
-                                )}
-                            </div>
-
-                            <div className="group space-y-2">
                                 <Label className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase">
-                                    <Mail className="h-3 w-3" /> Email
-                                    Institucional
+                                    <Mail className="h-3 w-3" /> Correo
+                                    electrónico
                                 </Label>
                                 <Input
                                     type="email"
@@ -331,7 +362,6 @@ export default function EditUser({ user, generated_password }: Props) {
                                 )}
                             </div>
 
-                            {/* PANEL DE SEGURIDAD */}
                             <div className="space-y-6 rounded-2xl border border-neutral-200 bg-neutral-50/50 p-6">
                                 <div className="flex items-center space-x-3">
                                     <Checkbox

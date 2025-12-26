@@ -6,9 +6,11 @@ use App\Exports\SupplierTemplateExport;
 use App\Http\Controllers\Controller;
 use App\Http\Services\Receipt\SupplierService;
 use App\Imports\SuppliersImport;
+use App\Models\BusinessConfig;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB; // Importante para las transacciones
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -243,6 +245,22 @@ class SupplierController extends Controller
             // Mostramos el mensaje exacto de la excepción (ej: "El RUC ... no tiene Razón Social...")
             return back()->withErrors(['error' => 'Error en la importación: ' . $e->getMessage()]);
         }
+    }
+
+
+    public function buscarSunatProveedor(Request $request)
+    {
+        $ruc = $request->input('numero');
+        if (!$ruc) return response()->json(['error' => 'RUC requerido'], 400);
+
+        // Usamos el servicio centralizado
+        $razonSocial = $this->service->getRazonSocialFromSunat($ruc);
+
+        if ($razonSocial) {
+            return response()->json(['razon_social' => $razonSocial]);
+        }
+
+        return response()->json(['error' => 'No encontrado en SUNAT'], 404);
     }
 
 }

@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
 
             $table->string('username')->unique();
+            $table->string('dni', 8)->unique();
             $table->string('name');
             $table->string("father_last_name")->nullable();
             $table->string("mother_last_name")->nullable();

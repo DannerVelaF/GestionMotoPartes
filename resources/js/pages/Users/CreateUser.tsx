@@ -7,6 +7,7 @@ import users from '@/routes/users';
 import { Head, useForm } from '@inertiajs/react';
 import {
     ArrowLeft,
+    Fingerprint,
     Info,
     Mail,
     Save,
@@ -17,11 +18,12 @@ import { FormEventHandler } from 'react';
 
 export default function CreateUser() {
     const { data, setData, post, processing, errors, clearErrors } = useForm({
+        username: '', // Ahora es el principal arriba
         name: '',
         father_last_name: '',
         mother_last_name: '',
-        username: '',
-        email: '', // El campo ya está en el estado
+        dni: '', // Campo añadido
+        email: '',
         is_active: true,
     });
 
@@ -79,27 +81,32 @@ export default function CreateUser() {
                 </div>
 
                 <div className="w-full animate-in px-8 py-8 duration-500 fade-in slide-in-from-bottom-4">
-                    {/* --- INPUT GIGANTE --- */}
+                    {/* --- INPUT GIGANTE (USERNAME) --- */}
                     <div className="mb-12 max-w-3xl">
-                        <Label className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                            Nombres del Usuario
+                        <Label className="text-xs font-bold tracking-wider text-muted-foreground ">
+                            ID de Acceso (Username)
                         </Label>
-                        <input
-                            autoFocus
-                            value={data.name}
-                            onChange={(e) =>
-                                onFieldChange('name', e.target.value)
-                            }
-                            placeholder="Ej: Roberto Carlos..."
-                            className={`h-auto w-full rounded-none border-0 border-b-2 bg-transparent px-0 py-2 text-4xl font-extrabold tracking-tight transition-all focus:ring-0 focus:outline-none ${
-                                errors.name
-                                    ? 'border-red-500 text-red-900'
-                                    : 'border-muted text-foreground focus:border-blue-600'
-                            }`}
-                        />
-                        {errors.name && (
+                        <div className="flex items-center ">
+                            <span className="mr-2 text-4xl font-extrabold text-muted-foreground/30 uppercase">
+                                @
+                            </span>
+                            <input
+                                autoFocus
+                                value={data.username}
+                                onChange={(e) =>
+                                    onFieldChange('username', e.target.value)
+                                }
+                                placeholder="usuario..."
+                                className={`h-auto w-full rounded-none border-0 border-b-2 bg-transparent px-0 py-2 text-4xl font-extrabold tracking-tight  transition-all focus:ring-0 focus:outline-none ${
+                                    errors.username
+                                        ? 'border-red-500 text-red-900'
+                                        : 'border-muted text-foreground focus:border-blue-600'
+                                }`}
+                            />
+                        </div>
+                        {errors.username && (
                             <p className="mt-1 text-sm font-medium text-red-500">
-                                {errors.name}
+                                {errors.username}
                             </p>
                         )}
                     </div>
@@ -108,62 +115,79 @@ export default function CreateUser() {
                         {/* COLUMNA IZQUIERDA: DATOS PERSONALES */}
                         <div className="space-y-8">
                             <div className="group space-y-2">
-                                <Label className="text-xs font-bold text-muted-foreground uppercase">
-                                    Apellido Paterno
+                                <Label className="flex items-center gap-2 text-xs font-bold text-muted-foreground">
+                                    <Fingerprint className="h-3 w-3 uppercase" />{' '}
+                                    Documento (DNI)
                                 </Label>
                                 <Input
-                                    value={data.father_last_name}
+                                    value={data.dni}
+                                    maxLength={8}
                                     onChange={(e) =>
-                                        onFieldChange(
-                                            'father_last_name',
-                                            e.target.value,
-                                        )
+                                        onFieldChange('dni', e.target.value)
                                     }
-                                    className="h-10 rounded-none border-0 border-b bg-transparent px-0 text-lg shadow-none focus-visible:border-blue-600 focus-visible:ring-0"
+                                    placeholder="8 dígitos"
+                                    className="h-10 rounded-none border-0 border-b bg-transparent px-0 font-mono text-lg tracking-widest shadow-none focus-visible:border-blue-600 focus-visible:ring-0"
                                 />
-                            </div>
-                            <div className="group space-y-2">
-                                <Label className="text-xs font-bold text-muted-foreground uppercase">
-                                    Apellido Materno
-                                </Label>
-                                <Input
-                                    value={data.mother_last_name}
-                                    onChange={(e) =>
-                                        onFieldChange(
-                                            'mother_last_name',
-                                            e.target.value,
-                                        )
-                                    }
-                                    className="h-10 rounded-none border-0 border-b bg-transparent px-0 text-lg shadow-none focus-visible:border-blue-600 focus-visible:ring-0"
-                                />
-                            </div>
-                        </div>
-
-                        {/* COLUMNA DERECHA: ACCESO Y SISTEMA */}
-                        <div className="space-y-8">
-                            <div className="group space-y-2">
-                                <Label className="text-xs font-bold text-muted-foreground uppercase">
-                                    ID de Usuario (Username)
-                                </Label>
-                                <Input
-                                    value={data.username}
-                                    onChange={(e) =>
-                                        onFieldChange(
-                                            'username',
-                                            e.target.value,
-                                        )
-                                    }
-                                    placeholder="ej. rcarlos"
-                                    className={`h-10 rounded-none border-0 border-b bg-transparent px-0 text-lg shadow-none focus-visible:ring-0 ${errors.username ? 'border-red-500' : 'focus-visible:border-blue-600'}`}
-                                />
-                                {errors.username && (
+                                {errors.dni && (
                                     <p className="text-sm font-medium text-red-500">
-                                        {errors.username}
+                                        {errors.dni}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="group space-y-2">
+                                <Label className="text-xs font-bold text-muted-foreground uppercase">
+                                    Nombres
+                                </Label>
+                                <Input
+                                    value={data.name}
+                                    onChange={(e) =>
+                                        onFieldChange('name', e.target.value)
+                                    }
+                                    className="h-10 rounded-none border-0 border-b bg-transparent px-0 text-lg shadow-none focus-visible:border-blue-600 focus-visible:ring-0"
+                                />
+                                {errors.name && (
+                                    <p className="text-sm font-medium text-red-500">
+                                        {errors.name}
                                     </p>
                                 )}
                             </div>
 
-                            {/* --- CAMPO EMAIL AÑADIDO --- */}
+                            <div className="grid grid-cols-2 gap-8">
+                                <div className="group space-y-2">
+                                    <Label className="text-xs font-bold text-muted-foreground uppercase">
+                                        Apellido Paterno
+                                    </Label>
+                                    <Input
+                                        value={data.father_last_name}
+                                        onChange={(e) =>
+                                            onFieldChange(
+                                                'father_last_name',
+                                                e.target.value,
+                                            )
+                                        }
+                                        className="h-10 rounded-none border-0 border-b bg-transparent px-0 text-lg shadow-none focus-visible:border-blue-600 focus-visible:ring-0"
+                                    />
+                                </div>
+                                <div className="group space-y-2">
+                                    <Label className="text-xs font-bold text-muted-foreground uppercase">
+                                        Apellido Materno
+                                    </Label>
+                                    <Input
+                                        value={data.mother_last_name}
+                                        onChange={(e) =>
+                                            onFieldChange(
+                                                'mother_last_name',
+                                                e.target.value,
+                                            )
+                                        }
+                                        className="h-10 rounded-none border-0 border-b bg-transparent px-0 text-lg shadow-none focus-visible:border-blue-600 focus-visible:ring-0"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* COLUMNA DERECHA: SISTEMA */}
+                        <div className="space-y-8">
                             <div className="group space-y-2">
                                 <Label className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase">
                                     <Mail className="h-3 w-3" /> Correo
@@ -176,7 +200,7 @@ export default function CreateUser() {
                                         onFieldChange('email', e.target.value)
                                     }
                                     placeholder="correo@ejemplo.com"
-                                    className={`h-10 rounded-none border-0 border-b bg-transparent px-0 text-lg shadow-none focus-visible:ring-0 ${errors.email ? 'border-red-500' : 'focus-visible:border-blue-600'}`}
+                                    className="h-10 rounded-none border-0 border-b bg-transparent px-0 text-lg shadow-none focus-visible:border-blue-600 focus-visible:ring-0"
                                 />
                                 {errors.email && (
                                     <p className="text-sm font-medium text-red-500">
@@ -190,12 +214,13 @@ export default function CreateUser() {
                                 <Info className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
                                 <div className="space-y-1">
                                     <p className="text-sm font-bold text-blue-900 dark:text-blue-300">
-                                        Contraseña Automática
+                                        Seguridad Inicial
                                     </p>
                                     <p className="text-xs leading-relaxed text-blue-700/80 dark:text-blue-400/70">
-                                        El sistema generará una clave temporal.
-                                        El usuario podrá personalizarla desde su
-                                        perfil tras el primer acceso.
+                                        El sistema asignará una contraseña
+                                        temporal que se mostrará al guardar. Se
+                                        recomienda solicitar al usuario el
+                                        cambio de clave tras su primer acceso.
                                     </p>
                                 </div>
                             </div>

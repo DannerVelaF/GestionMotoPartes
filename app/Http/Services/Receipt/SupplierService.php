@@ -33,4 +33,23 @@ class SupplierService extends BaseService
         return $this->repo->deleteMany($ids);
     }
 
+    public function getRazonSocialFromSunat($ruc)
+    {
+        $config = \App\Models\BusinessConfig::first();
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::withToken($config->api_service_token)
+                ->timeout(10)
+                ->get($config->api_service_url, ['numero' => $ruc]);
+
+            if ($response->successful()) {
+                return $response->json()['razon_social'] ?? null;
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Error importando RUC {$ruc}: " . $e->getMessage());
+        }
+
+        return null;
+    }
+
 }

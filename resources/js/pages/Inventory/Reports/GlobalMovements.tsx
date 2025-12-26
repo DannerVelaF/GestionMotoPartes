@@ -14,6 +14,7 @@ import { ChevronLeft, ChevronRight, History, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'use-debounce';
 import { Movement, MovementColumns } from './MovementColumns';
+import { KardexExportModal } from '@/pages/Inventory/Reports/KardexExportModal';
 
 interface Props {
     movements: {
@@ -25,10 +26,15 @@ interface Props {
         last_page: number;
         per_page: number;
     };
+    products: any[];
     filters: { search?: string; type?: string; per_page?: number };
 }
 
-export default function GlobalMovements({ movements, filters }: Props) {
+export default function GlobalMovements({
+    movements,
+    products,
+    filters,
+}: Props) {
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [debouncedSearch] = useDebounce(searchTerm, 300);
     const [typeFilter, setTypeFilter] = useState(filters.type || 'all');
@@ -37,7 +43,7 @@ export default function GlobalMovements({ movements, filters }: Props) {
     const [perPage, setPerPage] = useState<string | number>(movements.per_page);
     const [isEditingPerPage, setIsEditingPerPage] = useState(false);
     const perPageInputRef = useRef<HTMLInputElement>(null);
-
+    const [isKardexModalOpen, setIsKardexModalOpen] = useState(false); // Estado para el modal
     // Función centralizada de actualización
     const updateParams = (newParams: any) => {
         const type = typeFilter === 'all' ? undefined : typeFilter;
@@ -96,7 +102,6 @@ export default function GlobalMovements({ movements, filters }: Props) {
             ]}
         >
             <Head title="Historial de Movimientos" />
-
             <div className="flex h-full flex-1 flex-col overflow-hidden bg-background">
                 <div className="flex items-center justify-between border-b px-6 py-3">
                     <div className="flex items-center gap-4">
@@ -218,6 +223,10 @@ export default function GlobalMovements({ movements, filters }: Props) {
                     </div>
                 </div>
             </div>
+            <KardexExportModal
+                allProducts={products}
+            />
+
         </AppLayout>
     );
 }

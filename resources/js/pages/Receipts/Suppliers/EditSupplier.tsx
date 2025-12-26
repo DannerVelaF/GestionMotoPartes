@@ -22,6 +22,7 @@ import AppLayout from '@/layouts/app-layout';
 import receipts from '@/routes/receipts';
 import suppliersRoute from '@/routes/suppliers';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import axios from 'axios';
 import {
     AlertCircle,
     CheckCircle2,
@@ -40,6 +41,7 @@ import {
     User,
 } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
+import suppliers from '@/routes/suppliers';
 
 // --- INTERFACES ---
 interface FlashProps {
@@ -154,37 +156,46 @@ export default function EditSupplier({ supplier }: Props) {
 
     // --- LÓGICA DE SINCRONIZACIÓN SUNAT ---
     const handleSunatSync = async () => {
+        if (!data.ruc || data.ruc.length !== 11) {
+            setManualAlert({
+                message: 'Ingrese un RUC válido de 11 dígitos.',
+                type: 'error',
+            });
+            return;
+        }
+
         setIsSyncing(true);
-        // Limpiamos alertas previas
         setManualAlert(null);
 
         try {
-            // 1. Aquí iría tu llamada real a la API
-            // const response = await axios.get(`/api/sunat/${data.ruc}`);
+            // Llamada a tu endpoint de Laravel
+            const response = await axios.get(suppliers.buscarSunat().url, {
+                params: { numero: data.ruc },
+            });
 
-            // Simulación
-            await new Promise((resolve) => setTimeout(resolve, 1500));
+            const newName = response.data.razon_social;
 
-            // 2. Dato simulado
-            const simulatedNewName = 'NUEVA RAZÓN SOCIAL S.A.C.';
+            if (newName && newName !== 'No encontrado') {
+                // Actualizamos el campo company_name en el form de Inertia
+                setData('company_name', newName);
 
-            // 3. Actualizamos y mostramos alerta
-            if (simulatedNewName !== data.company_name) {
-                setData('company_name', simulatedNewName);
                 setManualAlert({
                     message: 'Datos actualizados desde SUNAT correctamente.',
                     type: 'success',
                 });
             } else {
                 setManualAlert({
-                    message: 'Los datos ya están actualizados.',
-                    type: 'success',
+                    message: 'No se encontró información para este RUC.',
+                    type: 'error',
                 });
             }
-        } catch (error) {
-            console.error(error);
+        } catch (error: any) {
+            console.error('Error SUNAT:', error);
+            const errorMsg =
+                error.response?.data?.error ||
+                'Error al conectar con el servicio de SUNAT.';
             setManualAlert({
-                message: 'Error al conectar con SUNAT. Intente manualmente.',
+                message: errorMsg,
                 type: 'error',
             });
         } finally {

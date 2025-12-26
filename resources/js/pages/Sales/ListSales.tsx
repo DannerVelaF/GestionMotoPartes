@@ -171,7 +171,7 @@ export default function ListSales({ sales, filters }: Props) {
     const renderContent = () => {
         if (groupBy === 'none') {
             return (
-                <div className="rounded-lg border bg-card shadow-sm">
+                <div className="rounded-xl border bg-card shadow-sm dark:border-neutral-800 dark:bg-neutral-900/20">
                     <DataTable
                         columns={Columns}
                         data={sales.data}

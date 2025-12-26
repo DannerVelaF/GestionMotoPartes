@@ -282,31 +282,47 @@ export default function Dashboard({
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-2">
-                                {topProducts.map((prod, i) => (
-                                    <div
-                                        key={i}
-                                        onClick={() =>
-                                            router.visit(
-                                                productsRoute.show({
-                                                    product: prod.id_product,
-                                                }).url,
-                                            )
-                                        }
-                                        className="group flex cursor-pointer items-center justify-between rounded-lg p-2 transition-colors hover:bg-muted/50"
-                                    >
-                                        <div className="flex flex-col">
-                                            <span className="max-w-[150px] truncate text-xs font-bold transition-colors group-hover:text-blue-600">
-                                                {prod.product_name}
-                                            </span>
-                                            <span className="font-mono text-[9px] text-muted-foreground uppercase">
-                                                Rank #{i + 1}
-                                            </span>
+                                {topProducts.length > 0 ? (
+                                    topProducts.map((prod, i) => (
+                                        <div
+                                            key={i}
+                                            onClick={() =>
+                                                router.visit(
+                                                    productsRoute.show({
+                                                        product:
+                                                            prod.id_product,
+                                                    }).url,
+                                                )
+                                            }
+                                            className="group flex cursor-pointer items-center justify-between rounded-lg p-2 transition-colors hover:bg-muted/50"
+                                        >
+                                            <div className="flex flex-col">
+                                                <span className="max-w-[150px] truncate text-xs font-bold transition-colors group-hover:text-blue-600">
+                                                    {prod.product_name}
+                                                </span>
+                                                <span className="font-mono text-[9px] text-muted-foreground uppercase">
+                                                    Rank #{i + 1}
+                                                </span>
+                                            </div>
+                                            <div className="rounded-lg bg-muted px-2 py-1 text-[10px] font-black uppercase tabular-nums">
+                                                {prod.sold} uds
+                                            </div>
                                         </div>
-                                        <div className="rounded-lg bg-muted px-2 py-1 text-[10px] font-black uppercase tabular-nums">
-                                            {prod.sold} uds
+                                    ))
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                                        <div className="mb-3 rounded-full bg-muted p-3">
+                                            <ShoppingBag className="h-6 w-6 text-muted-foreground/40" />
                                         </div>
+                                        <p className="text-[11px] font-bold tracking-tight text-muted-foreground uppercase">
+                                            Sin datos de ventas
+                                        </p>
+                                        <p className="mt-1 text-[10px] text-muted-foreground/60">
+                                            Inicia una venta para ver el
+                                            ranking.
+                                        </p>
                                     </div>
-                                ))}
+                                )}
                             </CardContent>
                         </Card>
                     </div>
@@ -321,65 +337,81 @@ export default function Dashboard({
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="space-y-4">
-                            {recentMovements.map((move, i) => {
-                                const isEntry = move.type === 'purchase';
-                                const displayQuantity = Math.abs(move.quantity);
-                                return (
-                                    <div
-                                        key={i}
-                                        className="flex items-center justify-between rounded-lg border-b border-border px-2 pb-3 transition-all last:border-0 hover:bg-muted/40"
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <div
+                        {recentMovements.length > 0 ? (
+                            <div className="space-y-4">
+                                {recentMovements.map((move, i) => {
+                                    const isEntry = move.type === 'purchase';
+                                    const displayQuantity = Math.abs(
+                                        move.quantity,
+                                    );
+                                    return (
+                                        <div
+                                            key={i}
+                                            className="flex items-center justify-between rounded-lg border-b border-border px-2 pb-3 transition-all last:border-0 hover:bg-muted/40"
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div
+                                                    className={cn(
+                                                        'rounded-lg p-2',
+                                                        isEntry
+                                                            ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10'
+                                                            : 'bg-red-50 text-red-600 dark:bg-red-500/10',
+                                                    )}
+                                                >
+                                                    {isEntry ? (
+                                                        <ArrowUpRight className="h-4 w-4" />
+                                                    ) : (
+                                                        <ArrowDownRight className="h-4 w-4" />
+                                                    )}
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-baseline gap-2">
+                                                        <p className="text-sm font-bold text-foreground">
+                                                            {move.product_name}
+                                                        </p>
+                                                        <span className="text-[10px] font-medium text-muted-foreground/80 tabular-nums">
+                                                            {format(
+                                                                new Date(
+                                                                    move.created_at,
+                                                                ),
+                                                                'dd/MM/yyyy HH:mm',
+                                                            )}
+                                                        </span>
+                                                    </div>
+
+                                                    <p className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                                                        {move.reference_label}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <span
                                                 className={cn(
-                                                    'rounded-lg p-2',
+                                                    'text-sm font-black tabular-nums',
                                                     isEntry
-                                                        ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10'
-                                                        : 'bg-red-50 text-red-600 dark:bg-red-500/10',
+                                                        ? 'text-emerald-600'
+                                                        : 'text-red-600',
                                                 )}
                                             >
-                                                {isEntry ? (
-                                                    <ArrowUpRight className="h-4 w-4" />
-                                                ) : (
-                                                    <ArrowDownRight className="h-4 w-4" />
-                                                )}
-                                            </div>
-                                            <div>
-                                                <div className="flex items-baseline gap-2">
-                                                    <p className="text-sm font-bold text-foreground">
-                                                        {move.product_name}
-                                                    </p>
-                                                    <span className="text-[10px] font-medium text-muted-foreground/80 tabular-nums">
-                                                        {format(
-                                                            new Date(
-                                                                move.created_at,
-                                                            ),
-                                                            'dd/MM/yyyy HH:mm',
-                                                        )}
-                                                    </span>
-                                                </div>
-
-                                                <p className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
-                                                    {move.reference_label}
-                                                </p>
-                                            </div>
+                                                {isEntry ? '+' : '-'}
+                                                {displayQuantity.toFixed(2)}
+                                            </span>
                                         </div>
-                                        <span
-                                            className={cn(
-                                                'text-sm font-black tabular-nums',
-                                                isEntry
-                                                    ? 'text-emerald-600'
-                                                    : 'text-red-600',
-                                            )}
-                                        >
-                                            {isEntry ? '+' : '-'}
-                                            {displayQuantity.toFixed(2)}
-                                        </span>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                    );
+                                })}
+                            </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center py-20 text-center">
+                                <Activity className="mb-4 h-10 w-10 text-muted-foreground/20" />
+                                <h3 className="text-sm font-black tracking-widest text-muted-foreground uppercase">
+                                    Historial Vacío
+                                </h3>
+                                <p className="mt-2 max-w-[250px] text-xs font-medium text-muted-foreground/60">
+                                    No se registran entradas ni salidas de stock
+                                    en los últimos días. Realiza una compra o
+                                    venta para ver el rastro.
+                                </p>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>

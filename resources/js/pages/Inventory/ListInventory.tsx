@@ -270,13 +270,15 @@ export default function ListInventory({ inventory, filters }: Props) {
                             </div>
                         )}
 
-                    <div className="rounded-lg border bg-card shadow-sm">
+                    <div className="flex-1 overflow-auto bg-muted/5 p-4 dark:bg-neutral-950/20">
+                        <div className="rounded-xl border bg-card shadow-sm dark:border-neutral-800 dark:bg-neutral-900/20">
                         <DataTable
                             columns={InventoryColumns}
                             data={inventory.data}
                             rowSelection={rowSelection}
                             setRowSelection={setRowSelection}
                         />
+                        </div>
                     </div>
                 </div>
             </div>

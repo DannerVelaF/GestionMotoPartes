@@ -239,7 +239,7 @@ export default function ListReceipts({ receipts, filters }: Props) {
         // 1. MODO TABLA PLANA (Sin agrupar) -> Usa tu DataTable existente
         if (groupBy === 'none') {
             return (
-                <div className="rounded-lg border bg-card shadow-sm">
+                <div className="rounded-xl border bg-card shadow-sm dark:border-neutral-800 dark:bg-neutral-900/20">
                     <DataTable
                         columns={Columns}
                         data={receipts.data}

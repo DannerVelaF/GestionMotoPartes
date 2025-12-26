@@ -18,6 +18,7 @@ import {
     User,
 } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
+import axios from 'axios';
 
 // --- COMPONENTE DE ALERTA FLOTANTE MEJORADO ---
 function FloatingAlert({
@@ -106,55 +107,54 @@ export default function CreateSupplier() {
         }
     };
 
-    // --- LÓGICA BUSCAR SUNAT ---
     const handleSunatSearch = async () => {
-        // Limpiar alertas previas
+        // 1. Limpiar estados previos
         setManualAlert(null);
         clearErrors('ruc');
 
+        // 2. Validación local mínima
         if (!data.ruc || data.ruc.length !== 11) {
-            setError('ruc', {
-                message: 'Ingresa un RUC válido de 11 dígitos para buscar.',
-            });
+            setError('ruc', 'Ingresa un RUC válido de 11 dígitos para buscar.');
             return;
         }
 
         setIsSearching(true);
 
         try {
-            // Simulación de espera
-            await new Promise((resolve) => setTimeout(resolve, 1500));
-
-            // Simulación de éxito
-            const simulatedName = 'EMPRESA ENCONTRADA S.A.C.';
-
-            // Actualizar datos
-            setData((prev) => ({
-                ...prev,
-                company_name: simulatedName,
-                // supplier_name: response.data.representante_legal ...
-            }));
-
-            // Mostrar alerta de éxito
-            setManualAlert({
-                message: 'Datos encontrados en SUNAT correctamente.',
-                type: 'success',
+            // 3. Petición al endpoint que creamos en el controlador
+            // Usamos el helper de rutas que tienes definido
+            const response = await axios.get(suppliers.buscarSunat().url, {
+                params: { numero: data.ruc }
             });
-        } catch (error) {
-            console.error(error);
-            // Mostrar alerta de error
+
+            if (response.data.razon_social) {
+                // 4. Actualizar el campo Razón Social con el dato de la API
+                setData('company_name', response.data.razon_social);
+
+                setManualAlert({
+                    message: 'Razón Social obtenida de SUNAT.',
+                    type: 'success',
+                });
+            } else {
+                throw new Error('No se encontró la razón social');
+            }
+
+        } catch (error: any) {
+            console.error("Error en búsqueda SUNAT:", error);
+
+            // 5. Manejo de errores dinámico
+            const errorMessage = error.response?.data?.error || 'No se pudo conectar con SUNAT.';
+
             setManualAlert({
-                message: 'No se pudo conectar con SUNAT.',
+                message: errorMessage,
                 type: 'error',
             });
-            setError('ruc', {
-                message: 'Verifica el número o intenta manualmente.',
-            });
+
+            setError('ruc', 'No se encontró información para este RUC.');
         } finally {
             setIsSearching(false);
         }
     };
-
     // 2. Envío del Formulario
     const submit: FormEventHandler = (e) => {
         e.preventDefault();

@@ -291,4 +291,190 @@ class ReceiptController extends Controller
             return back()->withErrors(['error' => 'Error al procesar devolución: ' . $e->getMessage()]);
         }
     }
+
+    public function taxReport(Request $request)
+    {
+        $from = $request->input('from', Carbon::now()->startOfMonth()->toDateString());
+        $to = $request->input('to', Carbon::now()->toDateString());
+
+        $reportData = Receipt::select(
+            'document_type',
+            DB::raw('SUM(total_amount) as total_sum')
+        )
+            ->whereBetween('issue_date', [$from, $to])
+            ->groupBy('document_type')
+            ->get()
+            ->map(function ($item) {
+                $total = (float) $item->total_sum;
+                // Cálculo contable Perú (IGV 18%)
+                $base = $total / 1.18;
+                $igv = $total - $base;
+
+                return [
+                    'document_type' => $item->document_type,
+                    'base_imponible' => round($base, 2),
+                    'igv' => round($igv, 2),
+                    'total' => round($total, 2),
+                ];
+            });
+
+        return Inertia::render('Receipts/Reports/TaxReport', [
+            'reportData' => $reportData,
+            'filters' => [
+                'from' => $from,
+                'to' => $to
+            ]
+        ]);
+    }
+
+
+    public function marginReport(Request $request)
+    {
+        $from = $request->input('from', Carbon::now()->startOfMonth()->toDateString());
+        $to = $request->input('to', Carbon::now()->toDateString());
+
+        $reportData = DB::table('receipt_details')
+            ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
+            ->join('products', 'receipt_details.id_product', '=', 'products.id_product')
+            ->whereBetween('receipts.issue_date', [$from, $to])
+            ->select(
+                'products.product_name',
+                'products.product_code',
+                'products.sale_price as current_sale_price', // <--- Cambiado aquí
+                DB::raw('AVG(receipt_details.unit_price) as avg_cost'),
+                DB::raw('SUM(receipt_details.quantity) as total_qty')
+            )
+            ->groupBy('products.id_product', 'products.product_name', 'products.product_code', 'products.sale_price')
+            ->get()
+            ->map(function ($item) {
+                $cost = (float) $item->avg_cost;
+                $sale = (float) $item->current_sale_price; // Usamos el precio del maestro de productos
+
+                $profit_per_unit = $sale - $cost;
+                $margin_percent = $sale > 0 ? ($profit_per_unit / $sale) * 100 : 0;
+
+                return [
+                    'product' => $item->product_name,
+                    'code' => $item->product_code,
+                    'avg_cost' => round($cost, 2),
+                    'avg_sale' => round($sale, 2),
+                    'margin_percent' => round($margin_percent, 2),
+                    'projected_profit' => round($profit_per_unit * $item->total_qty, 2),
+                    'total_qty' => $item->total_qty
+                ];
+            })
+            ->sortByDesc('projected_profit')
+            ->values();
+
+        return Inertia::render('Receipts/Reports/MarginReport', [
+            'reportData' => $reportData,
+            'filters' => ['from' => $from, 'to' => $to]
+        ]);
+    }
+    public function supplierReport(Request $request)
+    {
+        $from = $request->input('from', Carbon::now()->startOfMonth()->toDateString());
+        $to = $request->input('to', Carbon::now()->toDateString());
+
+        $reportData = DB::table('receipts')
+            ->join('suppliers', 'receipts.id_supplier', '=', 'suppliers.id_supplier')
+            ->whereBetween('receipts.issue_date', [$from, $to])
+            ->select(
+                'suppliers.company_name',
+                'suppliers.ruc',
+                DB::raw('COUNT(receipts.id_receipt) as purchase_count'),
+                DB::raw('SUM(receipts.total_amount) as total_invested'),
+                DB::raw('MAX(receipts.issue_date) as last_purchase')
+            )
+            ->groupBy('suppliers.id_supplier', 'suppliers.company_name', 'suppliers.ruc')
+            ->orderByDesc('total_invested')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'supplier' => $item->company_name,
+                    'ruc' => $item->ruc,
+                    'count' => $item->purchase_count,
+                    'total' => round((float) $item->total_invested, 2),
+                    'last_date' => Carbon::parse($item->last_purchase)->format('d/m/Y'),
+                ];
+            });
+
+        return Inertia::render('Receipts/Reports/SupplierReport', [
+            'reportData' => $reportData,
+            'filters' => ['from' => $from, 'to' => $to]
+        ]);
+    }
+
+    public function variationReport(Request $request)
+    {
+        $from = $request->input('from', Carbon::now()->subMonths(6)->toDateString());
+        $to = $request->input('to', Carbon::now()->toDateString());
+        $id_product = $request->input('id_product');
+
+        // 1. Obtener datos para el gráfico de líneas (Evolución de un producto o promedio)
+        $trendQuery = DB::table('receipt_details')
+            ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
+            ->whereBetween('receipts.issue_date', [$from, $to]);
+
+        if ($id_product) {
+            $trendQuery->where('receipt_details.id_product', $id_product);
+        }
+
+        $trendData = $trendQuery->select(
+            'receipts.issue_date as date',
+            DB::raw('AVG(receipt_details.unit_price) as price')
+        )
+            ->groupBy('receipts.issue_date')
+            ->orderBy('receipts.issue_date', 'asc')
+            ->get();
+
+        // 2. Obtener tabla de variaciones (Precio Inicial vs Precio Final)
+        $products = DB::table('receipt_details')
+            ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
+            ->join('products', 'receipt_details.id_product', '=', 'products.id_product')
+            ->whereBetween('receipts.issue_date', [$from, $to])
+            ->select(
+                'products.id_product',
+                'products.product_name',
+                DB::raw('MIN(receipts.issue_date) as first_date'),
+                DB::raw('MAX(receipts.issue_date) as last_date')
+            )
+            ->groupBy('products.id_product', 'products.product_name')
+            ->get()
+            ->map(function ($p) {
+                $firstPrice = DB::table('receipt_details')
+                    ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
+                    ->where('id_product', $p->id_product)
+                    ->where('receipts.issue_date', $p->first_date)
+                    ->value('unit_price');
+
+                $lastPrice = DB::table('receipt_details')
+                    ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
+                    ->where('id_product', $p->id_product)
+                    ->where('receipts.issue_date', $p->last_date)
+                    ->value('unit_price');
+
+                $variation = $firstPrice > 0 ? (($lastPrice - $firstPrice) / $firstPrice) * 100 : 0;
+
+                return [
+                    'id' => $p->id_product,
+                    'name' => $p->product_name,
+                    'old_price' => round($firstPrice, 2),
+                    'new_price' => round($lastPrice, 2),
+                    'variation' => round($variation, 2)
+                ];
+            })->sortByDesc('variation')->values();
+
+        return Inertia::render('Receipts/Reports/CostVariationReport', [
+            'trendData' => $trendData,
+            'reportData' => $products,
+            'productsList' => \App\Models\Products::select('id_product as value', 'product_name as label')->get(),
+            'filters' => [
+                'from' => $from,
+                'to' => $to,
+                'id_product' => $id_product
+            ]
+        ]);
+    }
+
 }

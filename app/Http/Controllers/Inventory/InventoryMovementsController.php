@@ -117,8 +117,14 @@ class InventoryMovementsController extends Controller
             ->paginate((int)$perPage)
             ->withQueryString();
 
+        $products = Products::where('status', 'active')
+            ->select('id_product', 'product_name', 'product_code')
+            ->orderBy('product_name')
+            ->get();
+
         return Inertia::render('Inventory/Reports/GlobalMovements', [
             'movements' => $movements,
+            'products' => $products,
             'filters' => [
                 'search' => $search,
                 'per_page' => (int)$perPage,
