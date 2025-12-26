@@ -353,9 +353,6 @@ export default function ListSales({ sales, filters }: Props) {
                                 <SelectItem value="none">
                                     Sin agrupar
                                 </SelectItem>
-                                <SelectItem value="customer">
-                                    Cliente
-                                </SelectItem>
                                 <SelectItem value="document_type">
                                     Tipo Documento
                                 </SelectItem>

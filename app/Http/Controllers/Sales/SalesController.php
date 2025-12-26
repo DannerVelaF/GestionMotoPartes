@@ -16,7 +16,8 @@ class SalesController extends Controller
 {
     protected $service;
 
-    public function __construct(SalesService $service){
+    public function __construct(SalesService $service)
+    {
         $this->service = $service;
     }
 
@@ -118,11 +119,11 @@ class SalesController extends Controller
         ]);
     }
 
-    public function update(){}
+    public function update() {}
 
-    public function destroy(){}
+    public function destroy() {}
 
-    public function bulkDestroy(){}
+    public function bulkDestroy() {}
     public function printTicket($id)
     {
         $sale = Sales::with(['details.product', 'user'])->findOrFail($id);
@@ -147,33 +148,50 @@ class SalesController extends Controller
         ];
     }
 
-    // 1. Reporte: Resumen Diario (Finanzas)
     public function reportDaily(Request $request)
     {
         $range = $this->getDateRange($request);
+        $period = $request->input('period', 'daily');
 
-        $data = Sales::select(
-        // Opción A: Usar convert_tz si tu servidor tiene las tablas de tiempo cargadas
-        // Opción B (Más segura): Simplemente extraer la fecha si el campo ya está en hora local
-            DB::raw('DATE(date_sales) as date'),
-            DB::raw('SUM(total) as total'),
-            DB::raw('COUNT(*) as transactions')
-        )
+        // 1. Definimos el STRING de la consulta según el periodo
+        switch ($period) {
+            case 'weekly':
+                // Inicio de la semana (Lunes)
+                $sql = 'STR_TO_DATE(CONCAT(YEARWEEK(date_sales, 1), " Monday"), "%x%v %W")';
+                break;
+            case 'monthly':
+                // Inicio del mes
+                $sql = 'DATE_FORMAT(date_sales, "%Y-%m-01")';
+                break;
+            case 'yearly':
+                // Inicio del año
+                $sql = 'DATE_FORMAT(date_sales, "%Y-01-01")';
+                break;
+            case 'daily':
+            default:
+                $sql = 'DATE(date_sales)';
+                break;
+        }
+
+        // 2. Ejecutamos la consulta usando selectRaw y groupByRaw
+        $data = Sales::selectRaw("{$sql} as date") // Concatenación dentro del string, no con el objeto
+            ->selectRaw('SUM(total) as total')
+            ->selectRaw('COUNT(*) as transactions')
             ->whereBetween('date_sales', $range)
-            ->groupBy(DB::raw('DATE(date_sales)')) // Agrupamos explícitamente por el mismo valor
+            ->groupByRaw($sql) // Usamos el string directamente
             ->orderBy('date', 'ASC')
             ->get();
 
-        // Debug opcional para ti:
-        // dd($data->toArray());
-
         return Inertia::render('Sales/Reports/DailySummary', [
             'reportData' => $data,
-            'filters' => $request->only(['from', 'to'])
+            'filters' => [
+                'from' => $request->input('from', Carbon::now()->subDays(30)->format('Y-m-d')),
+                'to' => $request->input('to', Carbon::now()->format('Y-m-d')),
+                'period' => $period
+            ]
         ]);
     }
 
-    // 2. Reporte: Libro de Ventas / Impuestos
     // 2. Reporte: Libro de Ventas / Impuestos
     public function reportTax(Request $request)
     {
@@ -201,7 +219,7 @@ class SalesController extends Controller
             ]
         ]);
     }
-// 3. Reporte: Productos Estrella (Top Sellers)
+    // 3. Reporte: Productos Estrella (Top Sellers)
     public function reportTopProducts(Request $request)
     {
         $range = $this->getDateRange($request);

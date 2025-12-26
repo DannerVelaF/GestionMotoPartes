@@ -10,10 +10,11 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
+import receipts from '@/routes/receipts';
+import { margin } from '@/routes/reports-receipts';
 import { Head, router } from '@inertiajs/react';
 import {
     AlertTriangle,
-    ArrowLeft,
     Calendar,
     DollarSign,
     Filter,
@@ -62,7 +63,7 @@ export default function MarginReport({
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         router.get(
-            '/receipts/reports/margin',
+            margin().url,
             {
                 // Cambia por tu ruta real
                 from: formData.get('from'),
@@ -75,6 +76,7 @@ export default function MarginReport({
     return (
         <AppLayout
             breadcrumbs={[
+                { title: 'Comprobantes', href: receipts.index().url },
                 { title: 'Reportes', href: '#' },
                 { title: 'Análisis de Margen', href: '' },
             ]}
@@ -85,14 +87,6 @@ export default function MarginReport({
                 {/* --- HEADER --- */}
                 <div className="sticky top-0 z-20 flex items-center justify-between border-b bg-background/95 px-8 py-4 backdrop-blur dark:border-neutral-800">
                     <div className="flex items-center gap-4">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => window.history.back()}
-                            className="rounded-full dark:border-neutral-800"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                        </Button>
                         <div>
                             <h1 className="text-lg font-bold tracking-tight">
                                 Análisis de Margen
@@ -185,13 +179,13 @@ export default function MarginReport({
                                             <BarChart
                                                 data={reportData.slice(0, 10)}
                                                 layout="vertical"
-                                                margin={{ left: 30 }}
+                                                margin={{ left: 30, right: 30 }}
                                             >
                                                 <CartesianGrid
                                                     strokeDasharray="3 3"
                                                     horizontal={true}
                                                     vertical={false}
-                                                    strokeOpacity={0.05}
+                                                    strokeOpacity={0.1}
                                                 />
                                                 <XAxis type="number" hide />
                                                 <YAxis
@@ -200,11 +194,13 @@ export default function MarginReport({
                                                     axisLine={false}
                                                     tickLine={false}
                                                     tick={{
-                                                        fontSize: 10,
+                                                        fontSize: 12,
                                                         fill: '#888',
+                                                        width: 120,
                                                     }}
                                                     width={120}
                                                 />
+                                                {/* ✅ TOOLTIP CORREGIDO */}
                                                 <ChartTooltip
                                                     cursor={{
                                                         fill: 'currentColor',
@@ -215,8 +211,24 @@ export default function MarginReport({
                                                         border: 'none',
                                                         borderRadius: '12px',
                                                         color: '#fff',
-                                                        fontSize: '10px',
+                                                        fontSize: '14px', // Fuente más grande
+                                                        fontWeight: '600',
+                                                        padding: '12px',
                                                     }}
+                                                    itemStyle={{
+                                                        color: '#60a5fa',
+                                                    }} // Color celeste para el valor
+                                                    labelStyle={{
+                                                        color: '#999',
+                                                        marginBottom: '4px',
+                                                        fontSize: '11px',
+                                                    }}
+                                                    formatter={(
+                                                        value: number,
+                                                    ) => [
+                                                        `S/ ${value.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
+                                                        'Ganancia Proyectada',
+                                                    ]}
                                                 />
                                                 <Bar
                                                     dataKey="projected_profit"
@@ -229,7 +241,6 @@ export default function MarginReport({
                                     </div>
                                 </CardContent>
                             </Card>
-
                             {/* Detalle en Tabla */}
                             <div className="flex flex-col rounded-3xl border border-neutral-200 bg-card p-6 shadow-sm lg:col-span-2 dark:border-neutral-800 dark:bg-neutral-900/20">
                                 <h3 className="mb-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
@@ -257,7 +268,7 @@ export default function MarginReport({
                                                         <p className="text-[11px] leading-tight font-black uppercase">
                                                             {item.product}
                                                         </p>
-                                                        <span className="font-mono text-[9px] text-muted-foreground">
+                                                        <span className="font-mono text-[10.5px] text-muted-foreground">
                                                             S/ {item.avg_cost}{' '}
                                                             vs S/{' '}
                                                             {item.avg_sale}
@@ -312,7 +323,7 @@ function StatCard({ title, value, icon, colorClass, subtext }: any) {
                 >
                     {value}
                 </div>
-                <p className="mt-1 text-[10px] font-medium text-muted-foreground opacity-60">
+                <p className="mt-1 text-[12px] font-medium text-muted-foreground opacity-60">
                     {subtext}
                 </p>
             </CardContent>

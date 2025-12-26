@@ -13,14 +13,7 @@ import AppLayout from '@/layouts/app-layout';
 import reports from '@/routes/reports';
 import sales from '@/routes/sales';
 import { Head, router } from '@inertiajs/react';
-import {
-    ArrowLeft,
-    BarChart3,
-    Calendar,
-    Filter,
-    ShoppingBag,
-    Trophy,
-} from 'lucide-react';
+import { BarChart3, Calendar, Filter, ShoppingBag, Trophy } from 'lucide-react';
 import {
     Bar,
     BarChart,
@@ -282,7 +275,7 @@ export default function TopProducts({
                                                         <p className="text-[11px] leading-tight font-black text-foreground uppercase">
                                                             {item.product_name}
                                                         </p>
-                                                        <span className="font-mono text-[9px] text-muted-foreground">
+                                                        <span className="font-mono text-[10.5px] text-muted-foreground">
                                                             {item.product_code}
                                                         </span>
                                                     </TableCell>

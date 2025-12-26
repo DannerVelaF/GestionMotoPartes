@@ -1,15 +1,12 @@
 import InputError from '@/components/input-error';
-import TextLink from '@/components/text-link';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AuthLayout from '@/layouts/auth-layout';
 import { store } from '@/routes/login';
-import { request } from '@/routes/password';
 import { Form, Head } from '@inertiajs/react';
-import { ArrowRight, LayoutGrid, Lock, ShieldCheck, User } from 'lucide-react';
+import { ArrowRight, LayoutGrid, Lock, User } from 'lucide-react';
 
 interface LoginProps {
     status?: string;
@@ -72,22 +69,6 @@ export default function Login({ status, canResetPassword }: LoginProps) {
 
                                 {/* CAMPO CONTRASEÑA */}
                                 <div className="space-y-2">
-                                    <div className="flex items-center justify-between px-1">
-                                        <Label
-                                            htmlFor="password"
-                                            className="text-[10px] font-black tracking-[0.15em] text-neutral-400 uppercase dark:text-neutral-500"
-                                        >
-                                            Contraseña
-                                        </Label>
-                                        {canResetPassword && (
-                                            <TextLink
-                                                href={request()}
-                                                className="text-[10px] font-bold text-neutral-400 uppercase transition-colors hover:text-black dark:hover:text-white"
-                                            >
-                                                ¿Olvidaste la clave?
-                                            </TextLink>
-                                        )}
-                                    </div>
                                     <div className="group relative">
                                         <Lock className="absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-neutral-400 transition-colors group-focus-within:text-black dark:group-focus-within:text-white" />
                                         <Input
@@ -103,28 +84,6 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                                 </div>
                             </div>
 
-                            <div className="flex items-center justify-between px-1">
-                                <div className="flex items-center">
-                                    <Checkbox
-                                        id="remember"
-                                        name="remember"
-                                        className="h-4 w-4 rounded border-neutral-300 data-[state=checked]:border-black data-[state=checked]:bg-black dark:border-neutral-700 dark:data-[state=checked]:border-neutral-100 dark:data-[state=checked]:bg-neutral-100"
-                                    />
-                                    <label
-                                        htmlFor="remember"
-                                        className="ml-2 cursor-pointer text-xs font-semibold text-neutral-500 transition-colors select-none hover:text-black dark:text-neutral-400 dark:hover:text-neutral-200"
-                                    >
-                                        Recordarme
-                                    </label>
-                                </div>
-
-                                <div className="flex items-center gap-1 text-[10px] font-bold tracking-tighter text-neutral-300 uppercase dark:text-neutral-600">
-                                    <ShieldCheck className="h-3 w-3" />
-                                    SSL Secure
-                                </div>
-                            </div>
-
-                            {/* BOTÓN DE ACCIÓN */}
                             <Button
                                 type="submit"
                                 className="group h-12 w-full rounded-xl bg-black text-sm font-bold text-white shadow-xl transition-all hover:bg-neutral-800 active:scale-[0.98] dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-white"

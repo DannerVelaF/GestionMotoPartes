@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Receipt;
 
 use App\Enums\DocumentType;
+use App\Exports\TaxReportExport;
 use App\Http\Controllers\Controller;
 use App\Http\Services\Receipt\ReceiptService;
 use App\Models\Products; // Asegúrate de importar tu modelo de productos
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ReceiptController extends Controller
 {
@@ -53,11 +55,7 @@ class ReceiptController extends Controller
             });
 
         // Lógica de Ordenamiento para que el agrupamiento visual funcione bien
-        if ($groupBy === 'supplier') {
-            $query->join('suppliers', 'receipts.id_supplier', '=', 'suppliers.id_supplier')
-                ->orderBy('suppliers.company_name', 'asc')
-                ->select('receipts.*');
-        } elseif ($groupBy === 'document_type') {
+        if ($groupBy === 'document_type') {
             $query->orderBy('document_type', 'asc');
         } elseif ($groupBy === 'month') {
             // Ordenar por fecha para agrupar por mes
@@ -226,7 +224,6 @@ class ReceiptController extends Controller
             $this->service->deleteReceipt($id);
 
             return to_route('receipts.index')->with('success', 'Comprobante eliminado correctamente.');
-
         } catch (\Illuminate\Database\QueryException $e) {
             // ✅ CAPTURA DE ERROR DE BASE DE DATOS (Integrity constraint violation)
             if ($e->getCode() == "23000") {
@@ -411,7 +408,7 @@ class ReceiptController extends Controller
         $to = $request->input('to', Carbon::now()->toDateString());
         $id_product = $request->input('id_product');
 
-        // 1. Obtener datos para el gráfico de líneas (Evolución de un producto o promedio)
+        // 1. Obtener datos para el gráfico (Promedio diario para no saturar la línea)
         $trendQuery = DB::table('receipt_details')
             ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
             ->whereBetween('receipts.issue_date', [$from, $to]);
@@ -428,7 +425,7 @@ class ReceiptController extends Controller
             ->orderBy('receipts.issue_date', 'asc')
             ->get();
 
-        // 2. Obtener tabla de variaciones (Precio Inicial vs Precio Final)
+        // 2. LÓGICA CORREGIDA: Obtener el PRIMER y ÚLTIMO precio real por ID
         $products = DB::table('receipt_details')
             ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
             ->join('products', 'receipt_details.id_product', '=', 'products.id_product')
@@ -436,22 +433,21 @@ class ReceiptController extends Controller
             ->select(
                 'products.id_product',
                 'products.product_name',
-                DB::raw('MIN(receipts.issue_date) as first_date'),
-                DB::raw('MAX(receipts.issue_date) as last_date')
+                // Obtenemos el ID del primer y último detalle registrado en ese rango
+                DB::raw('MIN(receipt_details.id_receipt_detail) as first_detail_id'),
+                DB::raw('MAX(receipt_details.id_receipt_detail) as last_detail_id')
             )
             ->groupBy('products.id_product', 'products.product_name')
             ->get()
             ->map(function ($p) {
+                // Buscamos el precio exacto del primer registro
                 $firstPrice = DB::table('receipt_details')
-                    ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
-                    ->where('id_product', $p->id_product)
-                    ->where('receipts.issue_date', $p->first_date)
+                    ->where('id_receipt_detail', $p->first_detail_id)
                     ->value('unit_price');
 
+                // Buscamos el precio exacto del último registro
                 $lastPrice = DB::table('receipt_details')
-                    ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
-                    ->where('id_product', $p->id_product)
-                    ->where('receipts.issue_date', $p->last_date)
+                    ->where('id_receipt_detail', $p->last_detail_id)
                     ->value('unit_price');
 
                 $variation = $firstPrice > 0 ? (($lastPrice - $firstPrice) / $firstPrice) * 100 : 0;
@@ -459,11 +455,13 @@ class ReceiptController extends Controller
                 return [
                     'id' => $p->id_product,
                     'name' => $p->product_name,
-                    'old_price' => round($firstPrice, 2),
-                    'new_price' => round($lastPrice, 2),
+                    'old_price' => round((float)$firstPrice, 2),
+                    'new_price' => round((float)$lastPrice, 2),
                     'variation' => round($variation, 2)
                 ];
-            })->sortByDesc('variation')->values();
+            })
+            ->sortByDesc(fn($item) => abs($item['variation'])) // Ordenar por los que más cambiaron
+            ->values();
 
         return Inertia::render('Receipts/Reports/CostVariationReport', [
             'trendData' => $trendData,
@@ -476,5 +474,14 @@ class ReceiptController extends Controller
             ]
         ]);
     }
+    public function exportTaxExcel(Request $request)
+    {
+        $from = $request->input('from', Carbon::now()->startOfMonth()->toDateString());
+        $to = $request->input('to', Carbon::now()->toDateString());
 
+        return Excel::download(
+            new TaxReportExport($from, $to),
+            "libro_compras_{$from}_al_{$to}.xlsx"
+        );
+    }
 }

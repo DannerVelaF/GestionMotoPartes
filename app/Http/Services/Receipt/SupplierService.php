@@ -13,34 +13,38 @@ class SupplierService extends BaseService
         parent::__construct($repo);
     }
 
-    public function createSupplier(array $data){
+    public function createSupplier(array $data)
+    {
         return $this->repo->create($data);
     }
 
-    public function updateSupplier(array $data){
+    public function updateSupplier(array $data)
+    {
         return $this->repo->update($data);
     }
 
-    public function deleteSupplier($id){
+    public function deleteSupplier($id)
+    {
         return $this->repo->delete($id);
     }
 
-    public function getSupplierById($id){
+    public function getSupplierById($id)
+    {
         return $this->repo->find($id);
     }
 
-    public function deleteSuppliers($ids){
+    public function deleteSuppliers($ids)
+    {
         return $this->repo->deleteMany($ids);
     }
 
     public function getRazonSocialFromSunat($ruc)
     {
         $config = \App\Models\BusinessConfig::first();
-
         try {
             $response = \Illuminate\Support\Facades\Http::withToken($config->api_service_token)
                 ->timeout(10)
-                ->get($config->api_service_url, ['numero' => $ruc]);
+                ->get($config->api_service_url . "/sunat/ruc", ['numero' => $ruc]);
 
             if ($response->successful()) {
                 return $response->json()['razon_social'] ?? null;
@@ -52,4 +56,21 @@ class SupplierService extends BaseService
         return null;
     }
 
+    public function getClienteFromReniec($dni)
+    {
+        $config = \App\Models\BusinessConfig::first();
+        try {
+            $response = \Illuminate\Support\Facades\Http::withToken($config->api_service_token)
+                ->timeout(10)
+                ->get($config->api_service_url . "/reniec/dni", ['numero' => $dni]);
+
+            if ($response->successful()) {
+                return $response->json()['first_name'] . ' ' . $response->json()['first_last_name'] . ' ' . $response->json()['second_last_name'];
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Error importando DNI {$dni}: " . $e->getMessage());
+        }
+
+        return null;
+    }
 }

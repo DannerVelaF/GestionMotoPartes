@@ -3,6 +3,8 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB; // Importante
+use Illuminate\Support\Facades\Hash; // Importante
 
 return new class extends Migration
 {
@@ -13,27 +15,35 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-
             $table->string('username')->unique();
             $table->string('dni', 8)->unique();
             $table->string('name');
             $table->string("father_last_name")->nullable();
             $table->string("mother_last_name")->nullable();
             $table->string('email')->nullable()->unique();
-
             $table->boolean('is_active')->default(true);
-
             $table->string('password');
             $table->timestamp('email_verified_at')->nullable();
-
             $table->timestamp('last_login_at')->nullable();
             $table->string('last_login_ip', 45)->nullable();
-
             $table->rememberToken();
             $table->timestamps();
-
             $table->softDeletes();
         });
+
+        // --- INSERTAR USUARIO ADMIN AQUÍ ---
+        DB::table('users')->insert([
+            'username'   => 'admin',
+            'dni'        => '12345678', // Asegúrate de que cumpla con los 8 caracteres
+            'name'       => 'Administrador',
+            'father_last_name' => 'Sistema',
+            'mother_last_name' => 'Principal',
+            'email'      => 'admin@sistema.com',
+            'password'   => Hash::make('admin'), // Siempre hashear la contraseña
+            'is_active'  => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {
             $table->string('email')->primary();

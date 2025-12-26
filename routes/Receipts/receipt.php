@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\CustomerSearchController;
 use App\Http\Controllers\Receipt\ReceiptController;
 use App\Http\Controllers\Receipt\SupplierController;
 use Illuminate\Support\Facades\Route;
@@ -9,7 +10,7 @@ Route::middleware("auth")->group(function () {
 
         Route::get('/proovedores/template', [SupplierController::class, 'template'])->name('suppliers.template');
         Route::post('/proovedores/import', [SupplierController::class, 'import'])->name('suppliers.import');
-        Route::get("/proovedores/buscar-sunat", "buscarSunarProveedor")->name("suppliers.buscarSunat");
+        Route::get("/proovedores/buscar-sunat", "buscarSunatProveedor")->name("suppliers.buscarSunat");
         Route::get("/proovedores", "index")->name("suppliers.index");
         Route::get("/proovedores/nuevoProovedor", "create")->name("suppliers.create");
         Route::post("/proovedores", "store")->name("suppliers.store");
@@ -29,8 +30,12 @@ Route::middleware("auth")->group(function () {
         Route::post('/receipts/{receipt}/return', [ReceiptController::class, 'returnReceipt'])
             ->name('receipts.return');
         Route::get('/recibos/reportes/impuestos',  'taxReport')->name('reports-receipts.tax');
+        Route::get('/recibos/reportes/impuestosExcel',  'exportTaxExcel')->name('reports-receipts.taxExcel');
+
         Route::get('/recibos/reportes/margen',  'marginReport')->name('reports-receipts.margin');
         Route::get('/recibos/reportes/proveedores',  'supplierReport')->name('reports-receipts.suppliers');
         Route::get('/recibos/reportes/variacionCosto',  'variationReport')->name('reports-receipts.variation');
     });
+
+    Route::get('/api/consultar-documento/{documento}', [CustomerSearchController::class, 'searchCustomer']);
 });

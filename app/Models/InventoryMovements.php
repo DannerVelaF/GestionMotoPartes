@@ -26,7 +26,8 @@ class InventoryMovements extends Model
         return $this->belongsTo(Products::class, 'id_product', 'id_product');
     }
 
-    public function user(){
+    public function user()
+    {
         return $this->belongsTo(User::class, 'id_user', 'id');
     }
 
@@ -35,6 +36,4 @@ class InventoryMovements extends Model
     {
         return $this->morphTo();
     }
-
-
 }

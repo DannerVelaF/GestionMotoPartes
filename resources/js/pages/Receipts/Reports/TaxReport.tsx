@@ -11,10 +11,9 @@ import {
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import receiptsRoute from '@/routes/receipts';
-import reports from '@/routes/reports';
+import { tax, taxExcel } from '@/routes/reports-receipts';
 import { Head, router } from '@inertiajs/react';
 import {
-    ArrowLeft,
     Calculator,
     Calendar,
     Download,
@@ -28,8 +27,8 @@ import {
     BarChart,
     CartesianGrid,
     Cell,
-    ResponsiveContainer,
     Tooltip as ChartTooltip,
+    ResponsiveContainer,
     XAxis,
     YAxis,
 } from 'recharts';
@@ -68,10 +67,20 @@ export default function TaxReport({ reportData, filters }: Props) {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         router.get(
-            reports.tax().url, // Asegúrate de que esta ruta apunte a ReceiptController@taxReport
+            tax().url, // Asegúrate de que esta ruta apunte a ReceiptController@taxReport
             { from: formData.get('from'), to: formData.get('to') },
             { preserveState: true, preserveScroll: true },
         );
+    };
+    const handleExportExcel = () => {
+        // Construimos la URL con los filtros actuales
+        const url = taxExcel().url({
+            from: filters.from,
+            to: filters.to,
+        });
+
+        // Redirigimos para descargar
+        window.location.href = url;
     };
 
     return (
@@ -88,14 +97,6 @@ export default function TaxReport({ reportData, filters }: Props) {
                 {/* --- HEADER STICKY --- */}
                 <div className="sticky top-0 z-20 flex items-center justify-between border-b bg-background/95 px-8 py-4 backdrop-blur dark:border-neutral-800">
                     <div className="flex items-center gap-4">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => window.history.back()}
-                            className="h-9 w-9 rounded-full dark:border-neutral-800 dark:hover:bg-neutral-900"
-                        >
-                            <ArrowLeft className="h-4 w-4 text-muted-foreground" />
-                        </Button>
                         <div>
                             <h1 className="text-lg font-bold tracking-tight text-foreground">
                                 Libro de Compras (IGV)
@@ -176,7 +177,7 @@ export default function TaxReport({ reportData, filters }: Props) {
                                             minimumFractionDigits: 2,
                                         })}
                                     </div>
-                                    <p className="mt-1 text-[10px] font-medium opacity-60">
+                                    <p className="mt-1 text-[12px] font-medium opacity-60">
                                         Gasto total documentado
                                     </p>
                                 </CardContent>
@@ -367,7 +368,7 @@ function TaxStatCard({ title, value, icon, colorClass, description }: any) {
                 <div className="text-2xl font-black tracking-tighter text-foreground tabular-nums">
                     {value}
                 </div>
-                <p className="mt-1 text-[10px] font-medium text-muted-foreground">
+                <p className="mt-1 text-[12px] font-medium text-muted-foreground">
                     {description}
                 </p>
             </CardContent>

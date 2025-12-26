@@ -1,14 +1,6 @@
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -35,15 +27,17 @@ import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
 import salesRoute from '@/routes/sales';
 import { Head, useForm } from '@inertiajs/react';
+import axios from 'axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
     CalendarIcon,
     FileText,
+    Loader2,
     Plus,
-    Printer,
     RotateCcw,
     Save,
+    Search,
     ShoppingBag,
     Trash2,
     User,
@@ -84,6 +78,7 @@ export default function CreateSales({ products, documentTypes }: Props) {
     const [rows, setRows] = useState<DetailRow[]>([
         { id: Date.now(), id_product: '', quantity: 1, unit_price: 0 },
     ]);
+    const [isSearching, setIsSearching] = useState(false);
     const [alert, setAlert] = useState<{
         message: string;
         type: 'success' | 'error';
@@ -103,40 +98,100 @@ export default function CreateSales({ products, documentTypes }: Props) {
             details: [] as any[],
         });
 
-    const onFieldChange = (field: keyof typeof data, value: any) => {
-        setData(field, value);
-        if (errors[field]) clearErrors(field);
+    const handleSearchDocument = async () => {
+        const doc = data.receiver_id_number;
 
-        if (field === 'document_type') {
-            if (value === TICKET_VALUE) {
-                setData((prev) => ({
-                    ...prev,
-                    document_type: value,
-                    receiver_id_number: CLIENTE_VARIOS_RUC,
-                    receiver_name: CLIENTE_VARIOS_NAME,
-                    series: 'T001',
-                    number: '',
-                }));
-            } else if (value === 'boleta') {
-                setData((prev) => ({
-                    ...prev,
-                    document_type: value,
-                    receiver_id_number: CLIENTE_VARIOS_RUC,
-                    receiver_name: CLIENTE_VARIOS_NAME,
-                    series: 'B001',
-                    number: '',
-                }));
-            } else if (value === 'factura') {
-                setData((prev) => ({
-                    ...prev,
-                    document_type: value,
-                    receiver_id_number: '',
-                    receiver_name: '',
-                    series: 'F001',
-                    number: '',
-                }));
+        // Validación básica de longitud
+        if (doc.length !== 8 && doc.length !== 11) return;
+
+        setIsSearching(true);
+
+        try {
+            // Axios ya incluye por defecto headers como 'X-Requested-With': 'XMLHttpRequest'
+            // en la mayoría de instalaciones con Laravel, pero aquí lo hacemos explícito si fuera necesario.
+            const response = await axios.get(
+                `/api/consultar-documento/${doc}`,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                    },
+                },
+            );
+
+            // En Axios, los datos vienen directamente en la propiedad .data
+            const res = response.data;
+
+            if (res.success) {
+                // Lógica para no sobrescribir si el usuario ya escribió algo
+                const isNameEmptyOrDefault =
+                    !data.receiver_name ||
+                    data.receiver_name === CLIENTE_VARIOS_NAME;
+
+                if (isNameEmptyOrDefault) {
+                    setData('receiver_name', res.nombre);
+                }
             }
+        } catch (error: any) {
+            // Axios captura automáticamente errores 404, 500, etc.
+            if (error.response?.status === 404) {
+                console.warn(
+                    'Documento no encontrado en la base de datos externa.',
+                );
+            } else {
+                console.error(
+                    'Error en la comunicación con el servidor:',
+                    error.message,
+                );
+            }
+        } finally {
+            setIsSearching(false);
         }
+    };
+
+    const onFieldChange = (field: keyof typeof data, value: any) => {
+        if (field === 'document_type') {
+            // VERIFICACIÓN: ¿El usuario ya escribió algo manualmente?
+            // Consideramos "manual" si el ID no está vacío y no es el de "Varios"
+            const hasManualData =
+                data.receiver_id_number !== '' &&
+                data.receiver_id_number !== CLIENTE_VARIOS_RUC;
+
+            if (hasManualData) {
+                // Si hay datos manuales, SOLO cambiamos el tipo de documento y la serie
+                const seriesMap: any = {
+                    [TICKET_VALUE]: 'T001',
+                    boleta: 'B001',
+                    factura: 'F001',
+                };
+                setData((prev) => ({
+                    ...prev,
+                    document_type: value,
+                    series: seriesMap[value] || '',
+                }));
+            } else {
+                // Si NO hay datos, aplicamos el comportamiento automático original
+                if (value === TICKET_VALUE || value === 'boleta') {
+                    setData((prev) => ({
+                        ...prev,
+                        document_type: value,
+                        receiver_id_number: CLIENTE_VARIOS_RUC,
+                        receiver_name: CLIENTE_VARIOS_NAME,
+                        series: value === 'boleta' ? 'B001' : 'T001',
+                    }));
+                } else {
+                    setData((prev) => ({
+                        ...prev,
+                        document_type: value,
+                        receiver_id_number: '',
+                        receiver_name: '',
+                        series: 'F001',
+                    }));
+                }
+            }
+        } else {
+            setData(field, value);
+        }
+        if (errors[field]) clearErrors(field);
     };
 
     const updateRow = (id: number, field: keyof DetailRow, value: any) => {
@@ -176,7 +231,6 @@ export default function CreateSales({ products, documentTypes }: Props) {
                 const createdSaleId = props.saleId || props.flash?.saleId;
                 if (createdSaleId) {
                     setLastSaleId(createdSaleId);
-
                 }
                 reset();
                 setRows([
@@ -283,9 +337,31 @@ export default function CreateSales({ products, documentTypes }: Props) {
                                                     e.target.value,
                                                 )
                                             }
-                                            className={cleanInputClass}
+                                            onKeyDown={(e) =>
+                                                e.key === 'Enter' &&
+                                                (e.preventDefault(),
+                                                handleSearchDocument())
+                                            }
+                                            className={cn(
+                                                cleanInputClass,
+                                                'pr-10',
+                                            )}
                                             placeholder="00000000"
                                         />
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            disabled={isSearching}
+                                            onClick={handleSearchDocument}
+                                            className="absolute right-0 h-8 w-8 text-blue-600 hover:bg-blue-50"
+                                        >
+                                            {isSearching ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <Search className="h-4 w-4" />
+                                            )}
+                                        </Button>
                                     </div>
                                     <div className="space-y-2">
                                         <Label className="text-[10px] font-bold text-muted-foreground uppercase">
@@ -648,7 +724,6 @@ export default function CreateSales({ products, documentTypes }: Props) {
                     </div>
                 </div>
             </form>
-
         </AppLayout>
     );
 }

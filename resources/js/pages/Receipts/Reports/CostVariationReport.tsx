@@ -11,10 +11,10 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
+import receipts from '@/routes/receipts';
 import { Head, router } from '@inertiajs/react';
 import {
     Activity,
-    ArrowLeft,
     Calendar,
     Filter,
     TrendingDown,
@@ -53,6 +53,7 @@ export default function CostVariationReport({
     return (
         <AppLayout
             breadcrumbs={[
+                { title: 'Comprobantes', href: receipts.index().url },
                 { title: 'Reportes', href: '#' },
                 { title: 'Variación de Costos', href: '' },
             ]}
@@ -63,14 +64,6 @@ export default function CostVariationReport({
                 {/* --- HEADER --- */}
                 <div className="sticky top-0 z-20 flex items-center justify-between border-b bg-background/95 px-8 py-4 backdrop-blur dark:border-neutral-800">
                     <div className="flex items-center gap-4">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => window.history.back()}
-                            className="rounded-full dark:border-neutral-800"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                        </Button>
                         <div>
                             <h1 className="text-lg font-bold tracking-tight">
                                 Variación de Costos
@@ -127,7 +120,7 @@ export default function CostVariationReport({
                             <Card className="rounded-3xl border-none shadow-sm ring-1 ring-neutral-200 lg:col-span-3 dark:bg-neutral-900/50 dark:ring-neutral-800">
                                 <CardHeader className="border-b bg-muted/30 dark:border-neutral-800">
                                     <CardTitle className="flex items-center gap-2 text-[10px] font-black tracking-widest uppercase">
-                                        <Activity className="h-4 w-4 text-blue-500" />{' '}
+                                        <Activity className="h-4 w-4 text-blue-400" />{' '}
                                         Curva de Precios
                                     </CardTitle>
                                 </CardHeader>
@@ -137,18 +130,26 @@ export default function CostVariationReport({
                                             width="100%"
                                             height="100%"
                                         >
-                                            <LineChart data={trendData}>
+                                            <LineChart
+                                                data={trendData}
+                                                margin={{
+                                                    top: 5,
+                                                    right: 20,
+                                                    bottom: 5,
+                                                    left: 0,
+                                                }}
+                                            >
                                                 <CartesianGrid
                                                     strokeDasharray="3 3"
                                                     vertical={false}
-                                                    strokeOpacity={0.05}
+                                                    strokeOpacity={0.1}
                                                 />
                                                 <XAxis
                                                     dataKey="date"
                                                     axisLine={false}
                                                     tickLine={false}
                                                     tick={{
-                                                        fontSize: 9,
+                                                        fontSize: 10,
                                                         fill: '#888',
                                                     }}
                                                 />
@@ -156,7 +157,7 @@ export default function CostVariationReport({
                                                     axisLine={false}
                                                     tickLine={false}
                                                     tick={{
-                                                        fontSize: 10,
+                                                        fontSize: 11,
                                                         fill: '#888',
                                                     }}
                                                     tickFormatter={(val) =>
@@ -169,19 +170,35 @@ export default function CostVariationReport({
                                                         border: 'none',
                                                         borderRadius: '12px',
                                                         color: '#fff',
-                                                        fontSize: '10px',
+                                                        fontSize: '14px', // Aumentado a 14px
+                                                        fontWeight: '600',
+                                                        padding: '12px',
+                                                    }}
+                                                    itemStyle={{
+                                                        color: '#60a5fa',
+                                                    }} // Color celeste para el texto interno
+                                                    labelStyle={{
+                                                        color: '#999',
+                                                        marginBottom: '4px',
+                                                        fontSize: '12px',
                                                     }}
                                                 />
                                                 <Line
                                                     type="monotone"
                                                     dataKey="price"
-                                                    stroke="#2563eb"
-                                                    strokeWidth={3}
+                                                    name="Precio" // Traducido a "Precio"
+                                                    stroke="#3b82f6" // Azul más vibrante y visible
+                                                    strokeWidth={4} // Línea un poco más gruesa
                                                     dot={{
-                                                        r: 4,
-                                                        fill: '#2563eb',
+                                                        r: 5,
+                                                        fill: '#3b82f6',
+                                                        stroke: '#fff', // Borde blanco para resaltar el punto
+                                                        strokeWidth: 2,
                                                     }}
-                                                    activeDot={{ r: 6 }}
+                                                    activeDot={{
+                                                        r: 8,
+                                                        strokeWidth: 0,
+                                                    }}
                                                 />
                                             </LineChart>
                                         </ResponsiveContainer>
@@ -217,7 +234,7 @@ export default function CostVariationReport({
                                                             <p className="text-[11px] leading-tight font-black uppercase">
                                                                 {item.name}
                                                             </p>
-                                                            <span className="font-mono text-[9px] text-muted-foreground">
+                                                            <span className="font-mono text-[10.5px] text-muted-foreground">
                                                                 Inicial: S/{' '}
                                                                 {item.old_price}{' '}
                                                                 → Final: S/{' '}

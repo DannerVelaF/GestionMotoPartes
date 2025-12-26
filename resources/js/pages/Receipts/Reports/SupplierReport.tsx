@@ -10,9 +10,9 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
+import receipts from '@/routes/receipts';
 import { Head, router } from '@inertiajs/react';
 import {
-    ArrowLeft,
     Briefcase,
     Calendar,
     Filter,
@@ -64,6 +64,7 @@ export default function SupplierReport({
     return (
         <AppLayout
             breadcrumbs={[
+                { title: 'Comprobantes', href: receipts.index().url },
                 { title: 'Reportes', href: '#' },
                 { title: 'Gestión de Proveedores', href: '' },
             ]}
@@ -74,14 +75,6 @@ export default function SupplierReport({
                 {/* --- HEADER STICKY --- */}
                 <div className="sticky top-0 z-20 flex items-center justify-between border-b bg-background/95 px-8 py-4 backdrop-blur dark:border-neutral-800">
                     <div className="flex items-center gap-4">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            onClick={() => window.history.back()}
-                            className="rounded-full dark:border-neutral-800"
-                        >
-                            <ArrowLeft className="h-4 w-4" />
-                        </Button>
                         <div>
                             <h1 className="text-lg font-bold tracking-tight">
                                 Gestión de Proveedores
@@ -172,6 +165,7 @@ export default function SupplierReport({
                                                     innerRadius={80}
                                                     outerRadius={120}
                                                     paddingAngle={5}
+                                                    stroke="none"
                                                 >
                                                     {reportData.map(
                                                         (_, index) => (
@@ -183,26 +177,42 @@ export default function SupplierReport({
                                                                             COLORS.length
                                                                     ]
                                                                 }
-                                                                stroke="none"
+                                                                className="outline-none"
                                                             />
                                                         ),
                                                     )}
                                                 </Pie>
                                                 <ChartTooltip
+                                                    wrapperStyle={{
+                                                        zIndex: 100,
+                                                    }} // Asegura que esté al frente
                                                     contentStyle={{
                                                         backgroundColor: '#000',
                                                         border: 'none',
                                                         borderRadius: '12px',
                                                         color: '#fff',
-                                                        fontSize: '10px',
+                                                        fontSize: '14px', // Tamaño aumentado
+                                                        fontWeight: '600',
+                                                        padding: '12px',
                                                     }}
+                                                    itemStyle={{
+                                                        color: '#60a5fa',
+                                                    }} // Color celeste para el valor
+                                                    // Formatea el valor para que se vea como moneda
+                                                    formatter={(
+                                                        value: number,
+                                                    ) => [
+                                                        `S/ ${value.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
+                                                        'Inversión',
+                                                    ]}
                                                 />
                                                 <Legend
                                                     wrapperStyle={{
-                                                        fontSize: '10px',
+                                                        fontSize: '11px',
                                                         textTransform:
                                                             'uppercase',
                                                         paddingTop: '20px',
+                                                        fontWeight: 'bold',
                                                     }}
                                                 />
                                             </PieChart>
@@ -257,7 +267,7 @@ export default function SupplierReport({
                                                                             item.supplier
                                                                         }
                                                                     </p>
-                                                                    <span className="font-mono text-[9px] text-muted-foreground">
+                                                                    <span className="font-mono text-[10.5px] text-muted-foreground">
                                                                         {
                                                                             item.ruc
                                                                         }
@@ -309,7 +319,7 @@ function StatCard({ title, value, icon, colorClass, subtext }: any) {
                 <div className="truncate text-2xl font-black tracking-tighter tabular-nums">
                     {value}
                 </div>
-                <p className="mt-1 text-[10px] font-medium text-muted-foreground opacity-60">
+                <p className="mt-1 text-[12px] font-medium text-muted-foreground opacity-60">
                     {subtext}
                 </p>
             </CardContent>
