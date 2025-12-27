@@ -1,21 +1,23 @@
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-} from '@/components/ui/accordion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
-import { BookText, HelpCircle, Truck } from 'lucide-react';
 import manual from '@/routes/manual';
-import { router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
+import {
+    BookText,
+    Package,
+    ShoppingBag,
+    Tags,
+    Truck,
+    Users,
+} from 'lucide-react';
 
 export default function UserManual() {
     return (
         <AppLayout breadcrumbs={[{ title: 'Manual de Uso', href: '#' }]}>
+            <Head title="Manual de Usuario" />
             <div className="mx-auto max-w-5xl space-y-10 px-6 py-10">
                 <div className="space-y-2 text-center">
-                    <h1 className="text-3xl font-black tracking-tight">
+                    <h1 className="text-3xl font-black tracking-tight uppercase">
                         Centro de Ayuda
                     </h1>
                     <p className="text-muted-foreground">
@@ -24,55 +26,113 @@ export default function UserManual() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                    {/* Guía de Compras */}
                     <Card
-                        className="cursor-pointer transition-colors hover:border-blue-500"
+                        className="group cursor-pointer transition-all hover:border-indigo-500 hover:shadow-md"
+                        onClick={() => router.visit(manual.productos())}
+                    >
+                        <CardHeader>
+                            <Tags className="mb-2 h-8 w-8 text-indigo-600 transition-transform group-hover:scale-110" />
+                            <CardTitle className="text-lg font-black tracking-tight">
+                                Productos
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-xs leading-relaxed text-muted-foreground">
+                            Administración del **catálogo maestro**,
+                            configuración de precios, marcas, categorías y
+                            estados de productos.
+                        </CardContent>
+                    </Card>
+
+                    {/* Guía de Proveedores */}
+                    <Card
+                        className="group cursor-pointer transition-all hover:border-rose-500 hover:shadow-md"
+                        onClick={() => router.visit(manual.proveedores())}
+                    >
+                        <CardHeader>
+                            <Truck className="mb-2 h-8 w-8 text-rose-600 transition-transform group-hover:scale-110" />
+                            <CardTitle className="text-lg font-black tracking-tight">
+                                Proveedores
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-xs leading-relaxed text-muted-foreground">
+                            Directorio de **aliados comerciales**, registro de
+                            RUC, contactos y seguimiento de compras por
+                            proveedor.
+                        </CardContent>
+                    </Card>
+
+                    {/* Guía de Usuarios */}
+                    <Card
+                        className="group cursor-pointer transition-all hover:border-slate-500 hover:shadow-md"
+                        onClick={() => router.visit(manual.usuarios())}
+                    >
+                        <CardHeader>
+                            <Users className="mb-2 h-8 w-8 text-slate-600 transition-transform group-hover:scale-110" />
+                            <CardTitle className="text-lg font-black tracking-tight">
+                                Usuarios
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-xs leading-relaxed text-muted-foreground">
+                            Control de **accesos al sistema**, gestión de
+                            perfiles, permisos de seguridad y auditoría de
+                            acciones.
+                        </CardContent>
+                    </Card>
+
+                    {/* Guía de Comprobantes */}
+                    <Card
+                        className="group cursor-pointer transition-all hover:border-blue-500 hover:shadow-md"
                         onClick={() => router.visit(manual.comprobantes())}
                     >
                         <CardHeader>
-                            <BookText className="mb-2 h-8 w-8 text-blue-600" />
-                            <CardTitle className="text-lg">Comprobantes</CardTitle>
+                            <BookText className="mb-2 h-8 w-8 text-blue-600 transition-transform group-hover:scale-110" />
+                            <CardTitle className="text-lg font-black tracking-tight">
+                                Comprobantes
+                            </CardTitle>
                         </CardHeader>
-                        <CardContent className="text-xs text-muted-foreground">
-                            Aprende a registrar facturas, subir adjuntos y
-                            gestionar fechas de ingreso.
+                        <CardContent className="text-xs leading-relaxed text-muted-foreground">
+                            Registro de **compras de productos**, gestión de
+                            adjuntos, control de fechas de recepción y notas de
+                            crédito.
                         </CardContent>
                     </Card>
-                    {/* ... Repetir para Ventas e Inventario */}
-                </div>
 
-                <div className="space-y-6">
-                    <h2 className="flex items-center gap-2 text-xl font-bold">
-                        <HelpCircle className="h-5 w-5 text-blue-600" />{' '}
-                        Preguntas Frecuentes
-                    </h2>
-                    <Accordion
-                        type="single"
-                        collapsible
-                        className="w-full rounded-xl border bg-card px-6"
+                    {/* Guía de Ventas */}
+                    <Card
+                        className="group cursor-pointer transition-all hover:border-emerald-500 hover:shadow-md"
+                        onClick={() => router.visit(manual.ventas())}
                     >
-                        <AccordionItem value="item-1">
-                            <AccordionTrigger className="text-sm font-bold">
-                                ¿Por qué el saldo de mi producto no coincide?
-                            </AccordionTrigger>
-                            <AccordionContent className="text-sm text-muted-foreground">
-                                El sistema calcula el saldo según la{' '}
-                                <strong>Fecha Kardex</strong>. Asegúrate de que
-                                las compras tengan la fecha y hora real en que
-                                llegó la mercadería.
-                            </AccordionContent>
-                        </AccordionItem>
-                        <AccordionItem value="item-2">
-                            <AccordionTrigger className="text-sm font-bold">
-                                ¿Cómo anulo una venta mal registrada?
-                            </AccordionTrigger>
-                            <AccordionContent className="text-sm text-muted-foreground">
-                                Debes ir al detalle de la venta y presionar
-                                "Anular". Esto generará un movimiento de ajuste
-                                automático en el inventario.
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
+                        <CardHeader>
+                            <ShoppingBag className="mb-2 h-8 w-8 text-emerald-600 transition-transform group-hover:scale-110" />
+                            <CardTitle className="text-lg font-black tracking-tight">
+                                Ventas
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-xs leading-relaxed text-muted-foreground">
+                            Registro de **facturación a clientes**, emisión de
+                            tickets, control de salidas y analítica de ingresos.
+                        </CardContent>
+                    </Card>
+
+                    {/* Guía de Inventario */}
+                    <Card
+                        className="group cursor-pointer transition-all hover:border-amber-500 hover:shadow-md"
+                        onClick={() => router.visit(manual.inventario())}
+                    >
+                        <CardHeader>
+                            <Package className="mb-2 h-8 w-8 text-amber-600 transition-transform group-hover:scale-110" />
+                            <CardTitle className="text-lg font-black tracking-tight">
+                                Inventario
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-xs leading-relaxed text-muted-foreground">
+                            Gestión de **Stock Real**, consulta de Kardex
+                            histórico, exportación de reportes y control de
+                            saldos.
+                        </CardContent>
+                    </Card>
+
+                    {/* Guía de Productos */}
                 </div>
             </div>
         </AppLayout>

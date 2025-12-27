@@ -28,6 +28,7 @@ class User extends Authenticatable
         'email',
         'password',
         'is_active',
+        'role_id',
         'last_login_at',
         'last_login_ip',
     ];
@@ -56,5 +57,35 @@ class User extends Authenticatable
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    public function role()
+    {
+        return $this->belongsTo(Role::class);
+    }
+
+    /**
+     * Helper: ¿Es Administrador?
+     * Uso: if ($user->isAdmin()) { ... }
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role && $this->role->name === 'admin';
+    }
+
+    /**
+     * Helper: ¿Es Colaborador?
+     */
+    public function isCollaborator(): bool
+    {
+        return $this->role && $this->role->name === 'collaborator';
+    }
+
+    /**
+     * Helper: Verificar si está activo
+     */
+    public function isActive(): bool
+    {
+        return (bool) $this->is_active;
     }
 }

@@ -8,19 +8,7 @@ export default function AppLogo() {
     return (
         <>
             <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-                {/* Si existe un logo_path, mostramos la imagen, si no, el icono de la moto */}
-                {business?.logo_path ? (
-                    <img
-                        src={`/storage/${business.logo_path}`}
-                        alt="Logo"
-                        className="size-full object-cover"
-                    />
-                ) : (
-                    <Building2
-                        className="size-5 text-white"
-                        strokeWidth={2.5}
-                    />
-                )}
+                <Building2 className="size-5 text-black" strokeWidth={2.5} />
             </div>
             <div className="ml-1 grid flex-1 text-left text-sm">
                 <span className="mb-0.5 truncate leading-tight font-bold tracking-tight text-neutral-900 dark:text-neutral-100">

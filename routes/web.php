@@ -19,14 +19,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
 
     Route::group(["prefix" => "manual"], function () {
-        Route::get("/", function (){
+        Route::get("/", function () {
             return Inertia::render("manual/UserManual");
         })->name("manual.index");
-        Route::get("/comprobantes", function (){
+        Route::get("/comprobantes", function () {
             return Inertia::render("manual/ReceiptsManual");
         })->name("manual.comprobantes");
+        Route::get("/ventas", function () {
+            return Inertia::render("manual/SalesManual");
+        })->name("manual.ventas");
+        Route::get("/inventario", function () {
+            return Inertia::render("manual/InventoryManual");
+        })->name("manual.inventario");
+        Route::get("/productos", function () {
+            return Inertia::render("manual/ProductsManual");
+        })->name("manual.productos");
+        Route::get("/proveedores", function () {
+            return Inertia::render("manual/SuppliersManual");
+        })->name("manual.proveedores");
+        Route::get("/usuarios", function () {
+            return Inertia::render("manual/UsersManual");
+        })->name("manual.usuarios");
     });
-
 });
 
 require __DIR__ . '/settings.php';

@@ -7,8 +7,8 @@ import {
 import { UserInfo } from '@/components/user-info';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { logout } from '@/routes';
-import { index } from '@/routes/manual';
 import { negocio } from '@/routes/configuracion';
+import { index } from '@/routes/manual';
 import { type User } from '@/types';
 import { Link, router } from '@inertiajs/react';
 import { Book, LogOut, Settings } from 'lucide-react';
@@ -25,6 +25,8 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
         router.flushAll();
     };
 
+    const isAdmin = user.role?.name === 'admin';
+
     return (
         <>
             <DropdownMenuLabel className="p-0 font-normal">
@@ -32,6 +34,7 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
                     <UserInfo user={user} showEmail={true} />
                 </div>
             </DropdownMenuLabel>
+
             <DropdownMenuGroup>
                 <DropdownMenuItem asChild>
                     <Link
@@ -41,26 +44,32 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
                         prefetch
                         onClick={cleanup}
                     >
-                        <Book className="mr-2" />
+                        <Book className="mr-2 h-4 w-4" />
                         Manual de uso
                     </Link>
                 </DropdownMenuItem>
             </DropdownMenuGroup>
-            <DropdownMenuGroup>
-                <DropdownMenuItem asChild>
-                    <Link
-                        className="block w-full"
-                        href={negocio()}
-                        as="button"
-                        prefetch
-                        onClick={cleanup}
-                    >
-                        <Settings className="mr-2" />
-                        Configuración
-                    </Link>
-                </DropdownMenuItem>
-            </DropdownMenuGroup>
+
+            {/* Solo mostramos Configuración si es Admin */}
+            {isAdmin && (
+                <DropdownMenuGroup>
+                    <DropdownMenuItem asChild>
+                        <Link
+                            className="block w-full"
+                            href={negocio()}
+                            as="button"
+                            prefetch
+                            onClick={cleanup}
+                        >
+                            <Settings className="mr-2 h-4 w-4" />
+                            Configuración
+                        </Link>
+                    </DropdownMenuItem>
+                </DropdownMenuGroup>
+            )}
+
             <DropdownMenuSeparator />
+
             <DropdownMenuItem asChild>
                 <Link
                     className="block w-full"
@@ -69,7 +78,7 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
                     onClick={handleLogout}
                     data-test="logout-button"
                 >
-                    <LogOut className="mr-2" />
+                    <LogOut className="mr-2 h-4 w-4" />
                     Cerrar sesión
                 </Link>
             </DropdownMenuItem>

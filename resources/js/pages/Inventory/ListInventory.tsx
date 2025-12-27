@@ -102,11 +102,14 @@ export default function ListInventory({ inventory, filters }: Props) {
     return (
         <AppLayout breadcrumbs={[{ title: 'Inventario Actual', href: '#' }]}>
             <Head title="Stock de Almacén" />
-            <div className="flex h-full flex-1 flex-col overflow-hidden">
+
+            {/* Contenedor principal con fondo adaptable */}
+            <div className="flex h-full flex-1 flex-col overflow-hidden bg-background">
                 {/* --- TOOLBAR SUPERIOR --- */}
-                <div className="flex items-center justify-between border-b bg-background px-6 py-3">
+                <div className="flex items-center justify-between border-b border-border bg-background px-6 py-3 transition-colors">
                     <div className="flex items-center gap-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                        {/* Icono con fondo azul suave en light, azul oscuro transparente en dark */}
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
                             <Package className="h-6 w-6" />
                         </div>
                         <h1 className="text-lg font-semibold text-foreground">
@@ -115,7 +118,7 @@ export default function ListInventory({ inventory, filters }: Props) {
 
                         {/* INDICADOR DE CONTEO LOCAL */}
                         {selectedCount > 0 && (
-                            <div className="flex animate-in items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1 text-blue-700 fade-in slide-in-from-left-2">
+                            <div className="flex animate-in items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1 text-blue-700 fade-in slide-in-from-left-2 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
                                 <span className="text-sm font-bold">
                                     {selectAllGlobal
                                         ? inventory.total
@@ -125,7 +128,7 @@ export default function ListInventory({ inventory, filters }: Props) {
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-4 w-4"
+                                    className="h-4 w-4 hover:bg-blue-200/50 dark:hover:bg-blue-800/50"
                                     onClick={() => {
                                         setRowSelection({});
                                         setSelectAllGlobal(false);
@@ -142,7 +145,7 @@ export default function ListInventory({ inventory, filters }: Props) {
                             <Search className="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
                             <Input
                                 placeholder="Buscar..."
-                                className="h-9 bg-muted/30 pl-8"
+                                className="h-9 bg-muted/30 pl-8 dark:bg-muted/10"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
@@ -153,8 +156,8 @@ export default function ListInventory({ inventory, filters }: Props) {
                             className={cn(
                                 'h-9 transition-all',
                                 selectedCount > 0
-                                    ? 'bg-blue-600 hover:bg-blue-700'
-                                    : 'border-blue-200 text-blue-600',
+                                    ? 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:text-white' // Botón primario sólido
+                                    : 'border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/30', // Botón outline adaptable
                             )}
                             disabled={selectedCount === 0}
                             onClick={handleExport}
@@ -162,11 +165,11 @@ export default function ListInventory({ inventory, filters }: Props) {
                             <FileDown className="mr-2 h-4 w-4" />
                             {selectedCount > 0
                                 ? `Exportar (${selectAllGlobal ? inventory.total : selectedCount})`
-                                : 'Exportar Selección'}
+                                : 'Exportar'}
                         </Button>
 
                         {/* PAGINACIÓN */}
-                        <div className="flex items-center gap-2 border-l pl-4 text-sm text-muted-foreground tabular-nums">
+                        <div className="flex items-center gap-2 border-l border-border pl-4 text-sm text-muted-foreground tabular-nums">
                             <span>
                                 {inventory.from || 0}-
                                 <span
@@ -177,7 +180,7 @@ export default function ListInventory({ inventory, filters }: Props) {
                                         <input
                                             ref={perPageInputRef}
                                             type="number"
-                                            className="h-5 w-10 rounded border text-center"
+                                            className="h-5 w-10 rounded border border-input bg-background text-center text-foreground"
                                             value={perPage}
                                             onChange={(e) =>
                                                 setPerPage(e.target.value)
@@ -230,11 +233,12 @@ export default function ListInventory({ inventory, filters }: Props) {
                 </div>
 
                 {/* --- ÁREA DE CONTENIDO (CON SCROLL Y BANNER DE SELECCIÓN GLOBAL) --- */}
-                <div className="flex-1 overflow-auto bg-muted/5 p-4">
-                    {/* ✅ BANNER DE SELECCIÓN GLOBAL - Movido aquí para no romper el toolbar */}
+                {/* Fondo sutil en light (muted/5) y oscuro en dark (background o slate-950) */}
+                <div className="flex-1 overflow-auto bg-muted/5 p-4 dark:bg-background">
+                    {/* BANNER DE SELECCIÓN GLOBAL */}
                     {selectedCount === inventory.data.length &&
                         inventory.total > inventory.data.length && (
-                            <div className="mb-4 animate-in rounded-md bg-blue-600 p-2 text-center text-xs text-white shadow-sm slide-in-from-top-1">
+                            <div className="mb-4 animate-in rounded-md bg-blue-600 p-2 text-center text-xs text-white shadow-sm slide-in-from-top-1 dark:bg-blue-700">
                                 {!selectAllGlobal ? (
                                     <p>
                                         Has seleccionado los{' '}
@@ -270,15 +274,14 @@ export default function ListInventory({ inventory, filters }: Props) {
                             </div>
                         )}
 
-                    <div className="flex-1 overflow-auto bg-muted/5 p-4 dark:bg-neutral-950/20">
-                        <div className="rounded-xl border bg-card shadow-sm dark:border-neutral-800 dark:bg-neutral-900/20">
+                    {/* TABLA: Fondo card, bordes sutiles adaptables */}
+                    <div className="rounded-xl border border-border bg-card shadow-sm transition-colors">
                         <DataTable
                             columns={InventoryColumns}
                             data={inventory.data}
                             rowSelection={rowSelection}
                             setRowSelection={setRowSelection}
                         />
-                        </div>
                     </div>
                 </div>
             </div>

@@ -20,10 +20,8 @@ import {
     Building2,
     CheckCircle2,
     Globe,
-    ImageIcon,
     Key,
     Printer,
-    UploadCloud,
 } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
 
@@ -153,8 +151,6 @@ export default function Config({ config, flash }: Props) {
             ]}
         >
             <Head title="Configuración del Negocio" />
-
-            {/* ✅ AGREGADO: Renderizado de la alerta flotante */}
             {alert && (
                 <FloatingAlert
                     message={alert.message}
@@ -176,7 +172,7 @@ export default function Config({ config, flash }: Props) {
                     </div>
 
                     <form onSubmit={submit} className="space-y-6">
-                        <Card className="border border-border shadow-none">
+                        {/* <Card className="border border-border shadow-none">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2 text-base">
                                     <ImageIcon className="h-4 w-4 text-purple-600" />
@@ -189,7 +185,6 @@ export default function Config({ config, flash }: Props) {
                             </CardHeader>
                             <CardContent>
                                 <div className="flex flex-col items-center gap-6 md:flex-row">
-                                    {/* Preview del Logo */}
                                     <div className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-muted/50">
                                         {logoPreview ? (
                                             <img
@@ -202,7 +197,6 @@ export default function Config({ config, flash }: Props) {
                                         )}
                                     </div>
 
-                                    {/* Input de archivo personalizado */}
                                     <div className="flex-1 space-y-2">
                                         <Label htmlFor="logo">
                                             Seleccionar imagen (PNG, JPG - Máx
@@ -228,7 +222,7 @@ export default function Config({ config, flash }: Props) {
                                     </div>
                                 </div>
                             </CardContent>
-                        </Card>
+                        </Card> */}
 
                         {/* SECCIÓN 1: DATOS DE LA EMPRESA */}
                         <Card className="border border-border shadow-none">

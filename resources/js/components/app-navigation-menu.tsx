@@ -10,7 +10,9 @@ import productBrands from '@/routes/product-brands';
 import productCategories from '@/routes/product-categories';
 import productTypes from '@/routes/product-types';
 import productsRoute from '@/routes/products';
+import rolesRoute from '@/routes/roles';
 import suppliers from '@/routes/suppliers';
+import usersRoute from '@/routes/users';
 import { router, usePage } from '@inertiajs/react';
 import {
     Activity,
@@ -22,34 +24,51 @@ import {
     Package,
     Percent,
     PieChart,
+    Shield,
     Tag,
     TrendingUp,
     Trophy,
     Truck,
     Type,
+    UserCog,
 } from 'lucide-react';
 
 export function AppNavigationMenu() {
     const { url } = usePage();
 
+    // 1. Detectar si estamos en el manual
+    const isManualModule = url.startsWith('/manual');
+    const isConfigModule = url.startsWith('/configuracion');
+    const isDashboard = url === '/dashboard';
+    if (isManualModule || isConfigModule || isDashboard) return null;
+
+    // --- Detección de Módulos ---
+    // Agrupamos todas las rutas de catálogo bajo una sola bandera
+    const isProductsModule =
+        url.startsWith('/productos') ||
+        url.startsWith('/categorias') ||
+        url.startsWith('/marcas') ||
+        url.startsWith('/tipos') ||
+        url.startsWith('/proveedores');
+
     const isSalesModule = url.startsWith('/ventas');
     const isReceiptsModule = url.startsWith('/recibos');
     const isInventoryModule = url.startsWith('/inventario');
+    const isUsersModule =
+        url.startsWith('/usuarios') || url.startsWith('/roles');
 
     const openKardexModal = () => {
         window.dispatchEvent(new CustomEvent('open-kardex-modal'));
     };
 
-    // Clase común para los items con icono
     const itemClass = 'cursor-pointer gap-2 py-2';
 
     return (
         <div className="border-b bg-background px-4 py-2">
             <Menubar className="border-none bg-transparent p-0 shadow-none">
-                {/* Módulo: PRODUCTOS */}
                 <MenubarMenu>
-                    <MenubarTrigger className="cursor-pointer font-medium">
-                        Productos
+                    <MenubarTrigger className="cursor-pointer font-medium hover:bg-muted/50 data-[state=open]:bg-muted">
+                        Catálogo
                     </MenubarTrigger>
                     <MenubarContent className="min-w-[180px]">
                         <MenubarItem
@@ -90,9 +109,8 @@ export function AppNavigationMenu() {
                     </MenubarContent>
                 </MenubarMenu>
 
-                {/* Módulo: PROVEEDORES */}
                 <MenubarMenu>
-                    <MenubarTrigger className="cursor-pointer font-medium text-primary">
+                    <MenubarTrigger className="cursor-pointer font-medium hover:bg-muted/50 data-[state=open]:bg-muted">
                         Proveedores
                     </MenubarTrigger>
                     <MenubarContent className="min-w-[180px]">
@@ -105,11 +123,10 @@ export function AppNavigationMenu() {
                         </MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>
-
-                {/* Analítica de Almacén (Solo en Inventario) */}
+                {/* Módulo: INVENTARIO */}
                 {isInventoryModule && (
                     <MenubarMenu>
-                        <MenubarTrigger className="cursor-pointer font-bold text-emerald-700 dark:text-emerald-400">
+                        <MenubarTrigger className="cursor-pointer font-bold text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30">
                             Analítica de Almacén
                         </MenubarTrigger>
                         <MenubarContent className="min-w-[200px]">
@@ -136,10 +153,10 @@ export function AppNavigationMenu() {
                     </MenubarMenu>
                 )}
 
-                {/* Analítica de Ventas (Solo en Ventas) */}
+                {/* Módulo: VENTAS */}
                 {isSalesModule && (
                     <MenubarMenu>
-                        <MenubarTrigger className="cursor-pointer font-bold text-blue-700 dark:text-blue-400">
+                        <MenubarTrigger className="cursor-pointer font-bold text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30">
                             Analítica de Ventas
                         </MenubarTrigger>
                         <MenubarContent className="min-w-[220px]">
@@ -198,10 +215,10 @@ export function AppNavigationMenu() {
                     </MenubarMenu>
                 )}
 
-                {/* Analítica de Compras (Solo en Recibos) */}
+                {/* Módulo: COMPRAS (RECIBOS) */}
                 {isReceiptsModule && (
                     <MenubarMenu>
-                        <MenubarTrigger className="cursor-pointer font-bold text-purple-700 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-neutral-900">
+                        <MenubarTrigger className="cursor-pointer font-bold text-purple-700 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-950/30">
                             Analítica de Compras
                         </MenubarTrigger>
                         <MenubarContent className="min-w-[220px] dark:border-neutral-800">
@@ -253,6 +270,34 @@ export function AppNavigationMenu() {
                             >
                                 <Activity className="h-4 w-4 text-orange-600" />{' '}
                                 Variación de Costos
+                            </MenubarItem>
+                        </MenubarContent>
+                    </MenubarMenu>
+                )}
+
+                {isUsersModule && (
+                    <MenubarMenu>
+                        <MenubarTrigger className="cursor-pointer font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-900/30">
+                            Administración
+                        </MenubarTrigger>
+                        <MenubarContent className="min-w-[200px] dark:border-neutral-800">
+                            <MenubarItem
+                                className={itemClass}
+                                onClick={() =>
+                                    router.visit(usersRoute.index().url)
+                                }
+                            >
+                                <UserCog className="h-4 w-4 text-blue-600" />{' '}
+                                Usuarios
+                            </MenubarItem>
+                            <MenubarItem
+                                className={itemClass}
+                                onClick={() =>
+                                    router.visit(rolesRoute.index().url)
+                                }
+                            >
+                                <Shield className="h-4 w-4 text-violet-600" />{' '}
+                                Roles y Permisos
                             </MenubarItem>
                         </MenubarContent>
                     </MenubarMenu>

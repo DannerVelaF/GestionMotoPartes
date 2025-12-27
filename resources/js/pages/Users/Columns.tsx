@@ -1,7 +1,15 @@
 import { ColumnDef } from '@tanstack/react-table';
-import { Circle, Mail, User as UserIcon } from 'lucide-react';
+import { format } from 'date-fns'; // Necesitarás instalar date-fns si no lo tienes
+import { es } from 'date-fns/locale'; // Para formato en español
+import {
+    Calendar,
+    Circle,
+    Clock,
+    Mail,
+    Shield,
+    User as UserIcon,
+} from 'lucide-react';
 
-// Definimos la interfaz del Usuario para la tabla
 export interface User {
     id: number;
     name: string;
@@ -10,13 +18,18 @@ export interface User {
     username: string;
     email: string | null;
     is_active: boolean;
+    created_at: string;
     last_login_at: string | null;
+    role?: {
+        id: number;
+        label: string;
+        name: string;
+    };
 }
 
 export const Columns: ColumnDef<User>[] = [
     {
         accessorKey: 'name',
-        // Estilo de encabezado minimalista y profesional
         header: () => (
             <span className="text-[10px] font-black tracking-[0.15em] text-muted-foreground/70 uppercase">
                 Identidad / Personal
@@ -26,7 +39,6 @@ export const Columns: ColumnDef<User>[] = [
             const user = row.original;
             return (
                 <div className="flex items-center gap-3 py-1">
-                    {/* Avatar genérico con estilo de sistema */}
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400">
                         <UserIcon className="h-4 w-4" />
                     </div>
@@ -38,6 +50,39 @@ export const Columns: ColumnDef<User>[] = [
                             @{user.username}
                         </span>
                     </div>
+                </div>
+            );
+        },
+    },
+    {
+        accessorKey: 'role', // Columna ROL (Nueva)
+        header: () => (
+            <span className="text-[10px] font-black tracking-[0.15em] text-muted-foreground/70 uppercase">
+                Rol Asignado
+            </span>
+        ),
+        cell: ({ row }) => {
+            const role = row.original.role;
+            const isAdmin = role?.name === 'admin';
+
+            return (
+                <div className="flex items-center">
+                    {role ? (
+                        <div
+                            className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-bold tracking-tight uppercase ${
+                                isAdmin
+                                    ? 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900/50 dark:bg-violet-950/30 dark:text-violet-300'
+                                    : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400'
+                            }`}
+                        >
+                            <Shield className="h-3 w-3" />
+                            {role.label}
+                        </div>
+                    ) : (
+                        <span className="text-[10px] text-muted-foreground italic">
+                            Sin rol
+                        </span>
+                    )}
                 </div>
             );
         },
@@ -60,9 +105,59 @@ export const Columns: ColumnDef<User>[] = [
                         </span>
                     ) : (
                         <span className="text-[11px] text-muted-foreground/30 italic">
-                            Sin correo asignado
+                            Sin correo
                         </span>
                     )}
+                </div>
+            );
+        },
+    },
+    {
+        accessorKey: 'created_at', // Columna FECHA CREACIÓN (Nueva)
+        header: () => (
+            <span className="text-[10px] font-black tracking-[0.15em] text-muted-foreground/70 uppercase">
+                Registro
+            </span>
+        ),
+        cell: ({ row }) => {
+            const date = row.getValue('created_at') as string;
+            return (
+                <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+                        <Calendar className="h-3 w-3 text-muted-foreground" />
+                        {format(new Date(date), 'dd MMM, yyyy', { locale: es })}
+                    </div>
+                    <span className="pl-4.5 text-[10px] text-muted-foreground">
+                        {format(new Date(date), 'HH:mm')}
+                    </span>
+                </div>
+            );
+        },
+    },
+    {
+        accessorKey: 'last_login_at', // Columna ÚLTIMO ACCESO (Nueva)
+        header: () => (
+            <span className="text-[10px] font-black tracking-[0.15em] text-muted-foreground/70 uppercase">
+                Último Acceso
+            </span>
+        ),
+        cell: ({ row }) => {
+            const lastLogin = row.getValue('last_login_at') as string;
+
+            if (!lastLogin) {
+                return (
+                    <span className="inline-flex items-center rounded-sm bg-muted/50 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground/60">
+                        Nunca
+                    </span>
+                );
+            }
+
+            return (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    <span className="font-medium text-foreground/80">
+                        {format(new Date(lastLogin), 'dd/MM/yy HH:mm')}
+                    </span>
                 </div>
             );
         },
@@ -71,7 +166,7 @@ export const Columns: ColumnDef<User>[] = [
         accessorKey: 'is_active',
         header: () => (
             <span className="block text-center text-[10px] font-black tracking-[0.15em] text-muted-foreground/70 uppercase">
-                Estado de Acceso
+                Estado
             </span>
         ),
         cell: ({ row }) => {
@@ -88,7 +183,7 @@ export const Columns: ColumnDef<User>[] = [
                         <Circle
                             className={`h-1.5 w-1.5 fill-current ${isActive ? 'text-emerald-500' : 'text-red-500'}`}
                         />
-                        {isActive ? 'Habilitado' : 'Restringido'}
+                        {isActive ? 'Activo' : 'Inactivo'}
                     </div>
                 </div>
             );
