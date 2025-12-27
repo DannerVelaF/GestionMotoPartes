@@ -7,10 +7,11 @@ import {
 import { UserInfo } from '@/components/user-info';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { logout } from '@/routes';
+import { index } from '@/routes/manual';
 import { negocio } from '@/routes/configuracion';
 import { type User } from '@/types';
 import { Link, router } from '@inertiajs/react';
-import { LogOut, Settings } from 'lucide-react';
+import { Book, LogOut, Settings } from 'lucide-react';
 
 interface UserMenuContentProps {
     user: User;
@@ -31,7 +32,20 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
                     <UserInfo user={user} showEmail={true} />
                 </div>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full"
+                        href={index()}
+                        as="button"
+                        prefetch
+                        onClick={cleanup}
+                    >
+                        <Book className="mr-2" />
+                        Manual de uso
+                    </Link>
+                </DropdownMenuItem>
+            </DropdownMenuGroup>
             <DropdownMenuGroup>
                 <DropdownMenuItem asChild>
                     <Link

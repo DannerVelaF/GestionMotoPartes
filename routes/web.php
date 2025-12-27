@@ -17,6 +17,16 @@ Route::get("/", function () {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');
+
+    Route::group(["prefix" => "manual"], function () {
+        Route::get("/", function (){
+            return Inertia::render("manual/UserManual");
+        })->name("manual.index");
+        Route::get("/comprobantes", function (){
+            return Inertia::render("manual/ReceiptsManual");
+        })->name("manual.comprobantes");
+    });
+
 });
 
 require __DIR__ . '/settings.php';

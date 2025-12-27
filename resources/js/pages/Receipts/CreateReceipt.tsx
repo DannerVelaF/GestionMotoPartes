@@ -182,7 +182,7 @@ export default function CreateReceipt({ suppliers, products, documentTypes }: Pr
                             <RotateCcw className="mr-2 h-4 w-4" /> Descartar
                         </Button>
                         <Button type="submit" disabled={processing} className="bg-blue-600 text-white shadow-md hover:bg-blue-700">
-                            <Save className="mr-2 h-4 w-4" /> Registrar Compra
+                            <Save className="mr-2 h-4 w-4" /> Registrar Comprobante
                         </Button>
                     </div>
                 </div>
