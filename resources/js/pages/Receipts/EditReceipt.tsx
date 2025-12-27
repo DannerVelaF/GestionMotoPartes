@@ -76,6 +76,7 @@ import {
     Undo2,
 } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
+import productsRoute from '@/routes/products';
 
 // --- Interfaces ---
 interface Detail {
@@ -83,7 +84,11 @@ interface Detail {
     id_product: number;
     quantity: number;
     unit_price: number;
-    product?: { product_name: string; product_code: string };
+    product?: {
+        product_name: string;
+        product_code: string;
+        stock: number; // <--- Asegúrate de recibir esto del backend
+    };
 }
 
 interface Receipt {
@@ -172,6 +177,7 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
         errors,
         isDirty,
         reset,
+        transform,
         clearErrors,
     } = useForm({
         _method: 'put',
@@ -202,6 +208,7 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
             id_product: d.id_product,
             product_name: d.product?.product_name || 'Item',
             purchased_quantity: Number(d.quantity),
+            current_stock: Number(d.product?.stock || 0), // <--- Guardamos el stock actual
             unit_price: Number(d.unit_price),
             return_quantity: 0,
         })),
@@ -211,14 +218,21 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
         const newItems = [...returnForm.data.return_items];
         let numVal = parseFloat(val);
         if (isNaN(numVal)) numVal = 0;
+
         if (numVal < 0) numVal = 0;
-        if (numVal > newItems[index].purchased_quantity) {
-            numVal = newItems[index].purchased_quantity;
+
+        const limit = Math.min(
+            newItems[index].purchased_quantity,
+            newItems[index].current_stock,
+        );
+
+        if (numVal > limit) {
+            numVal = limit;
         }
+
         newItems[index].return_quantity = numVal;
         returnForm.setData('return_items', newItems);
     };
-
     const hasItemsToReturn = returnForm.data.return_items.some(
         (item) => item.return_quantity > 0,
     );
@@ -270,6 +284,13 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
+
+        transform((data) => ({
+            ...data,
+            // Sincronizamos la fecha Kardex enviando el string completo al backend
+            issue_date: format(data.issue_date, 'yyyy-MM-dd HH:mm:ss'),
+        }));
+
         post(receipts.update({ receipt: receipt.id_receipt }).url, {
             forceFormData: true,
             onSuccess: () => setShowSuccess(true),
@@ -325,98 +346,147 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                     open={isReturnDialogOpen}
                     onOpenChange={setIsReturnDialogOpen}
                 >
-                    <DialogContent className="max-w-3xl">
-                        <DialogHeader>
-                            <DialogTitle className="flex items-center gap-2">
-                                <Undo2 className="h-5 w-5 text-blue-600" />{' '}
+                    {/* 1. Usamos sm:max-w-[1100px] para asegurar que el ancho se aplique sobre el default de Shadcn */}
+                    <DialogContent className="flex max-h-[90vh] w-[95vw] flex-col overflow-hidden p-0 sm:max-w-[800px]">
+                        <DialogHeader className="p-6 pb-2">
+                            <DialogTitle className="flex items-center gap-2 text-2xl font-bold">
+                                <Undo2 className="h-6 w-6 text-blue-600" />{' '}
                                 Devolución de Mercadería
                             </DialogTitle>
-                            <DialogDescription>
+                            <DialogDescription className="text-sm">
                                 Genera una Nota de Crédito interna ajustando el
-                                stock.
+                                stock. Solo se puede devolver lo que aún existe
+                                en almacén.
                             </DialogDescription>
                         </DialogHeader>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Producto</TableHead>
-                                    <TableHead className="text-right">
-                                        Comprado
-                                    </TableHead>
-                                    <TableHead className="w-[140px] text-right">
-                                        Devolver
-                                    </TableHead>
-                                    <TableHead className="text-right">
-                                        Total Dev.
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {returnForm.data.return_items.map(
-                                    (item, index) => (
-                                        <TableRow key={item.id_product}>
-                                            <TableCell className="font-medium">
-                                                {item.product_name}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                {item.purchased_quantity}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <Input
-                                                    type="number"
-                                                    className="h-8 text-right"
-                                                    value={
-                                                        item.return_quantity ||
-                                                        ''
-                                                    }
-                                                    onChange={(e) =>
-                                                        handleReturnQuantityChange(
-                                                            index,
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                />
-                                            </TableCell>
-                                            <TableCell className="text-right font-bold text-red-600">
-                                                S/{' '}
-                                                {(
-                                                    item.return_quantity *
-                                                    item.unit_price
-                                                ).toFixed(2)}
-                                            </TableCell>
+
+                        {/* 2. Contenedor con scroll interno para la tabla si hay muchos productos */}
+                        <div className="flex-1 overflow-y-auto px-6">
+                            <div className="overflow-hidden rounded-xl border dark:border-neutral-800">
+                                <Table>
+                                    <TableHeader className="bg-muted/50 dark:bg-neutral-900">
+                                        <TableRow className="dark:border-neutral-800">
+                                            {/* 3. Definimos anchos mínimos para que nada se aplaste */}
+                                            <TableHead className="min-w-[300px] font-bold dark:text-neutral-300">
+                                                Producto
+                                            </TableHead>
+                                            <TableHead className="w-[100px] text-right font-bold dark:text-neutral-300">
+                                                Comprado
+                                            </TableHead>
+                                            <TableHead className="w-[120px] text-right font-bold dark:text-neutral-300">
+                                                Stock Actual
+                                            </TableHead>
+                                            <TableHead className="w-[140px] text-right font-bold dark:text-neutral-300">
+                                                Cant. Devolver
+                                            </TableHead>
+                                            <TableHead className="w-[150px] text-right font-bold dark:text-neutral-300">
+                                                Total Reembolso
+                                            </TableHead>
                                         </TableRow>
-                                    ),
-                                )}
-                            </TableBody>
-                        </Table>
-                        <DialogFooter className="mt-4 items-center border-t pt-4">
+                                    </TableHeader>
+                                    <TableBody>
+                                        {returnForm.data.return_items.map(
+                                            (item, index) => {
+                                                const isStockLow =
+                                                    item.current_stock <
+                                                    item.purchased_quantity;
+                                                return (
+                                                    <TableRow
+                                                        key={item.id_product}
+                                                        className="transition-colors hover:bg-muted/20 dark:border-neutral-800"
+                                                    >
+                                                        <TableCell className="py-4 font-medium dark:text-neutral-200">
+                                                            {item.product_name}
+                                                        </TableCell>
+                                                        <TableCell className="text-right tabular-nums dark:text-neutral-400">
+                                                            {item.purchased_quantity.toFixed(
+                                                                2,
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell
+                                                            className={cn(
+                                                                'text-right font-bold tabular-nums',
+                                                                isStockLow
+                                                                    ? 'text-amber-600 dark:text-amber-500'
+                                                                    : 'text-emerald-600',
+                                                            )}
+                                                        >
+                                                            {item.current_stock.toFixed(
+                                                                2,
+                                                            )}
+                                                            {isStockLow && (
+                                                                <span className="block text-[10px] font-black tracking-tighter uppercase opacity-70">
+                                                                    Faltante
+                                                                </span>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <Input
+                                                                type="number"
+                                                                className="h-9 border-blue-200 text-right font-bold focus:ring-blue-500 dark:border-neutral-700 dark:bg-neutral-800"
+                                                                value={
+                                                                    item.return_quantity ||
+                                                                    ''
+                                                                }
+                                                                onChange={(e) =>
+                                                                    handleReturnQuantityChange(
+                                                                        index,
+                                                                        e.target
+                                                                            .value,
+                                                                    )
+                                                                }
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell className="text-right font-black text-red-600 tabular-nums dark:text-red-400">
+                                                            S/{' '}
+                                                            {(
+                                                                item.return_quantity *
+                                                                item.unit_price
+                                                            ).toFixed(2)}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            },
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+
+                        {/* 4. Footer fijo para que el botón de confirmar siempre sea visible */}
+                        <DialogFooter className="mt-0 items-center border-t bg-muted/10 p-6">
                             <div className="flex-1 text-left">
-                                <span className="font-bold">
-                                    Total Reembolso:
-                                </span>{' '}
-                                <span className="text-lg font-black text-red-600">
+                                <p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
+                                    Monto Estimado
+                                </p>
+                                <span className="text-2xl font-black text-red-600">
                                     S/ {totalRefund.toFixed(2)}
                                 </span>
                             </div>
-                            <Button
-                                variant="outline"
-                                onClick={() => setIsReturnDialogOpen(false)}
-                            >
-                                Cancelar
-                            </Button>
-                            <Button
-                                className="bg-red-600 hover:bg-red-700"
-                                onClick={submitReturn}
-                                disabled={
-                                    returnForm.processing || !hasItemsToReturn
-                                }
-                            >
-                                Confirmar Devolución
-                            </Button>
+                            <div className="flex gap-3">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setIsReturnDialogOpen(false)}
+                                    className="font-bold"
+                                >
+                                    Cancelar
+                                </Button>
+                                <Button
+                                    className="bg-red-600 px-8 font-bold hover:bg-red-700"
+                                    onClick={submitReturn}
+                                    disabled={
+                                        returnForm.processing ||
+                                        !hasItemsToReturn
+                                    }
+                                >
+                                    {returnForm.processing
+                                        ? 'Procesando...'
+                                        : 'Confirmar Devolución'}
+                                </Button>
+                            </div>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
-
                 {showSuccess && flash?.success && (
                     <FloatingAlert message={flash.success} type="success" />
                 )}
@@ -621,8 +691,7 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                                     <div className="space-y-8">
                                         <div className="group space-y-2">
                                             <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase">
-                                                <CalendarIcon className="h-3 w-3" />{' '}
-                                                Fecha Emisión
+                                                <CalendarIcon className="h-3 w-3" /> Fecha y Hora de Emisión
                                             </Label>
                                             <Popover>
                                                 <PopoverTrigger asChild>
@@ -630,36 +699,52 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                                                         variant="outline"
                                                         className={cn(
                                                             'w-full justify-start rounded-none border-0 border-b border-muted bg-transparent px-0 text-left font-medium shadow-none hover:border-blue-600 hover:bg-transparent',
-                                                            !data.issue_date &&
-                                                                'text-muted-foreground',
+                                                            !data.issue_date && 'text-muted-foreground',
                                                         )}
                                                     >
                                                         <CalendarIcon className="mr-2 h-4 w-4" />
                                                         {data.issue_date
-                                                            ? format(
-                                                                  data.issue_date,
-                                                                  'PPP',
-                                                                  {
-                                                                      locale: es,
-                                                                  },
-                                                              )
-                                                            : 'Seleccionar'}
+                                                            ? format(data.issue_date, 'Pp', { locale: es }) // 'Pp' muestra fecha y hora corta
+                                                            : 'Seleccionar fecha y hora'}
                                                     </Button>
                                                 </PopoverTrigger>
-                                                <PopoverContent className="w-auto p-0">
+                                                <PopoverContent className="w-auto p-0 flex flex-col" align="start">
+                                                    {/* 1. Selector de Fecha */}
                                                     <Calendar
                                                         mode="single"
-                                                        selected={
-                                                            data.issue_date
-                                                        }
-                                                        onSelect={(date) =>
-                                                            date &&
-                                                            onFieldChange(
-                                                                'issue_date',
-                                                                date,
-                                                            )
-                                                        }
+                                                        selected={data.issue_date}
+                                                        onSelect={(date) => {
+                                                            if (date) {
+                                                                // Preservar la hora actual si ya existía una
+                                                                const newDate = new Date(date);
+                                                                newDate.setHours(data.issue_date.getHours());
+                                                                newDate.setMinutes(data.issue_date.getMinutes());
+                                                                onFieldChange('issue_date', newDate);
+                                                            }
+                                                        }}
+                                                        initialFocus
                                                     />
+
+                                                    {/* 2. Selector de Hora (Añadido al pie del calendario) */}
+                                                    <div className="border-t p-3 bg-muted/20 flex items-center justify-between gap-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs font-bold text-muted-foreground uppercase">Hora:</span>
+                                                            <Input
+                                                                type="time"
+                                                                className="h-8 w-[120px] font-mono font-bold"
+                                                                value={format(data.issue_date, 'HH:mm')}
+                                                                onChange={(e) => {
+                                                                    const [hours, minutes] = e.target.value.split(':');
+                                                                    const newDate = new Date(data.issue_date);
+                                                                    newDate.setHours(parseInt(hours), parseInt(minutes));
+                                                                    onFieldChange('issue_date', newDate);
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <span className="text-[10px] text-muted-foreground font-medium uppercase italic">
+                    Formato 24h
+                </span>
+                                                    </div>
                                                 </PopoverContent>
                                             </Popover>
                                         </div>
@@ -705,22 +790,24 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                                 {/* TABLA DE LÍNEAS (MEJORADA) */}
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between border-b border-blue-100 pb-2">
-                                        <h3 className="flex items-center gap-2 font-bold tracking-tight text-slate-800 uppercase">
-                                            <Truck className="h-4 w-4 text-blue-600" />{' '}
+                                        <h3 className="flex items-center gap-2 font-bold tracking-tight text-foreground uppercase dark:text-neutral-200">
+                                            <Truck className="h-4 w-4 text-blue-600 dark:text-blue-400" />{' '}
                                             Líneas de Compra
                                         </h3>
                                     </div>
                                     <Table>
-                                        <TableHeader className="bg-muted/10">
-                                            <TableRow>
-                                                <TableHead>Producto</TableHead>
-                                                <TableHead className="text-right">
+                                        <TableHeader className="bg-muted/50 dark:bg-neutral-900">
+                                            <TableRow className="dark:border-neutral-800">
+                                                <TableHead className="dark:text-neutral-300">
+                                                    Producto
+                                                </TableHead>
+                                                <TableHead className="text-right dark:text-neutral-300">
                                                     Cantidad
                                                 </TableHead>
-                                                <TableHead className="text-right">
+                                                <TableHead className="text-right dark:text-neutral-300">
                                                     Precio Unit.
                                                 </TableHead>
-                                                <TableHead className="text-right">
+                                                <TableHead className="text-right dark:text-neutral-300">
                                                     Subtotal
                                                 </TableHead>
                                             </TableRow>
@@ -729,22 +816,37 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                                             {rows.map((row) => (
                                                 <TableRow
                                                     key={row.id}
-                                                    className="hover:bg-blue-50/20"
+                                                    className="hover:bg-muted/50 dark:border-neutral-800 dark:hover:bg-neutral-800/50"
                                                 >
-                                                    <TableCell className="font-medium">
+                                                    <TableCell
+                                                        className="cursor-pointer font-medium text-foreground transition-colors hover:text-blue-600 dark:text-neutral-200 dark:hover:text-blue-400"
+                                                        onClick={() =>
+                                                            router.visit(
+                                                                productsRoute.show(
+                                                                    {
+                                                                        product:
+                                                                            row.id_product,
+                                                                    },
+                                                                ).url,
+                                                            )
+                                                        }
+                                                    >
                                                         {row.product_name}
                                                     </TableCell>
+
                                                     <TableCell className="text-right tabular-nums">
                                                         {row.quantity.toFixed(
                                                             2,
                                                         )}
                                                     </TableCell>
+
                                                     <TableCell className="text-right tabular-nums">
                                                         S/{' '}
                                                         {row.unit_price.toFixed(
                                                             2,
                                                         )}
                                                     </TableCell>
+
                                                     <TableCell className="text-right font-bold tabular-nums">
                                                         S/{' '}
                                                         {(
@@ -811,7 +913,6 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                                                     className="flex items-center text-xs font-bold text-blue-700 hover:underline"
                                                 >
                                                     <Download className="mr-1 h-4 w-4" />{' '}
-                                                    VER PDF
                                                 </a>
                                             </div>
                                         ) : (
@@ -869,7 +970,7 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-2 border-b pb-2">
                                         <Undo2 className="h-5 w-5 text-purple-600" />
-                                        <h3 className="font-bold tracking-tight text-slate-800 uppercase">
+                                        <h3 className="font-bold tracking-tight text-foreground uppercase dark:text-neutral-200">
                                             Notas de Crédito Emitidas
                                         </h3>
                                     </div>

@@ -46,7 +46,7 @@ import {
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebounce } from 'use-debounce';
 import { Columns, Receipt } from './Columns';
-
+import React from 'react';
 interface PaginatedReceipts {
     data: Receipt[];
     current_page: number;
@@ -236,7 +236,6 @@ export default function ListReceipts({ receipts, filters }: Props) {
 
     // --- RENDERIZADO DEL CONTENIDO PRINCIPAL ---
     const renderContent = () => {
-        // 1. MODO TABLA PLANA (Sin agrupar) -> Usa tu DataTable existente
         if (groupBy === 'none') {
             return (
                 <div className="rounded-xl border bg-card shadow-sm dark:border-neutral-800 dark:bg-neutral-900/20">
@@ -251,7 +250,6 @@ export default function ListReceipts({ receipts, filters }: Props) {
             );
         }
 
-        // 2. MODO AGRUPADO (Estilo Odoo) -> Renderizado manual
         if (!groupedData || Object.keys(groupedData).length === 0) {
             return (
                 <div className="p-8 text-center text-muted-foreground">
@@ -261,18 +259,26 @@ export default function ListReceipts({ receipts, filters }: Props) {
         }
 
         return (
-            <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
+            <div className="overflow-hidden rounded-xl border bg-card shadow-sm dark:border-neutral-800 dark:bg-neutral-900/20">
                 <Table>
-                    {/* Encabezado Global de la Tabla */}
-                    <TableHeader className="bg-white">
-                        <TableRow>
-                            <TableHead className="w-[50px]"></TableHead>{' '}
-                            {/* Checkbox/Espacio */}
-                            <TableHead>Fecha</TableHead>
-                            <TableHead>Número</TableHead>
-                            <TableHead>Proveedor</TableHead>
-                            <TableHead>Referencia</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
+                    <TableHeader className="bg-muted/50 dark:bg-neutral-800/50">
+                        <TableRow className="border-b hover:bg-transparent dark:border-neutral-800">
+                            <TableHead className="w-[50px]"></TableHead>
+                            <TableHead className="text-xs font-bold tracking-wider uppercase">
+                                Fecha
+                            </TableHead>
+                            <TableHead className="text-xs font-bold tracking-wider uppercase">
+                                Documento
+                            </TableHead>
+                            <TableHead className="text-xs font-bold tracking-wider uppercase">
+                                Proveedor
+                            </TableHead>
+                            <TableHead className="text-xs font-bold tracking-wider uppercase">
+                                Referencia
+                            </TableHead>
+                            <TableHead className="text-right text-xs font-bold tracking-wider uppercase">
+                                Total
+                            </TableHead>
                             <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
@@ -280,37 +286,34 @@ export default function ListReceipts({ receipts, filters }: Props) {
                         {Object.entries(groupedData).map(
                             ([groupName, { items, total }]) => {
                                 const isExpanded =
-                                    expandedGroups[groupName] !== false; // Abierto por defecto
+                                    expandedGroups[groupName] !== false;
 
                                 return (
-                                    <div
-                                        key={groupName}
-                                        style={{ display: 'contents' }}
-                                    >
+                                    <React.Fragment key={groupName}>
                                         {/* --- FILA DE GRUPO (CABECERA) --- */}
                                         <TableRow
-                                            className="cursor-pointer border-b border-muted-foreground/10 bg-muted/50 font-medium hover:bg-muted/70"
+                                            className="cursor-pointer border-b bg-muted/30 font-medium transition-colors hover:bg-muted/50 dark:border-neutral-800 dark:bg-neutral-800/30 dark:hover:bg-neutral-800/50"
                                             onClick={() =>
                                                 toggleGroup(groupName)
                                             }
                                         >
-                                            <TableCell className="py-2 pl-4">
+                                            <TableCell className="py-3 pl-4">
                                                 {isExpanded ? (
-                                                    <ChevronDown className="h-4 w-4" />
+                                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
                                                 ) : (
-                                                    <ChevronRight className="h-4 w-4" />
+                                                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                                 )}
                                             </TableCell>
                                             <TableCell
                                                 colSpan={4}
-                                                className="py-2 font-bold text-foreground"
+                                                className="font-bold text-foreground"
                                             >
                                                 {groupName}{' '}
                                                 <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                                    ({items.length})
+                                                    ({items.length} registros)
                                                 </span>
                                             </TableCell>
-                                            <TableCell className="py-2 text-right font-bold tabular-nums">
+                                            <TableCell className="text-right font-black text-blue-700 tabular-nums dark:text-blue-400">
                                                 S/{' '}
                                                 {total.toLocaleString('es-PE', {
                                                     minimumFractionDigits: 2,
@@ -324,13 +327,13 @@ export default function ListReceipts({ receipts, filters }: Props) {
                                             items.map((receipt) => (
                                                 <TableRow
                                                     key={receipt.id_receipt}
-                                                    className="cursor-pointer border-0 hover:bg-muted/20"
+                                                    className="cursor-pointer border-b last:border-0 hover:bg-muted/40 dark:border-neutral-800/50 dark:hover:bg-neutral-800/20"
                                                     onClick={() =>
                                                         handleCardClick(receipt)
                                                     }
                                                 >
                                                     <TableCell
-                                                        className="py-2 pl-4"
+                                                        className="py-3 pl-4"
                                                         onClick={(e) =>
                                                             e.stopPropagation()
                                                         }
@@ -349,7 +352,7 @@ export default function ListReceipts({ receipts, filters }: Props) {
                                                             }
                                                         />
                                                     </TableCell>
-                                                    <TableCell className="py-2 text-sm">
+                                                    <TableCell className="text-sm text-foreground/80">
                                                         {format(
                                                             new Date(
                                                                 receipt.issue_date,
@@ -357,46 +360,40 @@ export default function ListReceipts({ receipts, filters }: Props) {
                                                             'dd/MM/yyyy',
                                                         )}
                                                     </TableCell>
-                                                    <TableCell className="py-2">
-                                                        <div className="flex flex-col">
-                                                            <span className="font-mono text-xs font-bold text-muted-foreground">
+                                                    <TableCell>
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="w-fit rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] font-bold text-muted-foreground dark:bg-neutral-800">
                                                                 {
                                                                     receipt.receipt_code
                                                                 }
                                                             </span>
-                                                            <Badge
-                                                                variant="outline"
-                                                                className="h-4 w-fit px-1 text-[10px] font-normal"
-                                                            >
-                                                                {receipt.document_type ===
-                                                                'factura'
-                                                                    ? 'Factura'
-                                                                    : 'Boleta'}
-                                                            </Badge>
+                                                            <span className="text-[10px] font-black tracking-tighter text-blue-600/70 uppercase dark:text-blue-400/70">
+                                                                {
+                                                                    receipt.document_type
+                                                                }
+                                                            </span>
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell className="py-2 text-sm font-medium">
+                                                    <TableCell className="text-sm font-medium text-foreground">
                                                         {
                                                             receipt.supplier
                                                                 ?.company_name
                                                         }
                                                     </TableCell>
-                                                    <TableCell className="py-2 text-xs text-muted-foreground">
+                                                    <TableCell className="text-[11px] tracking-tight text-muted-foreground uppercase">
                                                         {receipt.series}-
                                                         {receipt.number}
                                                     </TableCell>
-                                                    <TableCell className="py-2 text-right text-sm font-bold tabular-nums">
+                                                    <TableCell className="text-right font-bold text-foreground tabular-nums">
                                                         S/{' '}
                                                         {Number(
                                                             receipt.total_amount,
                                                         ).toFixed(2)}
                                                     </TableCell>
-                                                    <TableCell className="py-2">
-                                                        {/* Acciones extra si se requieren */}
-                                                    </TableCell>
+                                                    <TableCell></TableCell>
                                                 </TableRow>
                                             ))}
-                                    </div>
+                                    </React.Fragment>
                                 );
                             },
                         )}

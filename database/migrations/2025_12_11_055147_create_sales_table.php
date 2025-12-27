@@ -31,7 +31,7 @@ return new class extends Migration
 
             // --- Otros Campos ---
             $table->string("code_sales")->unique();
-            $table->date("date_sales");
+            $table->dateTime("date_sales");
 
             $table->decimal("subtotal", 10,2);
             $table->decimal("tax", 10,2);

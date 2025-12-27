@@ -20,12 +20,13 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppLayout from '@/layouts/app-layout';
+import { cn } from '@/lib/utils';
+import productsRoute from '@/routes/products';
 import salesRoute from '@/routes/sales';
 import { Head, router, usePage } from '@inertiajs/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
-    ArrowLeft,
     BookText,
     CalendarIcon,
     CheckCircle2,
@@ -37,8 +38,6 @@ import {
     User,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { cn } from '@/lib/utils';
-
 
 // --- Interfaces ---
 interface SaleDetail {
@@ -82,7 +81,6 @@ export default function ShowSales({ sale }: Props) {
 
     // --- LÓGICA DE AUTO-IMPRESIÓN ---
     useEffect(() => {
-        // Si venimos de crear una venta, el controlador envía saleId en el flash
         if (flash?.saleId) {
             setShowPrintModal(true);
             setShowSuccess(true);
@@ -116,7 +114,6 @@ export default function ShowSales({ sale }: Props) {
         >
             <Head title={`Venta ${sale.code_sales}`} />
 
-            {/* Alerta flotante de éxito */}
             {showSuccess && flash?.success && (
                 <div className="fixed top-6 right-6 z-[100] w-auto max-w-md animate-in fade-in slide-in-from-top-2">
                     <Alert className="border-2 border-emerald-500 bg-emerald-50 text-emerald-800 shadow-xl">
@@ -131,7 +128,6 @@ export default function ShowSales({ sale }: Props) {
                 </div>
             )}
 
-            {/* --- MODAL DE IMPRESIÓN --- */}
             <Dialog open={showPrintModal} onOpenChange={setShowPrintModal}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
@@ -202,11 +198,10 @@ export default function ShowSales({ sale }: Props) {
                             value="general"
                             className="mt-6 animate-in duration-300 fade-in-50"
                         >
-                            {/* 1. CAMPOS DE CABECERA (Rediseñado para 3 columnas o ajuste de espacios) */}
                             <div className="mb-12 grid grid-cols-1 gap-x-20 gap-y-10 md:grid-cols-2">
                                 <div className="space-y-8">
                                     <div className="group space-y-2">
-                                        <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase">
+                                        <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:text-neutral-400">
                                             <User className="h-3 w-3" /> Cliente
                                         </Label>
                                         <Input
@@ -232,8 +227,6 @@ export default function ShowSales({ sale }: Props) {
                                             className={disabledInputClass}
                                         />
                                     </div>
-
-                                    {/* NUEVO CAMPO: DIRECCIÓN */}
                                     <div className="group space-y-2">
                                         <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase">
                                             <MapPin className="h-3 w-3 text-blue-600" />{' '}
@@ -258,12 +251,13 @@ export default function ShowSales({ sale }: Props) {
                                     <div className="group space-y-2">
                                         <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase">
                                             <CalendarIcon className="h-3 w-3" />{' '}
-                                            Fecha de Venta
+                                            Fecha y Hora de Venta
                                         </Label>
+                                        {/* SE AGREGÓ HORA Y MINUTOS AQUÍ */}
                                         <Input
                                             value={format(
                                                 new Date(sale.date_sales),
-                                                'PPP',
+                                                'dd/MM/yyyy HH:mm:ss',
                                                 { locale: es },
                                             )}
                                             disabled
@@ -284,11 +278,10 @@ export default function ShowSales({ sale }: Props) {
                                 </div>
                             </div>
 
-                            {/* 2. TABLA DE DETALLES */}
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between border-b border-blue-100 pb-2">
-                                    <h3 className="flex items-center gap-2 font-bold tracking-tight text-slate-800 uppercase">
-                                        <ShoppingBag className="h-4 w-4 text-blue-600" />
+                                    <h3 className="flex items-center gap-2 font-bold tracking-tight text-foreground uppercase dark:text-neutral-200">
+                                        <ShoppingBag className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                         Artículos Vendidos
                                     </h3>
                                     <span className="text-xs font-medium text-muted-foreground italic">
@@ -297,21 +290,21 @@ export default function ShowSales({ sale }: Props) {
                                 </div>
 
                                 <Table>
-                                    <TableHeader className="bg-muted/10">
-                                        <TableRow>
-                                            <TableHead className="w-[15%]">
+                                    <TableHeader className="bg-muted/50 dark:bg-neutral-900">
+                                        <TableRow className="dark:border-neutral-800">
+                                            <TableHead className="dark:text-neutral-300">
                                                 Código
                                             </TableHead>
-                                            <TableHead className="w-[45%]">
+                                            <TableHead className="dark:text-neutral-300">
                                                 Descripción Producto
                                             </TableHead>
-                                            <TableHead className="w-[10%] text-right">
+                                            <TableHead className="text-right dark:text-neutral-300">
                                                 Cant.
                                             </TableHead>
-                                            <TableHead className="w-[15%] text-right">
+                                            <TableHead className="text-right dark:text-neutral-300">
                                                 P. Unitario
                                             </TableHead>
-                                            <TableHead className="w-[15%] text-right">
+                                            <TableHead className="text-right dark:text-neutral-300">
                                                 Subtotal
                                             </TableHead>
                                         </TableRow>
@@ -320,21 +313,39 @@ export default function ShowSales({ sale }: Props) {
                                         {sale.details.map((detail) => (
                                             <TableRow
                                                 key={detail.id_sales_details}
-                                                className="transition-colors hover:bg-blue-50/30"
+                                                className="transition-colors hover:bg-blue-50/30 dark:border-neutral-800 dark:hover:bg-neutral-800/50"
                                             >
-                                                <TableCell className="font-mono text-xs text-muted-foreground">
-                                                    {
-                                                        detail.product
-                                                            .product_code
+                                                <TableCell
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            productsRoute.show({
+                                                                product:
+                                                                    detail.id_product,
+                                                            }).url,
+                                                        )
                                                     }
+                                                    className="cursor-pointer font-mono text-xs text-muted-foreground transition-all hover:font-bold hover:text-blue-600 dark:text-neutral-400 dark:hover:text-blue-400"
+                                                >
+                                                    {detail.product
+                                                        .product_code || 'S/N'}
                                                 </TableCell>
-                                                <TableCell className="font-medium text-foreground">
+                                                <TableCell
+                                                    onClick={() =>
+                                                        router.visit(
+                                                            productsRoute.show({
+                                                                product:
+                                                                    detail.id_product,
+                                                            }).url,
+                                                        )
+                                                    }
+                                                    className="cursor-pointer font-medium text-foreground transition-colors hover:text-blue-600 dark:text-neutral-200 dark:hover:text-blue-400"
+                                                >
                                                     {
                                                         detail.product
                                                             .product_name
                                                     }
                                                 </TableCell>
-                                                <TableCell className="text-right tabular-nums">
+                                                <TableCell className="text-right tabular-nums dark:text-neutral-300">
                                                     {Number(
                                                         detail.quantity,
                                                     ).toFixed(2)}
@@ -356,7 +367,6 @@ export default function ShowSales({ sale }: Props) {
                                     </TableBody>
                                 </Table>
 
-                                {/* 3. TOTALES */}
                                 <div className="flex flex-col items-end gap-2 border-t pt-6">
                                     <div className="w-full max-w-xs space-y-3">
                                         <div className="flex justify-between text-sm text-muted-foreground">

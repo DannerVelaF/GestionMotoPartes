@@ -69,7 +69,10 @@ class SalesController extends Controller
     }
     public function create()
     {
-        $products = Products::select('id_product', 'product_name', 'product_code', 'sale_price', "stock")
+        // CAMBIO: Añadimos where('status', 'active')
+        $products = Products::where('status', 'active')
+            ->select('id_product', 'product_name', 'product_code', 'sale_price', 'stock')
+            ->orderBy('product_name')
             ->get();
 
         $documentTypes = [

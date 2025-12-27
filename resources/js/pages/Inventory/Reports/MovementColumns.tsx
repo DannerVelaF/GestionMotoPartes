@@ -1,14 +1,8 @@
-// resources/js/Pages/Inventory/MovementColumns.tsx
 import { Badge } from '@/components/ui/badge';
 import { ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import {
-    ArrowDownCircle,
-    ArrowUpCircle,
-    RefreshCcw,
-    Settings,
-} from 'lucide-react';
+import {cn} from '@/lib/utils';
 
 export interface Movement {
     id: number;
@@ -52,41 +46,46 @@ export const MovementColumns: ColumnDef<Movement>[] = [
         accessorKey: 'type',
         header: 'Tipo',
         cell: ({ row }) => {
-            const type = row.original.type;
-            const configs = {
-                purchase: {
-                    label: 'Compra',
-                    color: 'bg-blue-100 text-blue-700',
-                    icon: ArrowUpCircle,
-                },
-                sale: {
-                    label: 'Venta',
-                    color: 'bg-emerald-100 text-emerald-700',
-                    icon: ArrowDownCircle,
-                },
-                return: {
-                    label: 'Devolución',
-                    color: 'bg-orange-100 text-orange-700',
-                    icon: RefreshCcw,
-                },
-                adjustment: {
-                    label: 'Ajuste',
-                    color: 'bg-slate-100 text-slate-700',
-                    icon: Settings,
-                },
-            };
-            const config = configs[type] || {
+            const type = row.getValue('type') as string;
+
+            // Definimos el mapeo de nombres y colores
+            const typeConfig: Record<string, { label: string; class: string }> =
+                {
+                    purchase: {
+                        label: 'Compra',
+                        class: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400',
+                    },
+                    sale: {
+                        label: 'Venta',
+                        class: 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400',
+                    },
+                    purchase_return: {
+                        label: 'Devolución Compra (NC)',
+                        class: 'bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400',
+                    },
+                    return: {
+                        label: 'Devolución Venta',
+                        class: 'bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400',
+                    },
+                    adjustment: {
+                        label: 'Ajuste de Stock',
+                        class: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400',
+                    },
+                };
+
+            const config = typeConfig[type] || {
                 label: type,
-                color: '',
-                icon: ArrowUpCircle,
+                class: 'bg-muted text-muted-foreground',
             };
-            const Icon = config.icon;
+
             return (
                 <Badge
                     variant="outline"
-                    className={`flex w-fit items-center gap-1 font-normal ${config.color}`}
+                    className={cn(
+                        'border-none text-[10px] font-black tracking-tighter uppercase',
+                        config.class,
+                    )}
                 >
-                    <Icon className="h-3 w-3" />
                     {config.label}
                 </Badge>
             );

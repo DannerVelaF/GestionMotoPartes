@@ -16,6 +16,7 @@ class DashboardController extends Controller
     public function __invoke()
     {
         // 1. Cálculos Financieros (KPIs)
+        $startDate = now()->subDays(6)->startOfDay();
         $rawSales = Sales::sum('total') ?? 0;
         $rawPurchases = Receipt::sum('total_amount') ?? 0;
         $netMargin = $rawSales - $rawPurchases;
@@ -26,13 +27,21 @@ class DashboardController extends Controller
         // 2. Gráfico Comparativo (Últimos 7 días)
         $days = collect(range(6, 0))->map(fn($i) => now()->subDays($i)->format('Y-m-d'));
 
-        $salesData = Sales::select(DB::raw('DATE(date_sales) as date'), DB::raw('SUM(total) as total'))
-            ->where('date_sales', '>=', now()->subDays(7))
-            ->groupBy('date')->pluck('total', 'date');
+        $salesData = Sales::select(
+            DB::raw('DATE(date_sales) as date_only'),
+            DB::raw('SUM(total) as total')
+        )
+            ->where('date_sales', '>=', $startDate)
+            ->groupBy('date_only')
+            ->pluck('total', 'date_only');
 
-        $purchasesData = Receipt::select(DB::raw('DATE(issue_date) as date'), DB::raw('SUM(total_amount) as total'))
-            ->where('issue_date', '>=', now()->subDays(7))
-            ->groupBy('date')->pluck('total', 'date');
+        $purchasesData = Receipt::select(
+            DB::raw('DATE(issue_date) as date_only'),
+            DB::raw('SUM(total_amount) as total')
+        )
+            ->where('issue_date', '>=', $startDate)
+            ->groupBy('date_only')
+            ->pluck('total', 'date_only');
 
         $chartData = $days->map(fn($date) => [
             'date' => date('d M', strtotime($date)),

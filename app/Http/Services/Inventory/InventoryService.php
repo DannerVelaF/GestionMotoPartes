@@ -5,7 +5,9 @@ namespace App\Http\Services\Inventory;
 use App\Http\Repositories\Eloquent\Inventory\InventoryRepository;
 use App\Http\Services\BaseService;
 use App\Models\Products;
+use App\Models\InventoryMovements;
 use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
 
 class InventoryService extends BaseService
 {
@@ -13,44 +15,40 @@ class InventoryService extends BaseService
         parent::__construct($model);
     }
 
-    public function registerMovement(
-        $productId,
-        $quantity,
-        $type, // 'purchase', 'sale', 'return', 'adjustment'
-        $unitCost,
-        $referenceModel = null,
-        $notes = ''
-    ) {
+    public function registerMovement($productId, $quantity, $type, $unitCost, $referenceModel = null, $notes = '', $date = null) {
         $product = Products::find($productId);
-
         if (!$product) return null;
 
-        $currentStock = $product->stock ?? 0;
-        $newBalance = $currentStock + $quantity;
+        $currentStock = (float)($product->stock ?? 0);
+        $newBalance = $currentStock + (float)$quantity;
 
-        $movement = $this->repo->create([
+        $movement = new InventoryMovements([
             'id_product'     => $productId,
             'type'           => $type,
-            'id_user'        => Auth::id() ?? 1, // Usuario logueado
+            'id_user'        => Auth::id() ?? 1,
             'quantity'       => $quantity,
             'unit_cost'      => $unitCost,
-            'balance'        => $newBalance, // Stock resultante
+            'balance'        => $newBalance,
             'reference_id'   => $referenceModel ? $referenceModel->getKey() : null,
             'reference_type' => $referenceModel ? get_class($referenceModel) : null,
             'notes'          => $notes
         ]);
 
-        $product->stock = $newBalance;
+        if ($date) {
+            $movement->timestamps = false;
+            $movement->created_at = Carbon::parse($date);
+            $movement->updated_at = Carbon::parse($date);
+        }
 
+        $movement->save();
+
+        // 3. Actualizar Maestro de Productos
+        $product->stock = $newBalance;
         if ($type === 'purchase' && $quantity > 0) {
             $product->purchase_price = $unitCost;
         }
-
         $product->save();
 
         return $movement;
     }
-
-
-
 }

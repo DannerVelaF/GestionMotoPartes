@@ -35,6 +35,7 @@ import {
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebounce } from 'use-debounce';
 import { Columns, Sale } from './Columns';
+import React from 'react';
 
 interface PaginatedSales {
     data: Sale[];
@@ -168,6 +169,7 @@ export default function ListSales({ sales, filters }: Props) {
     useEffect(() => {
         setPerPage(sales.per_page);
     }, [sales.per_page]);
+
     const renderContent = () => {
         if (groupBy === 'none') {
             return (
@@ -184,16 +186,27 @@ export default function ListSales({ sales, filters }: Props) {
         }
 
         return (
-            <div className="overflow-hidden rounded-lg border bg-card shadow-sm">
+            <div className="overflow-hidden rounded-xl border bg-card shadow-sm dark:border-neutral-800 dark:bg-neutral-900/20">
                 <Table>
-                    <TableHeader className="bg-white">
-                        <TableRow>
+                    {/* Cabecera adaptativa al Dark Mode */}
+                    <TableHeader className="bg-muted/50 dark:bg-neutral-800/50">
+                        <TableRow className="border-b hover:bg-transparent dark:border-neutral-800">
                             <TableHead className="w-[50px]"></TableHead>
-                            <TableHead>Fecha</TableHead>
-                            <TableHead>Número</TableHead>
-                            <TableHead>Cliente</TableHead>
-                            <TableHead>Referencia</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
+                            <TableHead className="text-xs font-bold tracking-wider uppercase">
+                                Fecha
+                            </TableHead>
+                            <TableHead className="text-xs font-bold tracking-wider uppercase">
+                                Número
+                            </TableHead>
+                            <TableHead className="text-xs font-bold tracking-wider uppercase">
+                                Cliente
+                            </TableHead>
+                            <TableHead className="text-xs font-bold tracking-wider uppercase">
+                                Referencia
+                            </TableHead>
+                            <TableHead className="text-right text-xs font-bold tracking-wider uppercase">
+                                Total
+                            </TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -202,12 +215,9 @@ export default function ListSales({ sales, filters }: Props) {
                                 const isExpanded =
                                     expandedGroups[groupName] !== false;
                                 return (
-                                    <div
-                                        key={groupName}
-                                        style={{ display: 'contents' }}
-                                    >
+                                    <React.Fragment key={groupName}>
                                         <TableRow
-                                            className="cursor-pointer bg-muted/50 font-medium"
+                                            className="cursor-pointer border-b bg-muted/30 font-medium transition-colors hover:bg-muted/50 dark:border-neutral-800 dark:bg-neutral-800/30 dark:hover:bg-neutral-800/50"
                                             onClick={() =>
                                                 setExpandedGroups((p) => ({
                                                     ...p,
@@ -215,31 +225,32 @@ export default function ListSales({ sales, filters }: Props) {
                                                 }))
                                             }
                                         >
-                                            <TableCell className="py-2 pl-4">
+                                            <TableCell className="py-3 pl-4">
                                                 {isExpanded ? (
-                                                    <ChevronDown className="h-4 w-4" />
+                                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
                                                 ) : (
-                                                    <ChevronRight className="h-4 w-4" />
+                                                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                                 )}
                                             </TableCell>
                                             <TableCell
                                                 colSpan={4}
-                                                className="font-bold"
+                                                className="font-bold text-foreground"
                                             >
                                                 {groupName}{' '}
                                                 <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                                    ({items.length})
+                                                    ({items.length} registros)
                                                 </span>
                                             </TableCell>
-                                            <TableCell className="text-right font-bold text-blue-700">
+                                            <TableCell className="text-right font-black text-blue-700 dark:text-blue-400">
                                                 S/ {total.toFixed(2)}
                                             </TableCell>
                                         </TableRow>
+
                                         {isExpanded &&
                                             items.map((sale) => (
                                                 <TableRow
                                                     key={sale.id_sales}
-                                                    className="cursor-pointer hover:bg-muted/20"
+                                                    className="cursor-pointer border-b last:border-0 hover:bg-muted/40 dark:border-neutral-800/50 dark:hover:bg-neutral-800/20"
                                                     onClick={() =>
                                                         handleCardClick(sale)
                                                     }
@@ -248,7 +259,7 @@ export default function ListSales({ sales, filters }: Props) {
                                                         onClick={(e) =>
                                                             e.stopPropagation()
                                                         }
-                                                        className="py-2 pl-4"
+                                                        className="py-3 pl-4"
                                                     >
                                                         <Checkbox
                                                             checked={
@@ -264,7 +275,7 @@ export default function ListSales({ sales, filters }: Props) {
                                                             }
                                                         />
                                                     </TableCell>
-                                                    <TableCell className="text-sm">
+                                                    <TableCell className="text-sm text-foreground/80">
                                                         {format(
                                                             new Date(
                                                                 sale.date_sales,
@@ -273,18 +284,18 @@ export default function ListSales({ sales, filters }: Props) {
                                                         )}
                                                     </TableCell>
                                                     <TableCell>
-                                                        <span className="font-mono text-xs font-bold text-muted-foreground">
+                                                        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] font-bold text-muted-foreground dark:bg-neutral-800">
                                                             {sale.code_sales}
                                                         </span>
                                                     </TableCell>
-                                                    <TableCell className="text-sm font-medium">
+                                                    <TableCell className="text-sm font-medium text-foreground">
                                                         {sale.receiver_name}
                                                     </TableCell>
-                                                    <TableCell className="text-xs text-muted-foreground">
+                                                    <TableCell className="text-[11px] tracking-tight text-muted-foreground uppercase">
                                                         {sale.series}-
                                                         {sale.number}
                                                     </TableCell>
-                                                    <TableCell className="text-right font-bold">
+                                                    <TableCell className="text-right font-bold text-foreground">
                                                         S/{' '}
                                                         {Number(
                                                             sale.total,
@@ -292,7 +303,7 @@ export default function ListSales({ sales, filters }: Props) {
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
-                                    </div>
+                                    </React.Fragment>
                                 );
                             },
                         )}

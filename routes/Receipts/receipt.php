@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Controllers\CustomerSearchController;
+use App\Http\Controllers\Sales\CustomerSearchController;
 use App\Http\Controllers\Receipt\ReceiptController;
 use App\Http\Controllers\Receipt\SupplierController;
 use Illuminate\Support\Facades\Route;
@@ -36,6 +36,6 @@ Route::middleware("auth")->group(function () {
         Route::get('/recibos/reportes/proveedores',  'supplierReport')->name('reports-receipts.suppliers');
         Route::get('/recibos/reportes/variacionCosto',  'variationReport')->name('reports-receipts.variation');
     });
-
     Route::get('/api/consultar-documento/{documento}', [CustomerSearchController::class, 'searchCustomer']);
+
 });

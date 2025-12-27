@@ -78,16 +78,24 @@ class ReceiptController extends Controller
 
     public function create()
     {
+        $allowedTypes = [
+            DocumentType::INVOICE,
+            DocumentType::RECEIPT
+        ];
+
         return Inertia::render('Receipts/CreateReceipt', [
             'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')
                 ->orderBy('company_name')
                 ->get(),
-            // CAMBIO AQUÍ: Agregamos 'sale_price' a la selección
+            // Esto ya lo tenías bien, se mantiene:
             'products' => Products::where('status', 'active')
                 ->select('id_product', 'product_name', 'product_code', 'sale_price')
                 ->orderBy('product_name')
                 ->get(),
-            'documentTypes' => collect(DocumentType::cases())->map(fn($t) => ['value' => $t->value, 'label' => $t->label()]),
+            'documentTypes' => collect($allowedTypes)->map(fn($t) => [
+                'value' => $t->value,
+                'label' => $t->label()
+            ]),
         ]);
     }
 
@@ -170,7 +178,7 @@ class ReceiptController extends Controller
             'receipt' => $receipt,
             'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')->orderBy('company_name')->get(),
             'products' => Products::where('status', 'active')
-                ->select('id_product', 'product_name', 'product_code')
+                ->select('id_product', 'product_name', 'product_code', "stock")
                 ->orderBy('product_name')
                 ->get(),
             'documentTypes' => collect(DocumentType::cases())->map(fn($t) => ['value' => $t->value, 'label' => $t->label()]),
@@ -179,7 +187,6 @@ class ReceiptController extends Controller
 
     public function update(Request $request, $id)
     {
-        // 1. Validación (Similar al store, pero permitiendo mantener los mismos datos)
         $validated = $request->validate([
             'id_supplier'          => 'required|exists:suppliers,id_supplier',
             'document_type'        => ['required', Rule::enum(DocumentType::class)],
@@ -188,7 +195,6 @@ class ReceiptController extends Controller
             'issue_date'           => 'required|date',
             'file'                 => 'nullable|file|mimes:pdf,jpg,png,jpeg|max:5120', // Archivo es opcional en update
 
-            // Validación de detalles
             'details'              => 'required|array|min:1',
             'details.*.id_product' => 'required|exists:products,id_product',
             'details.*.quantity'   => 'required|numeric|min:0.01',
@@ -197,10 +203,9 @@ class ReceiptController extends Controller
         ]);
 
         try {
-            // 2. Delegar al servicio
+            $validated['issue_date'] = Carbon::parse($validated['issue_date']);
             $this->service->updateReceipt($validated, $id);
 
-            // 3. Retornar
             return back()->with('success', 'Comprobante actualizado correctamente.');
         } catch (\Exception $e) {
             Log::error('Error updating receipt: ' . $e->getMessage());
@@ -225,7 +230,6 @@ class ReceiptController extends Controller
 
             return to_route('receipts.index')->with('success', 'Comprobante eliminado correctamente.');
         } catch (\Illuminate\Database\QueryException $e) {
-            // ✅ CAPTURA DE ERROR DE BASE DE DATOS (Integrity constraint violation)
             if ($e->getCode() == "23000") {
                 return back()->withErrors([
                     'error' => 'Error de integridad: Este documento está siendo usado por otros registros (detalles o referencias) y no puede ser eliminado.'
