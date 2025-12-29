@@ -21,7 +21,6 @@ import {
     ChevronLeft,
     ChevronRight,
     Plus,
-    Printer,
     Search,
     Trash2,
     X,
@@ -216,10 +215,6 @@ export default function ListTypes({ types, filters }: Props) {
                                 >
                                     <Trash2 className="mr-2 h-4 w-4 text-red-500" />
                                     Eliminar
-                                </Button>
-                                <Button variant="secondary" size="sm">
-                                    <Printer className="mr-2 h-4 w-4 text-gray-500" />
-                                    Imprimir
                                 </Button>
                             </div>
                         </div>
