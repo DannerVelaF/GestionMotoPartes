@@ -370,6 +370,9 @@ export default function Config({ config, flash }: Props) {
                                     <div className="relative">
                                         <Globe className="absolute top-2.5 left-3 h-4 w-4 text-muted-foreground" />
                                         <Input
+                                            placeholder={
+                                                'https://api.decolecta.com/v1/'
+                                            }
                                             id="api_service_url"
                                             className="pl-9"
                                             value={data.api_service_url}

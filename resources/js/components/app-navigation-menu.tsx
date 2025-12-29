@@ -284,20 +284,11 @@ export function AppNavigationMenu() {
                             <MenubarItem
                                 className={itemClass}
                                 onClick={() =>
-                                    router.visit(usersRoute.index().url)
-                                }
-                            >
-                                <UserCog className="h-4 w-4 text-blue-600" />{' '}
-                                Usuarios
-                            </MenubarItem>
-                            <MenubarItem
-                                className={itemClass}
-                                onClick={() =>
                                     router.visit(rolesRoute.index().url)
                                 }
                             >
                                 <Shield className="h-4 w-4 text-violet-600" />{' '}
-                                Roles y Permisos
+                                Roles
                             </MenubarItem>
                         </MenubarContent>
                     </MenubarMenu>

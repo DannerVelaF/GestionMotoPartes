@@ -31,7 +31,8 @@ class BusinessConfigController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
-        $validated = $request->validate([
+        // 1. Definimos las reglas
+        $rules = [
             'company_name'      => ['required', 'string', 'max:255'],
             'ruc'               => ['required', 'string', 'size:11'],
             'address'           => ['nullable', 'string', 'max:500'],
@@ -42,12 +43,29 @@ class BusinessConfigController extends Controller
             'api_service_url'   => ['nullable', 'url'],
             'api_service_token' => ['nullable', 'string'],
             'logo'              => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
-        ]);
+        ];
+
+        $messages = [
+            'company_name.required' => 'La razón social es obligatoria.',
+            'company_name.max'      => 'La razón social no debe exceder los 255 caracteres.',
+
+            'ruc.required'          => 'El RUC es obligatorio.',
+            'ruc.size'              => 'El RUC debe tener exactamente 11 dígitos.',
+
+            'email.email'           => 'Debe ingresar un correo electrónico válido.',
+
+            'api_service_url.url'   => 'La URL del servicio API no tiene un formato válido.',
+
+            'logo.image'            => 'El archivo subido debe ser una imagen.',
+            'logo.mimes'            => 'El logo debe ser de tipo: jpeg, png, jpg o webp.',
+            'logo.max'              => 'El logo no debe pesar más de 2MB.',
+        ];
+
+        $validated = $request->validate($rules, $messages);
 
         $config = BusinessConfig::first() ?? new BusinessConfig();
 
         if ($request->hasFile('logo')) {
-            // Eliminar anterior para no llenar el servidor en Polybags Perú
             if ($config->logo_path) {
                 Storage::disk('public')->delete($config->logo_path);
             }
@@ -55,7 +73,6 @@ class BusinessConfigController extends Controller
             $config->logo_path = $path;
         }
 
-        // ✅ Limpiamos el array para que el 'logo' (objeto archivo) no intente entrar en la base de datos
         $dataToSave = $request->except('logo');
         $config->fill($dataToSave);
         $config->save();

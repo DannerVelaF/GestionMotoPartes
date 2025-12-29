@@ -142,12 +142,11 @@ export default function SuppliersManual() {
                                 <CardContent className="space-y-4 p-0">
                                     <MousePointerClick className="mx-auto h-8 w-8 text-rose-600 dark:text-rose-400" />
                                     <h4 className="text-base font-black text-rose-700 uppercase dark:text-rose-400">
-                                        Edición de Perfil
+                                        Edición del Proveedor
                                     </h4>
                                     <p className="text-xs font-medium text-balance text-rose-900/80 dark:text-rose-300">
-                                        Haz clic en el botón de edición para
-                                        actualizar direcciones, condiciones de
-                                        pago o contactos.
+                                        Edita la información adicional de los proveedores como la persona de contacto, dirección o estado
+                                        actual. Mantén los datos actualizados para una comunicación efectiva.
                                     </p>
                                 </CardContent>
                             </Card>
