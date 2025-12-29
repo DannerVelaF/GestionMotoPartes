@@ -37,8 +37,11 @@ RUN npm run build
 
 
 # 9. Configurar permisos de Laravel
-RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache /var/www/database
-RUN chmod -R 775 /var/www/storage /var/www/bootstrap/cache /var/www/database
+
+RUN mkdir -p /tmp/client_body /tmp/proxy_temp /tmp/fastcgi_temp /tmp/uwsgi_temp /tmp/scgi_temp
+
+RUN chown -R www-data:www-data /var/www /tmp/client_body /tmp/proxy_temp /tmp/fastcgi_temp /tmp/uwsgi_temp /tmp/scgi_temp
+RUN chmod -R 775 /var/www/storage /var/www/bootstrap/cache
 
 # 10. Copiar configuración de Nginx
 COPY ./nginx.conf /etc/nginx/sites-available/default
