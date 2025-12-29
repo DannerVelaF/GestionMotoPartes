@@ -1,18 +1,22 @@
 #!/bin/sh
 set -e
 
-# Configuración
+# Configuración de caché
 echo "Caché de configuración..."
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-# --- AGREGAR ESTA LÍNEA ---
-echo "Creando enlace simbólico de Storage..."
+# --- CORRECCIÓN IMPORTANTE AQUÍ ---
+echo "Vinculando Storage..."
+# Borramos el enlace viejo si existe para evitar conflictos
+rm -rf /var/www/public/storage
+# Creamos el enlace nuevo
 php artisan storage:link
-# --------------------------
+# ----------------------------------
 
-# Base de datos SQLite (Tu código anterior)
+# Configuración SQLite (Mantén esto igual)
+echo "Preparando SQLite..."
 if [ ! -f /var/www/database/database.sqlite ]; then
     touch /var/www/database/database.sqlite
 fi
