@@ -303,30 +303,30 @@ export default function EditUser({
                         {/* COLUMNA IZQUIERDA: DATOS PERSONALES */}
                         <div className="space-y-8">
                             <div className="group space-y-2">
-                                <Label className="text-xs font-bold text-muted-foreground uppercase">
-                                    Nombres
-                                </Label>
-                                <Input
-                                    readOnly
-                                    tabIndex={-1}
-                                    value={data.name}
-                                    className={lockedInputClasses}
-                                />
-                            </div>
-
-                            <div className="group space-y-2">
                                 <Label className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase">
                                     <Fingerprint className="h-3 w-3" />{' '}
                                     Documento (DNI)
                                 </Label>
                                 <Input
-                                    readOnly
                                     tabIndex={-1}
                                     value={data.dni}
-                                    className={cn(
-                                        lockedInputClasses,
-                                        'font-mono tracking-widest',
-                                    )}
+                                    onChange={(e) =>
+                                        onFieldChange('dni', e.target.value)
+                                    }
+                                    className="h-10 rounded-none border-0 border-b border-input bg-transparent px-0 text-lg text-foreground focus-visible:border-blue-600 focus-visible:ring-0"
+                                />
+                            </div>
+                            <div className="group space-y-2">
+                                <Label className="text-xs font-bold text-muted-foreground uppercase">
+                                    Nombres
+                                </Label>
+                                <Input
+                                    tabIndex={-1}
+                                    value={data.name}
+                                    onChange={(e) =>
+                                        onFieldChange('name', e.target.value)
+                                    }
+                                    className="h-10 rounded-none border-0 border-b border-input bg-transparent px-0 text-lg text-foreground focus-visible:border-blue-600 focus-visible:ring-0"
                                 />
                             </div>
 
@@ -336,10 +336,15 @@ export default function EditUser({
                                         Apellido Paterno
                                     </Label>
                                     <Input
-                                        readOnly
                                         tabIndex={-1}
                                         value={data.father_last_name}
-                                        className={lockedInputClasses}
+                                        onChange={(e) =>
+                                            onFieldChange(
+                                                'father_last_name',
+                                                e.target.value,
+                                            )
+                                        }
+                                        className="h-10 rounded-none border-0 border-b border-input bg-transparent px-0 text-lg text-foreground focus-visible:border-blue-600 focus-visible:ring-0"
                                     />
                                 </div>
                                 <div className="group space-y-2">
@@ -347,10 +352,15 @@ export default function EditUser({
                                         Apellido Materno
                                     </Label>
                                     <Input
-                                        readOnly
                                         tabIndex={-1}
                                         value={data.mother_last_name}
-                                        className={lockedInputClasses}
+                                        onChange={(e) =>
+                                            onFieldChange(
+                                                'mother_last_name',
+                                                e.target.value,
+                                            )
+                                        }
+                                        className="h-10 rounded-none border-0 border-b border-input bg-transparent px-0 text-lg text-foreground focus-visible:border-blue-600 focus-visible:ring-0"
                                     />
                                 </div>
                             </div>

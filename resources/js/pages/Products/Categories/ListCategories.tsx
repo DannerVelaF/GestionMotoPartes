@@ -9,10 +9,11 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog'; // Importar Shadcn Alert Dialog
 import { Button } from '@/components/ui/button';
-import { DataTable } from '@/pages/Products/Categories/data-table';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
+import { DataTable } from '@/pages/Products/Categories/data-table';
 import categoriesRoute from '@/routes/product-categories';
+import productsRoute from '@/routes/products'; // Wayfinder
 import type { BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
 import { RowSelectionState } from '@tanstack/react-table';
@@ -48,7 +49,7 @@ interface Props {
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Productos', href: '#' },
+    { title: 'Productos', href: productsRoute.index().url },
     { title: 'Categorías', href: categoriesRoute.index().url },
 ];
 

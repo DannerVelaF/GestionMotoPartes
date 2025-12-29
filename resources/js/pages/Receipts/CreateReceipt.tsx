@@ -39,8 +39,8 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
     AlertCircle,
-    AlertTriangle,
     CalendarIcon,
+    Clock,
     FileText,
     Paperclip,
     Plus,
@@ -51,7 +51,7 @@ import {
     TrendingDown,
     TrendingUp,
     Truck,
-    Clock,
+    X,
 } from 'lucide-react';
 import { FormEventHandler, useState } from 'react';
 
@@ -61,9 +61,45 @@ const cleanInputClass =
 const tableInputClass =
     'h-8 border-transparent bg-transparent text-right shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-blue-500 tabular-nums';
 
-interface Supplier { id_supplier: number; company_name: string; ruc: string; }
-interface Product { id_product: number; product_name: string; product_code: string | null; sale_price: number; }
-interface DetailRow { id: number; id_product: string; quantity: number; unit_price: number; sale_price: number; }
+// Helper para mostrar errores de campo
+const InputError = ({
+    message,
+    className,
+}: {
+    message?: string;
+    className?: string;
+}) => {
+    if (!message) return null;
+    return (
+        <p
+            className={cn(
+                'mt-1 animate-pulse text-[10px] font-medium text-red-500',
+                className,
+            )}
+        >
+            {message}
+        </p>
+    );
+};
+
+interface Supplier {
+    id_supplier: number;
+    company_name: string;
+    ruc: string;
+}
+interface Product {
+    id_product: number;
+    product_name: string;
+    product_code: string | null;
+    sale_price: number;
+}
+interface DetailRow {
+    id: number;
+    id_product: string;
+    quantity: number;
+    unit_price: number;
+    sale_price: number;
+}
 
 interface Props {
     suppliers: Supplier[];
@@ -71,7 +107,13 @@ interface Props {
     documentTypes: { value: string; label: string }[];
 }
 
-const MarginIndicator = ({ cost, salePrice }: { cost: number; salePrice: number; }) => {
+const MarginIndicator = ({
+    cost,
+    salePrice,
+}: {
+    cost: number;
+    salePrice: number;
+}) => {
     const numericCost = Number(cost) || 0;
     const numericSalePrice = Number(salePrice) || 0;
     if (numericSalePrice <= 0) return null;
@@ -84,39 +126,92 @@ const MarginIndicator = ({ cost, salePrice }: { cost: number; salePrice: number;
             <TooltipProvider>
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <div className="flex cursor-help items-center gap-1 text-red-600 font-bold"><TrendingDown className="h-4 w-4" /><span className="text-[10px]">{marginText}</span></div>
+                        <div className="flex cursor-help items-center gap-1 font-bold text-red-600">
+                            <TrendingDown className="h-4 w-4" />
+                            <span className="text-[10px]">{marginText}</span>
+                        </div>
                     </TooltipTrigger>
-                    <TooltipContent className="bg-red-600 text-white border-none"><p className="text-xs font-bold uppercase">Aviso de Pérdida</p></TooltipContent>
+                    <TooltipContent className="border-none bg-red-600 text-white">
+                        <p className="text-xs font-bold uppercase">
+                            Aviso de Pérdida
+                        </p>
+                    </TooltipContent>
                 </Tooltip>
             </TooltipProvider>
         );
     }
-    const colorClass = marginPercent < 15 ? 'text-yellow-600' : 'text-emerald-600';
+    const colorClass =
+        marginPercent < 15 ? 'text-yellow-600' : 'text-emerald-600';
     return (
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <div className={cn(colorClass, 'flex cursor-help items-center gap-1 font-bold')}><TrendingUp className="h-4 w-4" /><span className="text-[10px]">{marginText}</span></div>
+                    <div
+                        className={cn(
+                            colorClass,
+                            'flex cursor-help items-center gap-1 font-bold',
+                        )}
+                    >
+                        <TrendingUp className="h-4 w-4" />
+                        <span className="text-[10px]">{marginText}</span>
+                    </div>
                 </TooltipTrigger>
-                <TooltipContent className={cn('border-none text-white', marginPercent < 15 ? 'bg-yellow-500' : 'bg-emerald-600')}><p className="text-[10px] font-bold uppercase">{marginPercent < 15 ? 'Margen Ajustado' : '¡Margen Óptimo!'}</p></TooltipContent>
+                <TooltipContent
+                    className={cn(
+                        'border-none text-white',
+                        marginPercent < 15 ? 'bg-yellow-500' : 'bg-emerald-600',
+                    )}
+                >
+                    <p className="text-[10px] font-bold uppercase">
+                        {marginPercent < 15
+                            ? 'Margen Ajustado'
+                            : '¡Margen Óptimo!'}
+                    </p>
+                </TooltipContent>
             </Tooltip>
         </TooltipProvider>
     );
 };
 
-export default function CreateReceipt({ suppliers, products, documentTypes }: Props) {
+export default function CreateReceipt({
+    suppliers,
+    products,
+    documentTypes,
+}: Props) {
     const [formError, setFormError] = useState<string | null>(null);
-    const [rows, setRows] = useState<DetailRow[]>([{ id: Date.now(), id_product: '', quantity: 1, unit_price: 0, sale_price: 0 }]);
+    const [rows, setRows] = useState<DetailRow[]>([
+        {
+            id: Date.now(),
+            id_product: '',
+            quantity: 1,
+            unit_price: 0,
+            sale_price: 0,
+        },
+    ]);
 
-    const { data, setData, post, processing, errors, reset, clearErrors, transform } = useForm({
+    const {
+        data,
+        setData,
+        post,
+        processing,
+        errors,
+        reset,
+        clearErrors,
+        transform,
+    } = useForm({
         id_supplier: '',
         document_type: '',
         series: '',
         number: '',
-        issue_date: new Date(), // Inicializa con fecha y hora actual
+        issue_date: new Date(),
         file: null as File | null,
         details: [] as any[],
     });
+
+    // Detectamos si hay errores en cualquier parte de los detalles (tabla)
+    const hasDetailErrors = Object.keys(errors).some((key) =>
+        key.startsWith('details'),
+    );
 
     const onFieldChange = (field: keyof typeof data, value: any) => {
         setData(field, value);
@@ -124,24 +219,36 @@ export default function CreateReceipt({ suppliers, products, documentTypes }: Pr
     };
 
     const updateRow = (id: number, field: keyof DetailRow, value: any) => {
-        setRows((prev) => prev.map((row) => row.id === id ? { ...row, [field]: value } : row));
+        setRows((prev) =>
+            prev.map((row) =>
+                row.id === id ? { ...row, [field]: value } : row,
+            ),
+        );
     };
 
-    const totalAmount = rows.reduce((acc, row) => acc + row.quantity * row.unit_price, 0);
+    const totalAmount = rows.reduce(
+        (acc, row) => acc + row.quantity * row.unit_price,
+        0,
+    );
     const igvAmount = totalAmount - totalAmount / 1.18;
     const subTotal = totalAmount - igvAmount;
 
-    const supplierOptions = suppliers.map((s) => ({ value: String(s.id_supplier), label: s.company_name }));
+    const supplierOptions = suppliers.map((s) => ({
+        value: String(s.id_supplier),
+        label: s.company_name,
+    }));
     const productOptions = products.map((p) => ({
         value: String(p.id_product),
-        label: p.product_code ? `[${p.product_code}] ${p.product_name}` : p.product_name,
-        salePrice: p.sale_price
+        label: p.product_code
+            ? `[${p.product_code}] ${p.product_name}`
+            : p.product_name,
+        salePrice: p.sale_price,
     }));
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
+        setFormError(null);
 
-        // 1. Transformar fecha para MySQL (YYYY-MM-DD HH:mm:ss)
         transform((data) => ({
             ...data,
             issue_date: format(data.issue_date, 'yyyy-MM-dd HH:mm:ss'),
@@ -155,34 +262,80 @@ export default function CreateReceipt({ suppliers, products, documentTypes }: Pr
 
         post(receiptsRoute.store().url, {
             forceFormData: true,
-            onError: (err) => err.error && setFormError(err.error),
+            onError: (err: any) => {
+                // Prioridad 1: Error manual desde el backend (catch/validación manual)
+                if (err.error) {
+                    setFormError(err.error);
+                }
+                // Prioridad 2: Errores de validación estándar de Laravel
+                else if (Object.keys(err).length > 0) {
+                    // Si hay errores en los detalles específicamente
+                    const hasDetailsError = Object.keys(err).some((k) =>
+                        k.startsWith('details'),
+                    );
+
+                    if (hasDetailsError) {
+                        setFormError(
+                            'Hay errores en la lista de productos. Revisa las filas marcadas en rojo.',
+                        );
+                    } else {
+                        setFormError(
+                            'Por favor corrige los campos obligatorios del formulario.',
+                        );
+                    }
+                }
+            },
         });
     };
 
-    const selectedProductIds = rows.map((r) => r.id_product).filter((id) => id !== '');
+    const selectedProductIds = rows
+        .map((r) => r.id_product)
+        .filter((id) => id !== '');
 
     return (
-        <AppLayout breadcrumbs={[{ title: 'Comprobantes', href: receiptsRoute.index().url }, { title: 'Nuevo', href: '' }]}>
+        <AppLayout
+            breadcrumbs={[
+                { title: 'Comprobantes', href: receiptsRoute.index().url },
+                { title: 'Nuevo', href: '' },
+            ]}
+        >
             <Head title="Nueva Compra" />
 
-            <form onSubmit={submit} className="flex h-full flex-col bg-background">
-                {/* --- HEADER STICKY --- */}
+            <form
+                onSubmit={submit}
+                className="flex h-full flex-col bg-background"
+            >
+                {/* --- HEADER --- */}
                 <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b bg-background/95 px-8 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                     <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
                             <Truck className="h-6 w-6" />
                         </div>
                         <div className="flex flex-col">
-                            <h1 className="text-xl font-bold tracking-tight text-foreground">Nueva Compra</h1>
-                            <span className="text-xs font-medium tracking-widest text-muted-foreground uppercase">Registro de Abastecimiento</span>
+                            <h1 className="text-xl font-bold tracking-tight text-foreground">
+                                Nueva Compra
+                            </h1>
+                            <span className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
+                                Registro de Abastecimiento
+                            </span>
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
-                        <Button variant="outline" type="button" onClick={() => reset()} disabled={processing}>
+                        <Button
+                            variant="outline"
+                            type="button"
+                            onClick={() => reset()}
+                            disabled={processing}
+                        >
                             <RotateCcw className="mr-2 h-4 w-4" /> Descartar
                         </Button>
-                        <Button type="submit" disabled={processing} className="bg-blue-600 text-white shadow-md hover:bg-blue-700">
-                            <Save className="mr-2 h-4 w-4" /> Registrar Comprobante
+                        <Button
+                            type="submit"
+                            disabled={processing}
+                            className="bg-blue-600 text-white shadow-md hover:bg-blue-700"
+                        >
+                            <Save className="mr-2 h-4 w-4" /> Registrar
+                            Comprobante
                         </Button>
                     </div>
                 </div>
@@ -193,21 +346,107 @@ export default function CreateReceipt({ suppliers, products, documentTypes }: Pr
                             {/* BLOQUE PROVEEDOR */}
                             <div className="space-y-6">
                                 <h3 className="flex items-center gap-2 border-b pb-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:text-neutral-400">
-                                    <Truck className="h-3 w-3" /> Información del Proveedor
+                                    <Truck className="h-3 w-3" /> Información
+                                    del Proveedor
                                 </h3>
                                 <div className="space-y-4">
                                     <div className="space-y-2">
-                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase">Proveedor Seleccionado</Label>
-                                        <SearchableSelect options={supplierOptions} value={data.id_supplier} onChange={(val) => onFieldChange('id_supplier', val)} placeholder="Buscar proveedor..." onCreate={() => router.visit(suppliersRoute.create().url)} className={cleanInputClass} />
+                                        <Label
+                                            className={cn(
+                                                'text-[10px] font-bold uppercase',
+                                                errors.id_supplier
+                                                    ? 'text-red-500'
+                                                    : 'text-muted-foreground',
+                                            )}
+                                        >
+                                            Proveedor Seleccionado
+                                        </Label>
+                                        <SearchableSelect
+                                            options={supplierOptions}
+                                            value={data.id_supplier}
+                                            onChange={(val) =>
+                                                onFieldChange(
+                                                    'id_supplier',
+                                                    val,
+                                                )
+                                            }
+                                            placeholder="Buscar proveedor..."
+                                            onCreate={() =>
+                                                router.visit(
+                                                    suppliersRoute.create().url,
+                                                )
+                                            }
+                                            className={cn(
+                                                cleanInputClass,
+                                                errors.id_supplier &&
+                                                    'border-red-500',
+                                            )}
+                                        />
+                                        <InputError
+                                            message={errors.id_supplier}
+                                        />
                                     </div>
                                     <div className="grid grid-cols-2 gap-6">
                                         <div className="space-y-2">
-                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase">Serie</Label>
-                                            <Input value={data.series} onChange={(e) => onFieldChange('series', e.target.value.toUpperCase())} className={cn(cleanInputClass, 'text-center uppercase')} placeholder="F001" />
+                                            <Label
+                                                className={cn(
+                                                    'text-[10px] font-bold uppercase',
+                                                    errors.series
+                                                        ? 'text-red-500'
+                                                        : 'text-muted-foreground',
+                                                )}
+                                            >
+                                                Serie
+                                            </Label>
+                                            <Input
+                                                value={data.series}
+                                                onChange={(e) =>
+                                                    onFieldChange(
+                                                        'series',
+                                                        e.target.value.toUpperCase(),
+                                                    )
+                                                }
+                                                className={cn(
+                                                    cleanInputClass,
+                                                    'text-center uppercase',
+                                                    errors.series &&
+                                                        'border-red-500',
+                                                )}
+                                                placeholder="F001"
+                                            />
+                                            <InputError
+                                                message={errors.series}
+                                            />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase">Número Correlativo</Label>
-                                            <Input value={data.number} onChange={(e) => onFieldChange('number', e.target.value)} className={cleanInputClass} placeholder="000123" />
+                                            <Label
+                                                className={cn(
+                                                    'text-[10px] font-bold uppercase',
+                                                    errors.number
+                                                        ? 'text-red-500'
+                                                        : 'text-muted-foreground',
+                                                )}
+                                            >
+                                                Número Correlativo
+                                            </Label>
+                                            <Input
+                                                value={data.number}
+                                                onChange={(e) =>
+                                                    onFieldChange(
+                                                        'number',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                className={cn(
+                                                    cleanInputClass,
+                                                    errors.number &&
+                                                        'border-red-500',
+                                                )}
+                                                placeholder="000123"
+                                            />
+                                            <InputError
+                                                message={errors.number}
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -216,114 +455,428 @@ export default function CreateReceipt({ suppliers, products, documentTypes }: Pr
                             {/* BLOQUE DOCUMENTO (CON HORA) */}
                             <div className="space-y-6">
                                 <h3 className="flex items-center gap-2 border-b pb-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:text-neutral-400">
-                                    <FileText className="h-3 w-3" /> Detalles del Documento
+                                    <FileText className="h-3 w-3" /> Detalles
+                                    del Documento
                                 </h3>
                                 <div className="grid grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase">Tipo Comprobante</Label>
-                                        <Select value={data.document_type} onValueChange={(val) => onFieldChange('document_type', val)}>
-                                            <SelectTrigger className={cleanInputClass}><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                                            <SelectContent>{documentTypes.map((dt) => (<SelectItem key={dt.value} value={dt.value}>{dt.label}</SelectItem>))}</SelectContent>
+                                        <Label
+                                            className={cn(
+                                                'text-[10px] font-bold uppercase',
+                                                errors.document_type
+                                                    ? 'text-red-500'
+                                                    : 'text-muted-foreground',
+                                            )}
+                                        >
+                                            Tipo Comprobante
+                                        </Label>
+                                        <Select
+                                            value={data.document_type}
+                                            onValueChange={(val) =>
+                                                onFieldChange(
+                                                    'document_type',
+                                                    val,
+                                                )
+                                            }
+                                        >
+                                            <SelectTrigger
+                                                className={cn(
+                                                    cleanInputClass,
+                                                    errors.document_type &&
+                                                        'border-red-500',
+                                                )}
+                                            >
+                                                <SelectValue placeholder="Seleccionar..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {documentTypes.map((dt) => (
+                                                    <SelectItem
+                                                        key={dt.value}
+                                                        value={dt.value}
+                                                    >
+                                                        {dt.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
                                         </Select>
+                                        <InputError
+                                            message={errors.document_type}
+                                        />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label className="text-[10px] font-bold text-muted-foreground uppercase">Fecha y Hora Recepción</Label>
+                                        <Label
+                                            className={cn(
+                                                'text-[10px] font-bold uppercase',
+                                                errors.issue_date
+                                                    ? 'text-red-500'
+                                                    : 'text-muted-foreground',
+                                            )}
+                                        >
+                                            Fecha y Hora Recepción
+                                        </Label>
                                         <Popover>
                                             <PopoverTrigger asChild>
-                                                <Button variant="outline" className={cn(cleanInputClass, 'text-left font-medium', !data.issue_date && 'text-muted-foreground')}>
+                                                <Button
+                                                    variant="outline"
+                                                    className={cn(
+                                                        cleanInputClass,
+                                                        'text-left font-medium',
+                                                        !data.issue_date &&
+                                                            'text-muted-foreground',
+                                                        errors.issue_date &&
+                                                            'border-red-500 text-red-500',
+                                                    )}
+                                                >
                                                     <CalendarIcon className="mr-2 h-4 w-4 text-blue-600" />
-                                                    {data.issue_date ? format(data.issue_date, 'Pp', { locale: es }) : 'Elegir fecha...'}
+                                                    {data.issue_date
+                                                        ? format(
+                                                              data.issue_date,
+                                                              'Pp',
+                                                              { locale: es },
+                                                          )
+                                                        : 'Elegir fecha...'}
                                                 </Button>
                                             </PopoverTrigger>
-                                            <PopoverContent className="w-auto p-0 flex flex-col" align="start">
+                                            <PopoverContent
+                                                className="flex w-auto flex-col p-0"
+                                                align="start"
+                                            >
                                                 <Calendar
                                                     mode="single"
                                                     selected={data.issue_date}
                                                     onSelect={(d) => {
                                                         if (d) {
-                                                            const newDate = new Date(d);
-                                                            newDate.setHours(data.issue_date.getHours());
-                                                            newDate.setMinutes(data.issue_date.getMinutes());
-                                                            onFieldChange('issue_date', newDate);
+                                                            const newDate =
+                                                                new Date(d);
+                                                            newDate.setHours(
+                                                                data.issue_date.getHours(),
+                                                            );
+                                                            newDate.setMinutes(
+                                                                data.issue_date.getMinutes(),
+                                                            );
+                                                            onFieldChange(
+                                                                'issue_date',
+                                                                newDate,
+                                                            );
                                                         }
                                                     }}
-                                                    disabled={(date) => date > new Date()}
+                                                    disabled={(date) =>
+                                                        date > new Date()
+                                                    }
                                                 />
-                                                <div className="border-t p-3 bg-muted/20 flex items-center justify-between gap-4">
+                                                <div className="flex items-center justify-between gap-4 border-t bg-muted/20 p-3">
                                                     <div className="flex items-center gap-2">
                                                         <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                                                        <span className="text-[10px] font-bold text-muted-foreground uppercase">Hora:</span>
+                                                        <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                                                            Hora:
+                                                        </span>
                                                         <Input
                                                             type="time"
-                                                            className="h-8 w-[110px] font-mono font-bold text-xs"
-                                                            value={format(data.issue_date, 'HH:mm')}
+                                                            className="h-8 w-[110px] font-mono text-xs font-bold"
+                                                            value={format(
+                                                                data.issue_date,
+                                                                'HH:mm',
+                                                            )}
                                                             onChange={(e) => {
-                                                                const [h, m] = e.target.value.split(':');
-                                                                const newDate = new Date(data.issue_date);
-                                                                newDate.setHours(parseInt(h), parseInt(m));
-                                                                onFieldChange('issue_date', newDate);
+                                                                const [h, m] =
+                                                                    e.target.value.split(
+                                                                        ':',
+                                                                    );
+                                                                const newDate =
+                                                                    new Date(
+                                                                        data.issue_date,
+                                                                    );
+                                                                newDate.setHours(
+                                                                    parseInt(h),
+                                                                    parseInt(m),
+                                                                );
+                                                                onFieldChange(
+                                                                    'issue_date',
+                                                                    newDate,
+                                                                );
                                                             }}
                                                         />
                                                     </div>
                                                 </div>
                                             </PopoverContent>
                                         </Popover>
+                                        <InputError
+                                            message={errors.issue_date}
+                                        />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label className="text-[10px] font-bold text-muted-foreground uppercase font-black">Archivo Adjunto</Label>
+                                    <Label
+                                        className={cn(
+                                            'text-[10px] font-black font-bold uppercase',
+                                            errors.file
+                                                ? 'text-red-500'
+                                                : 'text-muted-foreground',
+                                        )}
+                                    >
+                                        Archivo Adjunto
+                                    </Label>
                                     <div className="group relative">
-                                        <div className={cn('flex items-center gap-2 border-b border-muted transition-all py-2', data.file && 'bg-emerald-50/30 border-emerald-500/50 px-2 rounded-t-sm')}>
+                                        <div
+                                            className={cn(
+                                                'flex items-center gap-2 border-b border-muted py-2 transition-all',
+                                                data.file &&
+                                                    'rounded-t-sm border-emerald-500/50 bg-emerald-50/30 px-2',
+                                                errors.file && 'border-red-500',
+                                            )}
+                                        >
                                             <Paperclip className="h-4 w-4 text-blue-600" />
-                                            <span className="flex-1 truncate text-xs font-medium">{data.file ? data.file.name : 'Subir Comprobante (PDF/JPG)'}</span>
-                                            <Input type="file" className="absolute inset-0 cursor-pointer opacity-0" onChange={(e) => onFieldChange('file', e.target.files?.[0] || null)} />
-                                            {data.file && <Button type="button" variant="ghost" size="icon" className="h-5 w-5 hover:bg-red-100" onClick={() => onFieldChange('file', null)}><Trash2 className="h-3 w-3 text-red-500" /></Button>}
+                                            <span className="flex-1 truncate text-xs font-medium">
+                                                {data.file
+                                                    ? data.file.name
+                                                    : 'Subir Comprobante (PDF/JPG)'}
+                                            </span>
+                                            <Input
+                                                type="file"
+                                                className="absolute inset-0 cursor-pointer opacity-0"
+                                                onChange={(e) =>
+                                                    onFieldChange(
+                                                        'file',
+                                                        e.target.files?.[0] ||
+                                                            null,
+                                                    )
+                                                }
+                                            />
+                                            {data.file && (
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-5 w-5 hover:bg-red-100"
+                                                    onClick={() =>
+                                                        onFieldChange(
+                                                            'file',
+                                                            null,
+                                                        )
+                                                    }
+                                                >
+                                                    <Trash2 className="h-3 w-3 text-red-500" />
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
+                                    <InputError message={errors.file} />
                                 </div>
                             </div>
                         </div>
 
                         {/* --- TABLA DE PRODUCTOS --- */}
                         <div className="space-y-4 pt-6">
-                            <h3 className="flex items-center gap-2 border-b border-blue-100 pb-2 text-sm font-bold tracking-tight text-slate-800 uppercase dark:text-neutral-200">
-                                <ShoppingBag className="h-4 w-4 text-blue-600" /> Líneas de Compra
+                            <h3
+                                className={cn(
+                                    'flex items-center gap-2 border-b pb-2 text-sm font-bold tracking-tight uppercase',
+                                    hasDetailErrors
+                                        ? 'border-red-500 text-red-500'
+                                        : 'border-blue-100 text-slate-800 dark:text-neutral-200',
+                                )}
+                            >
+                                <ShoppingBag className="h-4 w-4" /> Líneas de
+                                Compra
                             </h3>
-                            <div className="overflow-hidden rounded-xl border bg-card shadow-sm dark:border-neutral-800">
+
+                            {/* Alerta visual ENCIMA de la tabla si hay errores en cualquier fila */}
+                            {hasDetailErrors && (
+                                <div className="mb-2 rounded-md border border-red-200 bg-red-50 p-3 text-red-600 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+                                    <p className="flex items-center gap-2 text-xs font-bold">
+                                        <AlertCircle className="h-4 w-4" />
+                                        Existen errores en los productos
+                                        listados. Revisa las celdas rojas.
+                                    </p>
+                                </div>
+                            )}
+
+                            <div
+                                className={cn(
+                                    'overflow-hidden rounded-xl border bg-card shadow-sm dark:border-neutral-800',
+                                    hasDetailErrors &&
+                                        'border-red-500 ring-1 ring-red-500',
+                                )}
+                            >
                                 <Table>
                                     <TableHeader className="bg-muted/30 dark:bg-neutral-900">
                                         <TableRow className="dark:border-neutral-800">
-                                            <TableHead className="w-[35%] font-bold uppercase text-[10px]">Producto</TableHead>
-                                            <TableHead className="w-[10%] text-right font-bold uppercase text-[10px]">Cant.</TableHead>
-                                            <TableHead className="w-[15%] text-right font-bold uppercase text-[10px]">Costo Unit.</TableHead>
-                                            <TableHead className="w-[15%] text-right font-bold uppercase text-[10px]">P. Venta Ref.</TableHead>
-                                            <TableHead className="w-[10%] text-center font-bold uppercase text-[10px]">Margen</TableHead>
-                                            <TableHead className="w-[15%] text-right font-bold uppercase text-[10px]">Subtotal</TableHead>
+                                            <TableHead className="w-[35%] text-[10px] font-bold uppercase">
+                                                Producto
+                                            </TableHead>
+                                            <TableHead className="w-[10%] text-right text-[10px] font-bold uppercase">
+                                                Cant.
+                                            </TableHead>
+                                            <TableHead className="w-[15%] text-right text-[10px] font-bold uppercase">
+                                                Costo Unit.
+                                            </TableHead>
+                                            <TableHead className="w-[15%] text-right text-[10px] font-bold uppercase">
+                                                P. Venta Ref.
+                                            </TableHead>
+                                            <TableHead className="w-[10%] text-center text-[10px] font-bold uppercase">
+                                                Margen
+                                            </TableHead>
+                                            <TableHead className="w-[15%] text-right text-[10px] font-bold uppercase">
+                                                Subtotal
+                                            </TableHead>
                                             <TableHead className="w-[50px]"></TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {rows.map((row) => (
-                                            <TableRow key={row.id} className="dark:border-neutral-800 hover:bg-muted/20">
+                                        {rows.map((row, index) => (
+                                            <TableRow
+                                                key={row.id}
+                                                className="hover:bg-muted/20 dark:border-neutral-800"
+                                            >
                                                 <TableCell className="p-2">
                                                     <SearchableSelect
-                                                        options={productOptions.filter(o => !selectedProductIds.includes(o.value) || o.value === row.id_product)}
+                                                        options={productOptions.filter(
+                                                            (o) =>
+                                                                !selectedProductIds.includes(
+                                                                    o.value,
+                                                                ) ||
+                                                                o.value ===
+                                                                    row.id_product,
+                                                        )}
                                                         value={row.id_product}
                                                         onChange={(val) => {
-                                                            const opt = productOptions.find(o => o.value === val);
-                                                            updateRow(row.id, 'id_product', val);
-                                                            updateRow(row.id, 'sale_price', opt?.salePrice || 0);
+                                                            const opt =
+                                                                productOptions.find(
+                                                                    (o) =>
+                                                                        o.value ===
+                                                                        val,
+                                                                );
+                                                            updateRow(
+                                                                row.id,
+                                                                'id_product',
+                                                                val,
+                                                            );
+                                                            updateRow(
+                                                                row.id,
+                                                                'sale_price',
+                                                                opt?.salePrice ||
+                                                                    0,
+                                                            );
                                                         }}
-                                                        placeholder="Producto..." className={cleanInputClass}
+                                                        placeholder="Producto..."
+                                                        className={cn(
+                                                            cleanInputClass,
+                                                            errors[
+                                                                `details.${index}.id_product`
+                                                            ] &&
+                                                                'border-b-red-500',
+                                                        )}
                                                     />
                                                 </TableCell>
-                                                <TableCell className="p-2"><Input type="number" className={tableInputClass} value={row.quantity} onChange={(e) => updateRow(row.id, 'quantity', parseFloat(e.target.value) || 0)} /></TableCell>
-                                                <TableCell className="p-2"><Input type="number" step="0.01" className={cn(tableInputClass, Number(row.unit_price) > Number(row.sale_price) && row.sale_price > 0 && "text-red-600 font-black")} value={row.unit_price} onChange={(e) => updateRow(row.id, 'unit_price', parseFloat(e.target.value) || 0)} /></TableCell>
-                                                <TableCell className="p-2"><Input type="number" step="0.01" className={tableInputClass} value={row.sale_price} onChange={(e) => updateRow(row.id, 'sale_price', parseFloat(e.target.value) || 0)} /></TableCell>
-                                                <TableCell className="p-2 text-center"><MarginIndicator cost={row.unit_price} salePrice={row.sale_price} /></TableCell>
-                                                <TableCell className="p-2 text-right font-bold tabular-nums text-foreground">S/ {(row.quantity * row.unit_price).toFixed(2)}</TableCell>
+                                                <TableCell className="p-2">
+                                                    <Input
+                                                        type="number"
+                                                        className={cn(
+                                                            tableInputClass,
+                                                            errors[
+                                                                `details.${index}.quantity`
+                                                            ] &&
+                                                                'ring-1 ring-red-500',
+                                                        )}
+                                                        value={row.quantity}
+                                                        onChange={(e) =>
+                                                            updateRow(
+                                                                row.id,
+                                                                'quantity',
+                                                                parseFloat(
+                                                                    e.target
+                                                                        .value,
+                                                                ) || 0,
+                                                            )
+                                                        }
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="p-2">
+                                                    <Input
+                                                        type="number"
+                                                        step="0.01"
+                                                        className={cn(
+                                                            tableInputClass,
+                                                            Number(
+                                                                row.unit_price,
+                                                            ) >
+                                                                Number(
+                                                                    row.sale_price,
+                                                                ) &&
+                                                                row.sale_price >
+                                                                    0 &&
+                                                                'font-black text-red-600',
+                                                            errors[
+                                                                `details.${index}.unit_price`
+                                                            ] &&
+                                                                'ring-1 ring-red-500',
+                                                        )}
+                                                        value={row.unit_price}
+                                                        onChange={(e) =>
+                                                            updateRow(
+                                                                row.id,
+                                                                'unit_price',
+                                                                parseFloat(
+                                                                    e.target
+                                                                        .value,
+                                                                ) || 0,
+                                                            )
+                                                        }
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="p-2">
+                                                    <Input
+                                                        type="number"
+                                                        step="0.01"
+                                                        className={
+                                                            tableInputClass
+                                                        }
+                                                        value={row.sale_price}
+                                                        onChange={(e) =>
+                                                            updateRow(
+                                                                row.id,
+                                                                'sale_price',
+                                                                parseFloat(
+                                                                    e.target
+                                                                        .value,
+                                                                ) || 0,
+                                                            )
+                                                        }
+                                                    />
+                                                </TableCell>
                                                 <TableCell className="p-2 text-center">
-                                                    <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-600" onClick={() => rows.length > 1 && setRows(rows.filter(r => r.id !== row.id))}><Trash2 className="h-4 w-4" /></Button>
+                                                    <MarginIndicator
+                                                        cost={row.unit_price}
+                                                        salePrice={
+                                                            row.sale_price
+                                                        }
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="p-2 text-right font-bold text-foreground tabular-nums">
+                                                    S/{' '}
+                                                    {(
+                                                        row.quantity *
+                                                        row.unit_price
+                                                    ).toFixed(2)}
+                                                </TableCell>
+                                                <TableCell className="p-2 text-center">
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7 text-muted-foreground hover:text-red-600"
+                                                        onClick={() =>
+                                                            rows.length > 1 &&
+                                                            setRows(
+                                                                rows.filter(
+                                                                    (r) =>
+                                                                        r.id !==
+                                                                        row.id,
+                                                                ),
+                                                            )
+                                                        }
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -332,14 +885,44 @@ export default function CreateReceipt({ suppliers, products, documentTypes }: Pr
                             </div>
 
                             <div className="flex items-start justify-between pt-6">
-                                <Button type="button" variant="ghost" size="sm" onClick={() => setRows([...rows, { id: Date.now(), id_product: '', quantity: 1, unit_price: 0, sale_price: 0 }])} className="text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 font-bold uppercase text-[10px] tracking-widest"><Plus className="mr-2 h-4 w-4" /> Añadir Producto</Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                        setRows([
+                                            ...rows,
+                                            {
+                                                id: Date.now(),
+                                                id_product: '',
+                                                quantity: 1,
+                                                unit_price: 0,
+                                                sale_price: 0,
+                                            },
+                                        ])
+                                    }
+                                    className="text-[10px] font-bold tracking-widest text-blue-600 uppercase hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                                >
+                                    <Plus className="mr-2 h-4 w-4" /> Añadir
+                                    Producto
+                                </Button>
 
-                                <div className="w-full max-w-xs space-y-3 bg-muted/10 p-6 rounded-xl border dark:border-neutral-800">
-                                    <div className="flex justify-between text-sm text-muted-foreground font-medium"><span>Base Imponible</span><span>S/ {subTotal.toFixed(2)}</span></div>
-                                    <div className="flex justify-between text-sm text-muted-foreground font-medium"><span>IGV (18%)</span><span>S/ {igvAmount.toFixed(2)}</span></div>
+                                <div className="w-full max-w-xs space-y-3 rounded-xl border bg-muted/10 p-6 dark:border-neutral-800">
+                                    <div className="flex justify-between text-sm font-medium text-muted-foreground">
+                                        <span>Base Imponible</span>
+                                        <span>S/ {subTotal.toFixed(2)}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm font-medium text-muted-foreground">
+                                        <span>IGV (18%)</span>
+                                        <span>S/ {igvAmount.toFixed(2)}</span>
+                                    </div>
                                     <div className="mt-4 flex justify-between border-t border-blue-200 pt-4 dark:border-neutral-700">
-                                        <span className="text-lg font-black text-foreground uppercase tracking-tighter">Total Compra</span>
-                                        <span className="text-2xl font-black text-blue-600 dark:text-blue-400 tabular-nums">S/ {totalAmount.toFixed(2)}</span>
+                                        <span className="text-lg font-black tracking-tighter text-foreground uppercase">
+                                            Total Compra
+                                        </span>
+                                        <span className="text-2xl font-black text-blue-600 tabular-nums dark:text-blue-400">
+                                            S/ {totalAmount.toFixed(2)}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
@@ -348,13 +931,28 @@ export default function CreateReceipt({ suppliers, products, documentTypes }: Pr
                 </div>
             </form>
 
-            {/* ALERTA DE ERROR */}
+            {/* ALERTA DE ERROR ESTILIZADA PARA DARK MODE (TEXTO MÁS CLARO) */}
             {formError && (
                 <div className="fixed top-6 right-6 z-[100] w-auto max-w-md animate-in fade-in slide-in-from-top-2">
-                    <Alert variant="destructive" className="border-2 border-red-500 bg-white dark:bg-neutral-950 shadow-xl">
-                        <AlertCircle className="h-4 w-4" /><AlertTitle className="ml-2 font-bold">Error de Validación</AlertTitle>
-                        <AlertDescription className="ml-2">{formError}</AlertDescription>
-                        <Button variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => setFormError(null)}><RotateCcw className="h-3 w-3" /></Button>
+                    <Alert
+                        variant="destructive"
+                        className="border-2 border-red-500 bg-white text-red-950 shadow-2xl dark:border-red-900 dark:bg-red-950 dark:text-red-50"
+                    >
+                        <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-100" />
+                        <AlertTitle className="ml-2 font-bold text-red-700 dark:text-white">
+                            Atención
+                        </AlertTitle>
+                        <AlertDescription className="ml-2 text-red-600/90 dark:text-red-100/90">
+                            {formError}
+                        </AlertDescription>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-2 right-2 text-red-500 hover:bg-red-100 hover:text-red-700 dark:text-red-200 dark:hover:bg-red-900/50 dark:hover:text-white"
+                            onClick={() => setFormError(null)}
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
                     </Alert>
                 </div>
             )}

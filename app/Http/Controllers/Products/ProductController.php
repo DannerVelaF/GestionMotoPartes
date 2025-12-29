@@ -224,7 +224,7 @@ class ProductController extends Controller
 
         $rules = [
             'product_name'    => 'required|string|max:255',
-            'product_code'    => ['nullable', 'string', 'max:100', Rule::unique('products', 'product_code')->ignore($product->id_product, 'id_product')],
+            'product_code'    => ['required', 'string', 'max:100', Rule::unique('products', 'product_code')->ignore($product->id_product, 'id_product')],
             'sale_price'      => 'required|numeric|min:0',
             'id_category'     => 'required|exists:product_categories,id_product_category',
             'id_brand'        => 'required|exists:brands,id_brand',
@@ -239,6 +239,7 @@ class ProductController extends Controller
             'product_name.required'    => 'El nombre del producto es obligatorio.',
             'product_name.max'         => 'El nombre no puede exceder los 255 caracteres.',
             'product_code.unique'      => 'Este código de referencia ya está en uso.',
+            'product_code.required'    => 'El código de referencia es obligatorio.',
             'product_code.max'         => 'El código no puede exceder los 100 caracteres.',
             'sale_price.required'      => 'El precio de venta es obligatorio.',
             'sale_price.numeric'       => 'El precio debe ser un número válido.',

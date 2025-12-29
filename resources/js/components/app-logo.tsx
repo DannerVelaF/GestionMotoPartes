@@ -18,7 +18,7 @@ export default function AppLogo() {
 
             {/* 2. Renderizado condicional del texto */}
             {showText && (
-                <div className="ml-1 grid flex-1 text-left text-sm animate-in fade-in zoom-in duration-300">
+                <div className="ml-1 grid flex-1 text-left text-sm">
                     <span className="mb-0.5 truncate leading-tight font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
                         {business?.company_name || 'Moto Repuestos'}
                     </span>

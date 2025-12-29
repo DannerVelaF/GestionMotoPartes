@@ -287,7 +287,6 @@ export default function CreateProduct({
                                                                 e.target.value,
                                                             );
                                                         if (!isNaN(value)) {
-                                                            // Esto formatea el valor en el estado a "0.00"
                                                             onFieldChange(
                                                                 'sale_price',
                                                                 value.toFixed(

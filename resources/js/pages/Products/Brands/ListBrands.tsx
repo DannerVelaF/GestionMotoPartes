@@ -13,6 +13,7 @@ import { DataTable } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
 import brandsRoute from '@/routes/product-brands'; // Wayfinder de Marcas
+import productsRoute from '@/routes/products'; // Wayfinder
 import type { BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
 import { RowSelectionState } from '@tanstack/react-table';
@@ -47,7 +48,7 @@ interface Props {
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Productos', href: '#' },
+    { title: 'Productos', href: productsRoute.index().url },
     { title: 'Marcas', href: brandsRoute.index().url },
 ];
 

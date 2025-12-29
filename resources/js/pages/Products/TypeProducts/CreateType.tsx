@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import types from '@/routes/product-types'; // Asegúrate de tener este archivo de rutas (Wayfinder)
+import productsRoute from '@/routes/products'; // Wayfinder
 import { Head, useForm } from '@inertiajs/react';
 import { AlertCircle, Save } from 'lucide-react';
 import { FormEventHandler } from 'react';
@@ -56,6 +57,10 @@ export default function CreateType() {
     };
 
     const breadcrumbs = [
+        {
+            title: 'Productos',
+            href: productsRoute.index().url,
+        },
         { title: 'Tipos de Producto', href: types.index().url },
         { title: 'Nuevo', href: '' },
     ];

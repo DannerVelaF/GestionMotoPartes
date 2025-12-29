@@ -194,7 +194,7 @@ export default function EditProduct({
     };
 
     const inputClasses =
-        'h-10 w-full rounded-none border-0 border-b bg-transparent px-0 text-xs shadow-none transition-all focus:ring-0 focus:border-blue-600 font-medium dark:text-foreground';
+        'h-10 w-full rounded-none border-0 border-b bg-transparent px-0 text-sm shadow-none transition-all focus:ring-0 focus:border-blue-600 font-medium dark:text-foreground';
 
     const saleMovements =
         product.movements?.filter((m: any) => m.type === 'sale') || [];
@@ -435,24 +435,64 @@ export default function EditProduct({
                                                 <LayoutGrid className="h-3 w-3" />{' '}
                                                 Tipo de Producto
                                             </Label>
-                                            <SearchableSelect
-                                                options={types.map((t) => ({
-                                                    value: String(
-                                                        t.id_product_type,
-                                                    ),
-                                                    label: t.name_product_type,
-                                                }))}
-                                                value={data.id_product_type}
-                                                onChange={(val) =>
-                                                    onFieldChange(
-                                                        'id_product_type',
-                                                        val,
-                                                    )
-                                                }
-                                                placeholder="Seleccionar tipo..."
-                                                className={inputClasses}
-                                            />
+                                            <div>
+                                                <SearchableSelect
+                                                    options={types.map((t) => ({
+                                                        value: String(
+                                                            t.id_product_type,
+                                                        ),
+                                                        label: t.name_product_type,
+                                                    }))}
+                                                    value={data.id_product_type}
+                                                    onChange={(val) =>
+                                                        onFieldChange(
+                                                            'id_product_type',
+                                                            val,
+                                                        )
+                                                    }
+                                                    placeholder="Seleccionar tipo..."
+                                                    className={inputClasses}
+                                                />
+                                            </div>
+                                            {errors.id_product_type && (
+                                                <p className="mt-1 text-sm font-medium text-red-500">
+                                                    {errors.id_product_type}
+                                                </p>
+                                            )}
                                         </div>
+                                        <div className="group space-y-2">
+                                            <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:text-neutral-400">
+                                                <LayoutGrid className="h-3 w-3" />{' '}
+                                                Marca del producto
+                                            </Label>
+                                            <div>
+                                                <SearchableSelect
+                                                    options={brands.map(
+                                                        (b) => ({
+                                                            value: String(
+                                                                b.id_brand,
+                                                            ),
+                                                            label: b.name_brand,
+                                                        }),
+                                                    )}
+                                                    value={data.id_brand}
+                                                    onChange={(val) =>
+                                                        onFieldChange(
+                                                            'id_brand',
+                                                            val,
+                                                        )
+                                                    }
+                                                    placeholder="Seleccionar marca..."
+                                                    className={inputClasses}
+                                                />
+                                                {errors.id_brand && (
+                                                    <p className="mt-1 text-sm font-medium text-red-500">
+                                                        {errors.id_brand}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+
                                         <div className="group space-y-2">
                                             <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:text-neutral-400">
                                                 <DollarSign className="h-3 w-3" />{' '}
@@ -476,6 +516,11 @@ export default function EditProduct({
                                                     placeholder="0.00"
                                                 />
                                             </div>
+                                            {errors.sale_price && (
+                                                <p className="text-sm font-medium text-red-500">
+                                                    {errors.sale_price}
+                                                </p>
+                                            )}
                                         </div>
                                         <div className="flex items-start space-x-3 rounded-xl border border-dashed border-muted-foreground/20 p-4 transition-colors hover:bg-muted/5">
                                             <Checkbox
@@ -524,42 +569,56 @@ export default function EditProduct({
                                                 <TagIcon className="h-3 w-3" />{' '}
                                                 Categoría
                                             </Label>
-                                            <SearchableSelect
-                                                options={categories.map(
-                                                    (c) => ({
-                                                        value: String(
-                                                            c.id_product_category,
-                                                        ),
-                                                        label: c.name_product_category,
-                                                    }),
-                                                )}
-                                                value={data.id_category}
-                                                onChange={(val) =>
-                                                    onFieldChange(
-                                                        'id_category',
-                                                        val,
-                                                    )
-                                                }
-                                                placeholder="Seleccionar categoría..."
-                                                className={inputClasses}
-                                            />
+                                            <div>
+                                                <SearchableSelect
+                                                    options={categories.map(
+                                                        (c) => ({
+                                                            value: String(
+                                                                c.id_product_category,
+                                                            ),
+                                                            label: c.name_product_category,
+                                                        }),
+                                                    )}
+                                                    value={data.id_category}
+                                                    onChange={(val) =>
+                                                        onFieldChange(
+                                                            'id_category',
+                                                            val,
+                                                        )
+                                                    }
+                                                    placeholder="Seleccionar categoría..."
+                                                    className={inputClasses}
+                                                />
+                                            </div>
+                                            {errors.id_category && (
+                                                <p className="mt-1 text-sm font-medium text-red-500">
+                                                    {errors.id_category}
+                                                </p>
+                                            )}
                                         </div>
                                         <div className="group space-y-2">
                                             <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:text-neutral-400">
                                                 <Barcode className="h-3 w-3" />{' '}
                                                 Referencia Interna
                                             </Label>
-                                            <Input
-                                                value={data.product_code}
-                                                onChange={(e) =>
-                                                    onFieldChange(
-                                                        'product_code',
-                                                        e.target.value,
-                                                    )
-                                                }
-                                                className={inputClasses}
-                                                placeholder="Ej. COD-001"
-                                            />
+                                            <div>
+                                                <Input
+                                                    value={data.product_code}
+                                                    onChange={(e) =>
+                                                        onFieldChange(
+                                                            'product_code',
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    className={inputClasses}
+                                                    placeholder="Ej. COD-001"
+                                                />
+                                            </div>
+                                            {errors.product_code && (
+                                                <p className="mt-1 text-sm font-medium text-red-500">
+                                                    {errors.product_code}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

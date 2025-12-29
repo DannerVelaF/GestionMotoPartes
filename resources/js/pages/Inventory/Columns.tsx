@@ -79,7 +79,7 @@ export const InventoryColumns: ColumnDef<InventoryItem>[] = [
                         className="text-left decoration-blue-500 underline-offset-4 hover:cursor-pointer hover:underline"
                     >
                         {/* Azul oscuro en Light, Azul claro neón en Dark */}
-                        <span className="mb-1 text-sm leading-none font-bold text-blue-600 dark:text-blue-400">
+                        <span className="mb-1 text-sm leading-none font-bold text-blue-600 capitalize dark:text-blue-400">
                             {productName}
                         </span>
                     </button>

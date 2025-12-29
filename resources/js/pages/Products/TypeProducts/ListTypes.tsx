@@ -13,6 +13,7 @@ import { DataTable } from '@/components/ui/data-table';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
 import typesRoute from '@/routes/product-types'; // Wayfinder
+import productsRoute from '@/routes/products'; // Wayfinder
 import type { BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
 import { RowSelectionState } from '@tanstack/react-table';
@@ -27,7 +28,7 @@ import {
 } from 'lucide-react';
 import { KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'use-debounce';
-import { ProductType, Columns } from './Columns';
+import { Columns, ProductType } from './Columns';
 
 interface PaginatedTypes {
     data: ProductType[];
@@ -47,7 +48,7 @@ interface Props {
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Productos', href: '#' },
+    { title: 'Productos', href: productsRoute.index().url },
     { title: 'Tipos', href: typesRoute.index().url },
 ];
 

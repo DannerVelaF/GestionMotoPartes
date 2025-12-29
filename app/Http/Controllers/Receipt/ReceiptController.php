@@ -167,6 +167,11 @@ class ReceiptController extends Controller
 
     public function show($id)
     {
+        $allowedTypes = [
+            DocumentType::INVOICE,
+            DocumentType::RECEIPT
+        ];
+
         $receipt = Receipt::with(['details.product', 'supplier', 'children' => function ($query) {
             $query->with('supplier', 'details');
             $query->orderBy('issue_date', 'desc');
@@ -181,7 +186,10 @@ class ReceiptController extends Controller
                 ->select('id_product', 'product_name', 'product_code', "stock")
                 ->orderBy('product_name')
                 ->get(),
-            'documentTypes' => collect(DocumentType::cases())->map(fn($t) => ['value' => $t->value, 'label' => $t->label()]),
+            'documentTypes' => collect($allowedTypes)->map(fn($t) => [
+                'value' => $t->value,
+                'label' => $t->label()
+            ]),
         ]);
     }
 

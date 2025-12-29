@@ -41,7 +41,6 @@ export function SearchableSelect({
     className,
 }: SearchableSelectProps) {
     const [open, setOpen] = useState(false);
-    // Eliminamos 'searchQuery' ya que CommandInput lo maneja internamente.
 
     const selectedLabel = options.find((opt) => opt.value === value)?.label;
 
@@ -54,9 +53,16 @@ export function SearchableSelect({
                         role="combobox"
                         aria-expanded={open}
                         className={cn(
-                            'w-full justify-between rounded-none border-0 border-b border-input bg-transparent px-0 text-lg font-normal capitalize shadow-none hover:bg-transparent focus:ring-0',
+                            // Base styles
+                            'w-full justify-between rounded-none border-0 border-b bg-transparent px-0 text-lg font-normal capitalize shadow-none focus:ring-0',
+                            // Light mode colors
+                            'border-input hover:bg-transparent hover:text-foreground',
+                            // Dark mode specific adjustments
+                            'dark:border-neutral-800 dark:text-neutral-100 dark:hover:text-white',
+                            // Placeholder color
                             !value && 'text-muted-foreground',
-                            error && 'border-red-500',
+                            // Error state
+                            error && 'border-red-500 dark:border-red-500',
                             className,
                         )}
                     >
@@ -66,25 +72,17 @@ export function SearchableSelect({
                 </PopoverTrigger>
 
                 <PopoverContent
-                    className="p-0"
+                    className="p-0 dark:border-neutral-800 dark:bg-neutral-950"
                     style={{ width: 'var(--radix-popover-trigger-width)' }}
                     align="start"
                 >
-                    <Command
-                        filter={(value, search) => {
-                            if (
-                                value
-                                    .toLowerCase()
-                                    .includes(search.toLowerCase())
-                            )
-                                return 1;
-                            return 0;
-                        }}
-                    >
-                        <CommandInput placeholder="Buscar..." />
+                    <Command className="dark:bg-neutral-950">
+                        <CommandInput
+                            placeholder="Buscar..."
+                            className="dark:text-neutral-100"
+                        />
 
-                        {/* 1. Mantenemos CommandList para los resultados */}
-                        <CommandList>
+                        <CommandList className="max-h-[200px] overflow-y-auto dark:text-neutral-200">
                             <CommandEmpty className="px-2 py-2 text-center text-sm">
                                 <p className="mb-2 text-muted-foreground">
                                     No se encontraron resultados.
@@ -103,6 +101,7 @@ export function SearchableSelect({
                                             );
                                             setOpen(false);
                                         }}
+                                        className="cursor-pointer aria-selected:bg-accent aria-selected:text-accent-foreground dark:aria-selected:bg-neutral-800 dark:aria-selected:text-white"
                                     >
                                         <Check
                                             className={cn(
@@ -121,13 +120,13 @@ export function SearchableSelect({
                         </CommandList>
 
                         {onCreate && (
-                            <div className="border-t p-1">
+                            <div className="border-t p-1 dark:border-neutral-800">
                                 <Button
                                     variant="secondary"
                                     size="sm"
-                                    className="w-full bg-blue-50/50 text-blue-600 hover:bg-blue-100/70 hover:text-blue-700"
+                                    className="w-full bg-blue-50/50 text-blue-600 hover:bg-blue-100/70 hover:text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 dark:hover:bg-blue-900/50 dark:hover:text-blue-300"
                                     onClick={() => {
-                                        setOpen(false); // Cerramos al ir a crear
+                                        setOpen(false);
                                         onCreate();
                                     }}
                                 >
@@ -140,7 +139,9 @@ export function SearchableSelect({
                 </PopoverContent>
             </Popover>
             {error && (
-                <p className="text-sm font-medium text-red-500">{error}</p>
+                <p className="text-sm font-medium text-red-500 dark:text-red-400">
+                    {error}
+                </p>
             )}
         </div>
     );
