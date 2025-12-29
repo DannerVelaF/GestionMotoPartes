@@ -36,8 +36,8 @@ RUN npm install --legacy-peer-deps
 RUN npm run build
 
 # 9. Configurar permisos de Laravel
-RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
-RUN chmod -R 775 /var/www/storage /var/www/bootstrap/cache
+RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache /var/www/database
+RUN chmod -R 775 /var/www/storage /var/www/bootstrap/cache /var/www/database
 
 # 10. Copiar configuración de Nginx
 COPY ./nginx.conf /etc/nginx/sites-available/default
