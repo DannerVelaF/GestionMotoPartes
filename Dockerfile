@@ -1,8 +1,7 @@
-# 1. Usar imagen base de PHP 8.3 (Actualizado para coincidir con tu composer.lock)
+# 1. Usar imagen base de PHP 8.3
 FROM php:8.3-fpm
 
 # 2. Instalar dependencias del sistema y Nginx
-# Incluimos libzip-dev y la extensión zip que fallaron antes
 RUN apt-get update && apt-get install -y \
     git \
     curl \
@@ -16,7 +15,7 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     && docker-php-ext-install pdo_mysql pdo_pgsql mbstring exif pcntl bcmath gd zip
 
-# 3. Instalar Node.js (Necesario para compilar React/Inertia)
+# 3. Instalar Node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs
 
@@ -29,12 +28,11 @@ WORKDIR /var/www
 # 6. Copiar archivos del proyecto
 COPY . .
 
-# 7. Instalar dependencias de PHP (Composer)
-# Ahora sí funcionará porque la base es PHP 8.3
+# 7. Instalar dependencias de PHP
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 
 # 8. Instalar dependencias de JS y compilar (Vite/React)
-RUN npm install
+RUN npm install --legacy-peer-deps
 RUN npm run build
 
 # 9. Configurar permisos de Laravel
