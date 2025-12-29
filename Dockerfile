@@ -1,8 +1,8 @@
-# 1. Usar imagen base de PHP
-FROM php:8.2-fpm
+# 1. Usar imagen base de PHP 8.3 (Actualizado para coincidir con tu composer.lock)
+FROM php:8.3-fpm
 
 # 2. Instalar dependencias del sistema y Nginx
-# CORRECCIÓN: Se agregó libzip-dev y la extensión zip al final
+# Incluimos libzip-dev y la extensión zip que fallaron antes
 RUN apt-get update && apt-get install -y \
     git \
     curl \
@@ -30,6 +30,7 @@ WORKDIR /var/www
 COPY . .
 
 # 7. Instalar dependencias de PHP (Composer)
+# Ahora sí funcionará porque la base es PHP 8.3
 RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 
 # 8. Instalar dependencias de JS y compilar (Vite/React)
