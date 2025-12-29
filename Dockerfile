@@ -35,12 +35,14 @@ RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-d
 RUN npm install --legacy-peer-deps
 RUN npm run build
 
+
 # 9. Configurar permisos de Laravel
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache /var/www/database
 RUN chmod -R 775 /var/www/storage /var/www/bootstrap/cache /var/www/database
 
 # 10. Copiar configuración de Nginx
 COPY ./nginx.conf /etc/nginx/sites-available/default
+COPY ./custom.ini /usr/local/etc/php/conf.d/custom.ini
 
 # 11. Copiar script de arranque
 COPY ./start.sh /var/www/start.sh

@@ -1,3 +1,4 @@
+import { SearchableSelect } from '@/components/SearchableSelect';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,9 +9,8 @@ import categoriesRoute from '@/routes/product-categories'; // Rutas Wayfinder
 import typesRoute from '@/routes/product-types'; // Rutas Wayfinder
 import products from '@/routes/products';
 import { Head, router, useForm } from '@inertiajs/react';
-import { ArrowLeft, Camera, Save, Box} from 'lucide-react';
+import { Box, Camera, Save } from 'lucide-react';
 import { FormEventHandler, useRef, useState } from 'react';
-import { SearchableSelect } from '@/components/SearchableSelect';
 
 interface Props {
     categories: {
@@ -22,10 +22,10 @@ interface Props {
 }
 
 export default function CreateProduct({
-                                          categories = [],
-                                          brands = [],
-                                          types = [],
-                                      }: Props) {
+    categories = [],
+    brands = [],
+    types = [],
+}: Props) {
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -237,7 +237,6 @@ export default function CreateProduct({
                                 <div className="grid grid-cols-1 gap-x-20 gap-y-10 md:grid-cols-2">
                                     {/* Columna Izquierda */}
                                     <div className="space-y-8">
-
                                         {/* TIPO DE PRODUCTO (SEARCHABLE) */}
                                         <div className="group space-y-2">
                                             <Label className="text-xs font-bold text-muted-foreground uppercase">
@@ -246,7 +245,12 @@ export default function CreateProduct({
                                             <SearchableSelect
                                                 options={typeOptions}
                                                 value={data.id_product_type}
-                                                onChange={(val) => onFieldChange('id_product_type', val)}
+                                                onChange={(val) =>
+                                                    onFieldChange(
+                                                        'id_product_type',
+                                                        val,
+                                                    )
+                                                }
                                                 onCreate={goToCreateType} // Redirección
                                                 error={errors.id_product_type}
                                                 placeholder="Seleccionar tipo..."
@@ -277,6 +281,21 @@ export default function CreateProduct({
                                                             e.target.value,
                                                         )
                                                     }
+                                                    onBlur={(e) => {
+                                                        const value =
+                                                            parseFloat(
+                                                                e.target.value,
+                                                            );
+                                                        if (!isNaN(value)) {
+                                                            // Esto formatea el valor en el estado a "0.00"
+                                                            onFieldChange(
+                                                                'sale_price',
+                                                                value.toFixed(
+                                                                    2,
+                                                                ),
+                                                            );
+                                                        }
+                                                    }}
                                                     className="h-10 w-full rounded-none border-0 bg-transparent px-0 text-lg font-semibold shadow-none placeholder:text-muted-foreground/30 focus-visible:ring-0"
                                                     placeholder="0.00"
                                                 />
@@ -291,7 +310,6 @@ export default function CreateProduct({
 
                                     {/* Columna Derecha */}
                                     <div className="space-y-8">
-
                                         {/* CATEGORÍA (SEARCHABLE) */}
                                         <div className="group space-y-2">
                                             <Label className="text-xs font-bold text-muted-foreground uppercase">
@@ -300,7 +318,12 @@ export default function CreateProduct({
                                             <SearchableSelect
                                                 options={categoryOptions}
                                                 value={data.id_category}
-                                                onChange={(val) => onFieldChange('id_category', val)}
+                                                onChange={(val) =>
+                                                    onFieldChange(
+                                                        'id_category',
+                                                        val,
+                                                    )
+                                                }
                                                 onCreate={goToCreateCategory} // Redirección
                                                 error={errors.id_category}
                                                 placeholder="Seleccionar categoría..."
@@ -315,7 +338,12 @@ export default function CreateProduct({
                                             <SearchableSelect
                                                 options={brandOptions}
                                                 value={data.id_brand}
-                                                onChange={(val) => onFieldChange('id_brand', val)}
+                                                onChange={(val) =>
+                                                    onFieldChange(
+                                                        'id_brand',
+                                                        val,
+                                                    )
+                                                }
                                                 onCreate={goToCreateBrand} // Redirección
                                                 error={errors.id_brand}
                                                 placeholder="Seleccionar marca..."
@@ -354,12 +382,17 @@ export default function CreateProduct({
                             {/* ... Otros Tabs ... */}
                             <TabsContent value="sales">
                                 <div className="flex h-64 animate-in flex-col items-center justify-center rounded-lg border border-dashed border-muted-foreground/20 bg-muted/5 text-muted-foreground fade-in-50">
-                                    <p>Configuraciones de política de ventas.</p>
+                                    <p>
+                                        Configuraciones de política de ventas.
+                                    </p>
                                 </div>
                             </TabsContent>
                             <TabsContent value="purchase">
                                 <div className="flex h-64 animate-in flex-col items-center justify-center rounded-lg border border-dashed border-muted-foreground/20 bg-muted/5 text-muted-foreground fade-in-50">
-                                    <p>Configuraciones de proveedores y compras.</p>
+                                    <p>
+                                        Configuraciones de proveedores y
+                                        compras.
+                                    </p>
                                 </div>
                             </TabsContent>
                             <TabsContent value="inventory">
