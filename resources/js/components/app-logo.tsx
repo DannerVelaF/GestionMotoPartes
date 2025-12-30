@@ -13,7 +13,10 @@ export default function AppLogo() {
     return (
         <>
             <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-md bg-sidebar-primary text-sidebar-primary-foreground">
-                <Building2 className="size-5 text-black" strokeWidth={2.5} />
+                <Building2
+                    className="size-5 text-white dark:text-black"
+                    strokeWidth={2.5}
+                />
             </div>
 
             {/* 2. Renderizado condicional del texto */}

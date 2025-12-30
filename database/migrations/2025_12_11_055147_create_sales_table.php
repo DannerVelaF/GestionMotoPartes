@@ -17,7 +17,7 @@ return new class extends Migration
             $table->id("id_sales");
 
             // --- Campos del Documento ---
-            $table->enum("document_type", array_column(DocumentType::cases(),"value"))->default(DocumentType::RECEIPT->value);
+            $table->enum("document_type", array_column(DocumentType::cases(), "value"))->default(DocumentType::RECEIPT->value);
             $table->string('series', 5);
             $table->string('number', 10);
 
@@ -33,10 +33,13 @@ return new class extends Migration
             $table->string("code_sales")->unique();
             $table->dateTime("date_sales");
 
-            $table->decimal("subtotal", 10,2);
-            $table->decimal("tax", 10,2);
-            $table->decimal("discount", 10,2)->default(0); // Incluido default por buena práctica
-            $table->decimal("total", 10,2);
+            $table->decimal("subtotal", 10, 2);
+            $table->decimal("tax", 10, 2);
+            $table->decimal("discount", 10, 2)->default(0);
+            $table->decimal("total", 10, 2);
+
+            $table->unsignedBigInteger("id_method_payment")->nullable();
+            $table->foreign("id_method_payment")->references("id")->on("method_payments")->onDelete("set null");
 
             $table->enum("status", array_column(SalesStatus::cases(), 'value'))
                 ->default(SalesStatus::PENDING->value);

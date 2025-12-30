@@ -232,10 +232,7 @@ export default function ListInventory({ inventory, filters }: Props) {
                     </div>
                 </div>
 
-                {/* --- ÁREA DE CONTENIDO (CON SCROLL Y BANNER DE SELECCIÓN GLOBAL) --- */}
-                {/* Fondo sutil en light (muted/5) y oscuro en dark (background o slate-950) */}
                 <div className="flex-1 overflow-auto bg-muted/5 p-4 dark:bg-background">
-                    {/* BANNER DE SELECCIÓN GLOBAL */}
                     {selectedCount === inventory.data.length &&
                         inventory.total > inventory.data.length && (
                             <div className="mb-4 animate-in rounded-md bg-blue-600 p-2 text-center text-xs text-white shadow-sm slide-in-from-top-1 dark:bg-blue-700">
@@ -274,7 +271,6 @@ export default function ListInventory({ inventory, filters }: Props) {
                             </div>
                         )}
 
-                    {/* TABLA: Fondo card, bordes sutiles adaptables */}
                     <div className="rounded-xl border border-border bg-card shadow-sm transition-colors">
                         <DataTable
                             columns={InventoryColumns}

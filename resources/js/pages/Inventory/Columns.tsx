@@ -54,7 +54,7 @@ export const InventoryColumns: ColumnDef<InventoryItem>[] = [
         accessorKey: 'product_code',
         header: 'SKU',
         cell: ({ row }) => (
-            <div className="font-mono text-[11px] font-bold text-muted-foreground uppercase">
+            <div className="text-[11px] font-bold text-muted-foreground uppercase">
                 {row.original.product_code}
             </div>
         ),

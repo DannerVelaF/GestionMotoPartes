@@ -6,6 +6,7 @@ use App\Enums\SalesStatus;
 use App\Http\Repositories\Eloquent\Sales\SalesRepository;
 use App\Http\Services\BaseService;
 use App\Http\Services\Inventory\InventoryService;
+use App\Http\Services\Products\ProductService;
 use App\Models\Sales;
 use App\Models\Products;
 use Carbon\Carbon;
@@ -15,11 +16,13 @@ use Illuminate\Support\Facades\DB;
 class SalesService extends BaseService
 {
     protected $inventoryService;
+    protected $productService;
 
-    public function __construct(SalesRepository $repo, InventoryService $inventoryService)
+    public function __construct(SalesRepository $repo, InventoryService $inventoryService, ProductService $productService)
     {
         parent::__construct($repo);
         $this->inventoryService = $inventoryService;
+        $this->productService = $productService;
     }
 
     public function createSale(array $data)
@@ -65,10 +68,12 @@ class SalesService extends BaseService
 
             // 5. Crear Detalles y Movimientos de Almacén
             foreach ($data['details'] as $detail) {
+                $product = $this->productService->findProduct($detail['id_product']);
                 $sale->details()->create([
                     'id_product' => $detail['id_product'],
                     'quantity'   => $detail['quantity'],
                     'unit_price' => $detail['unit_price'],
+                    'cost'       => $product->purchase_price,
                     'id_user'    => Auth::id(),
                 ]);
 

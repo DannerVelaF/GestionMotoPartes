@@ -16,6 +16,7 @@ class SaleDetail extends Model
         'id_product',
         'quantity',
         'unit_price',
+        'cost',
         "id_user"
     ];
 

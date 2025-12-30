@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Sales;
 
+use App\Exports\TaxReportExport;
 use App\Http\Controllers\Controller;
 use App\Http\Services\Sales\SalesService;
 use App\Models\BusinessConfig;
@@ -11,6 +12,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
 
 class SalesController extends Controller
 {
@@ -156,7 +158,7 @@ class SalesController extends Controller
         $range = $this->getDateRange($request);
         $period = $request->input('period', 'daily');
 
-        // 1. Definimos el STRING de la consulta según el periodo
+        // Aquí estás definiendo la variable $sql
         switch ($period) {
             case 'weekly':
                 // Inicio de la semana (Lunes)
@@ -177,16 +179,45 @@ class SalesController extends Controller
         }
 
         // 2. Ejecutamos la consulta usando selectRaw y groupByRaw
-        $data = Sales::selectRaw("{$sql} as date") // Concatenación dentro del string, no con el objeto
-            ->selectRaw('SUM(total) as total')
-            ->selectRaw('COUNT(*) as transactions')
-            ->whereBetween('date_sales', $range)
-            ->groupByRaw($sql) // Usamos el string directamente
+        $data = Sales::query()
+            ->join('sale_details', 'sales.id_sales', '=', 'sale_details.id_sales')
+
+            // CORRECCIÓN: Usamos $sql en lugar de $sqlDate
+            ->selectRaw("{$sql} as date")
+
+            // Ingresos (Ventas)
+            ->selectRaw('SUM(sale_details.subtotal) as total_revenue')
+
+            // Costos (Usando la nueva columna histórica)
+            ->selectRaw('SUM(sale_details.quantity * sale_details.cost) as total_cost')
+
+            ->selectRaw('COUNT(DISTINCT sales.id_sales) as transactions')
+            ->whereBetween('sales.date_sales', $range)
+            ->groupByRaw("date")
             ->orderBy('date', 'ASC')
             ->get();
 
+        // Procesamiento en PHP (Cálculo de Ganancia)
+        $processedData = $data->map(function ($item) {
+            $revenue = (float) $item->total_revenue;
+            $cost = (float) $item->total_cost;
+            $profit = $revenue - $cost;
+
+            // Evitar división por cero
+            $margin = $revenue > 0 ? ($profit / $revenue) * 100 : 0;
+
+            return [
+                'date' => $item->date,
+                'total' => $revenue,
+                'cost' => $cost,
+                'profit' => $profit,
+                'margin' => round($margin, 2),
+                'transactions' => $item->transactions
+            ];
+        });
+
         return Inertia::render('Sales/Reports/DailySummary', [
-            'reportData' => $data,
+            'reportData' => $processedData,
             'filters' => [
                 'from' => $request->input('from', Carbon::now()->subDays(30)->format('Y-m-d')),
                 'to' => $request->input('to', Carbon::now()->format('Y-m-d')),
@@ -285,5 +316,17 @@ class SalesController extends Controller
                 'to' => $to
             ]
         ]);
+    }
+
+    public function exportTaxExcel(Request $request)
+    {
+        // Obtener fechas o usar default (últimos 30 días), igual que en los reportes
+        $from = $request->input('from', Carbon::now()->subDays(30)->format('Y-m-d'));
+        $to = $request->input('to', Carbon::now()->format('Y-m-d'));
+
+        $fileName = 'Libro_Ventas_SUNAT_' . Carbon::now()->format('Ymd_His') . '.xlsx';
+
+        // Descarga el archivo usando la clase exportadora
+        return Excel::download(new TaxReportExport($from, $to), $fileName);
     }
 }

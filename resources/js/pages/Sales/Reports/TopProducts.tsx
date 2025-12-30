@@ -106,7 +106,7 @@ export default function TopProducts({
                         <Button
                             type="submit"
                             size="sm"
-                            className="bg-blue-600 font-bold hover:bg-blue-700"
+                            className="bg-blue-600 font-bold hover:bg-blue-700 dark:text-white"
                         >
                             <Filter className="mr-2 h-3.5 w-3.5" /> Filtrar
                         </Button>
@@ -127,12 +127,12 @@ export default function TopProducts({
                                             <p className="text-[10px] font-black tracking-widest text-blue-100 uppercase opacity-80">
                                                 Producto Líder
                                             </p>
-                                            <h2 className="text-3xl font-black tracking-tighter">
+                                            <h2 className="text-3xl font-black tracking-tighter capitalize">
                                                 {reportData[0].product_name}
                                             </h2>
                                             <p className="text-sm font-medium text-blue-100/90">
-                                                ID: {reportData[0].product_code}{' '}
-                                                —{' '}
+                                                SKU:{' '}
+                                                {reportData[0].product_code} —{' '}
                                                 <span className="font-black">
                                                     {Number(
                                                         reportData[0].total_qty,

@@ -9,12 +9,12 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
+import { KardexExportModal } from '@/pages/Inventory/Reports/KardexExportModal';
 import { Head, router } from '@inertiajs/react';
 import { ChevronLeft, ChevronRight, History, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'use-debounce';
 import { Movement, MovementColumns } from './MovementColumns';
-import { KardexExportModal } from '@/pages/Inventory/Reports/KardexExportModal';
 
 interface Props {
     movements: {
@@ -105,7 +105,7 @@ export default function GlobalMovements({
             <div className="flex h-full flex-1 flex-col overflow-hidden bg-background">
                 <div className="flex items-center justify-between border-b px-6 py-3">
                     <div className="flex items-center gap-4">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-900 dark:text-emerald-300">
                             <History className="h-6 w-6" />
                         </div>
                         <h1 className="text-lg font-semibold">
@@ -223,10 +223,7 @@ export default function GlobalMovements({
                     </div>
                 </div>
             </div>
-            <KardexExportModal
-                allProducts={products}
-            />
-
+            <KardexExportModal allProducts={products} />
         </AppLayout>
     );
 }

@@ -13,8 +13,13 @@ class ProductService extends BaseService
         parent::__construct($repo);
     }
 
-    public function getProducts(){
+    public function getProducts()
+    {
         return $this->repo->all();
+    }
+    public function findProduct($id)
+    {
+        return $this->repo->find($id);
     }
 
     public function createProduct(array $data, ?UploadedFile $image = null)
@@ -27,12 +32,13 @@ class ProductService extends BaseService
         return $this->repo->create($data);
     }
 
-    public function deleteProduct($id){
+    public function deleteProduct($id)
+    {
         return $this->repo->delete($id);
     }
 
-    public function deleteProducts($ids){
-      return $this->repo->deleteMany($ids);
+    public function deleteProducts($ids)
+    {
+        return $this->repo->deleteMany($ids);
     }
-
 }

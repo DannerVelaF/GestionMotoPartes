@@ -25,8 +25,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
-import brands from '@/routes/product-brands'; // Asegúrate de importar el Wayfinder de marcas
-import products from '@/routes/products';
+import paymentMethods from '@/routes/sales/methodPayments';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
     AlertCircle,
@@ -38,7 +37,7 @@ import {
 } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
 
-// --- TIPOS ---
+// --- INTERFACES ---
 interface FlashProps {
     flash?: {
         success?: string;
@@ -47,15 +46,14 @@ interface FlashProps {
     [key: string]: any;
 }
 
-interface Props {
-    brand: {
-        id_brand: number;
-        name_brand: string;
-        status: string;
-    };
+interface MethodPayment {
+    id: number;
+    // CORRECCIÓN: El nombre debe coincidir EXACTAMENTE con tu base de datos
+    name_method_payment: string;
+    status: string;
 }
 
-// --- COMPONENTE ALERTA FLOTANTE ---
+// --- COMPONENTE DE ALERTA FLOTANTE ---
 function FloatingAlert({
     message,
     type = 'error',
@@ -99,12 +97,14 @@ function FloatingAlert({
     );
 }
 
-export default function EditBrand({ brand }: Props) {
-    // 1. Flash Messages
+// --- COMPONENTE PRINCIPAL ---
+export default function EditMethodPayment({
+    methodPayment,
+}: {
+    methodPayment: MethodPayment;
+}) {
     const { flash = {} } = usePage<FlashProps>().props;
     const [showSuccess, setShowSuccess] = useState(false);
-
-    // 2. Estado para el Dialogo de Eliminar
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
 
     useEffect(() => {
@@ -126,52 +126,58 @@ export default function EditBrand({ brand }: Props) {
         clearErrors,
         isDirty,
     } = useForm({
-        name_brand: brand.name_brand,
-        status: brand.status,
+        // CORRECCIÓN CRÍTICA:
+        // El input del form se llama 'name_method_payment'
+        // El valor inicial viene de la BD como 'methodPayment.name_method_payment'
+        name_method_payment: methodPayment.name_method_payment || '',
+        status: methodPayment.status || 'active',
     });
 
     const onFieldChange = (field: keyof typeof data, value: any) => {
         setData(field, value);
-        if (errors[field]) clearErrors(field);
+        if (errors[field]) {
+            clearErrors(field);
+        }
     };
 
-    // Actualizar Marca
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        put(brands.update({ brand: brand.id_brand }).url, {
+        put(paymentMethods.update(methodPayment.id).url, {
             onSuccess: () => setShowSuccess(true),
         });
     };
 
-    // Eliminar Marca
     const executeDelete = () => {
-        router.delete(brands.destroy({ brand: brand.id_brand }).url, {
+        router.delete(paymentMethods.destroy(methodPayment.id).url, {
             onFinish: () => setIsDeleteAlertOpen(false),
         });
     };
 
     const breadcrumbs = [
-        { title: 'Productos', href: products.index().url },
-        { title: 'Marcas', href: brands.index().url },
-        { title: data.name_brand || 'Editar', href: '' },
+        { title: 'Configuración', href: '#' },
+        { title: 'Métodos de Pago', href: paymentMethods.index().url },
+        { title: data.name_method_payment || 'Editar', href: '' },
     ];
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`Editar ${brand.name_brand}`} />
+            <Head title={`Editar ${methodPayment.name_method_payment}`} />
 
-            {/* --- DIÁLOGO DE CONFIRMACIÓN --- */}
             <AlertDialog
                 open={isDeleteAlertOpen}
                 onOpenChange={setIsDeleteAlertOpen}
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>¿Eliminar marca?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                            ¿Eliminar método de pago?
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                            Estás a punto de eliminar la marca{' '}
-                            <strong>"{brand.name_brand}"</strong>. Esta acción
-                            no se puede deshacer.
+                            Estás a punto de eliminar el método{' '}
+                            <strong>
+                                "{methodPayment.name_method_payment}"
+                            </strong>
+                            . Esta acción no se puede deshacer.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -186,7 +192,6 @@ export default function EditBrand({ brand }: Props) {
                 </AlertDialogContent>
             </AlertDialog>
 
-            {/* --- ALERTA DE ÉXITO GLOBAL --- */}
             {showSuccess && flash?.success && (
                 <FloatingAlert message={flash.success} type="success" />
             )}
@@ -195,14 +200,12 @@ export default function EditBrand({ brand }: Props) {
                 onSubmit={submit}
                 className="flex h-full flex-col bg-background"
             >
-                {/* --- HEADER STICKY --- */}
                 <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b bg-background/95 px-8 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                     <div className="flex items-center gap-3">
                         <span className="text-xl font-semibold text-foreground/90 capitalize">
-                            {brand.name_brand}
+                            {methodPayment.name_method_payment}
                         </span>
 
-                        {/* Menú de Acciones */}
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button
@@ -225,7 +228,6 @@ export default function EditBrand({ brand }: Props) {
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                        {/* Badge de Cambios sin guardar */}
                         {isDirty && (
                             <span className="ml-2 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                                 Sin guardar
@@ -264,39 +266,38 @@ export default function EditBrand({ brand }: Props) {
                     </div>
                 </div>
 
-                {/* --- CONTENIDO PRINCIPAL --- */}
                 <div className="w-full max-w-5xl animate-in px-8 py-8 duration-500 fade-in slide-in-from-bottom-4">
-                    {/* INPUT GIGANTE */}
                     <div className="mb-12 space-y-6 pt-2">
                         <div className="relative space-y-2">
                             <Label
-                                htmlFor="name_brand"
+                                htmlFor="name_method_payment"
                                 className="text-xs font-bold tracking-wider text-muted-foreground uppercase"
                             >
-                                Nombre de la Marca
+                                Nombre del Método
                             </Label>
                             <input
-                                id="name_brand"
-                                value={data.name_brand}
+                                id="name_method_payment"
+                                value={data.name_method_payment}
                                 onChange={(e) =>
-                                    onFieldChange('name_brand', e.target.value)
+                                    onFieldChange(
+                                        'name_method_payment',
+                                        e.target.value,
+                                    )
                                 }
-                                placeholder="Ej. Toyota, Samsung..."
-                                className={`h-auto w-full rounded-none border-0 border-b-2 bg-transparent px-0 py-2 text-4xl font-extrabold tracking-tight capitalize transition-all duration-300 placeholder:text-muted-foreground/20 focus:ring-0 focus:outline-none ${
-                                    errors.name_brand
+                                placeholder="Ej. Tarjeta de Crédito"
+                                className={`h-auto w-full rounded-none border-0 border-b-2 bg-transparent px-0 py-2 text-4xl font-extrabold tracking-tight transition-all duration-300 placeholder:text-muted-foreground/20 focus:ring-0 focus:outline-none ${
+                                    errors.name_method_payment
                                         ? 'border-red-500 text-red-900 placeholder:text-red-300 focus:border-red-500'
                                         : 'border-muted text-foreground focus:border-blue-600'
                                 }`}
                             />
-                            {/* Alerta de Error de Campo */}
                             <FloatingAlert
-                                message={errors.name_brand}
+                                message={errors.name_method_payment}
                                 type="error"
                             />
                         </div>
                     </div>
 
-                    {/* SECCIÓN DE DETALLES */}
                     <div className="grid grid-cols-1 gap-x-20 gap-y-10 md:grid-cols-2">
                         <div className="space-y-8">
                             <div className="group space-y-2">
@@ -338,10 +339,9 @@ export default function EditBrand({ brand }: Props) {
                         <div className="space-y-8">
                             <div className="rounded-lg border border-dashed border-muted-foreground/20 bg-muted/5 p-6 text-sm text-muted-foreground">
                                 <p>
-                                    Editando la marca ID:{' '}
-                                    <strong>{brand.id_brand}</strong>.<br />
-                                    Los cambios no se aplicarán hasta que
-                                    presiones "Guardar".
+                                    Estás editando un método de pago existente.
+                                    Los cambios se reflejarán inmediatamente en
+                                    el punto de venta.
                                 </p>
                             </div>
                         </div>

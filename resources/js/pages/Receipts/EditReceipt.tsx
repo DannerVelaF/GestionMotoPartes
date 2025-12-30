@@ -50,6 +50,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
+import productsRoute from '@/routes/products';
 import receipts from '@/routes/receipts';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { DropdownMenuSeparator } from '@radix-ui/react-dropdown-menu';
@@ -76,7 +77,6 @@ import {
     Undo2,
 } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
-import productsRoute from '@/routes/products';
 
 // --- Interfaces ---
 interface Detail {
@@ -472,7 +472,7 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                                     Cancelar
                                 </Button>
                                 <Button
-                                    className="bg-red-600 px-8 font-bold hover:bg-red-700"
+                                    className="bg-red-600 px-8 font-bold text-white hover:bg-red-700"
                                     onClick={submitReturn}
                                     disabled={
                                         returnForm.processing ||
@@ -520,7 +520,7 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                                     variant="secondary"
                                     size="sm"
                                     type="button"
-                                    className="ml-4 h-8 border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100"
+                                    className="ml-4 h-8 border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-900 dark:text-purple-300 dark:hover:bg-purple-800"
                                     onClick={() =>
                                         router.visit(
                                             receipts.show({ receipt: parentId })
@@ -691,7 +691,8 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                                     <div className="space-y-8">
                                         <div className="group space-y-2">
                                             <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase">
-                                                <CalendarIcon className="h-3 w-3" /> Fecha y Hora de Emisión
+                                                <CalendarIcon className="h-3 w-3" />{' '}
+                                                Fecha y Hora de Emisión
                                             </Label>
                                             <Popover>
                                                 <PopoverTrigger asChild>
@@ -699,51 +700,99 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                                                         variant="outline"
                                                         className={cn(
                                                             'w-full justify-start rounded-none border-0 border-b border-muted bg-transparent px-0 text-left font-medium shadow-none hover:border-blue-600 hover:bg-transparent',
-                                                            !data.issue_date && 'text-muted-foreground',
+                                                            !data.issue_date &&
+                                                                'text-muted-foreground',
                                                         )}
                                                     >
                                                         <CalendarIcon className="mr-2 h-4 w-4" />
                                                         {data.issue_date
-                                                            ? format(data.issue_date, 'Pp', { locale: es }) // 'Pp' muestra fecha y hora corta
+                                                            ? format(
+                                                                  data.issue_date,
+                                                                  'Pp',
+                                                                  {
+                                                                      locale: es,
+                                                                  },
+                                                              ) // 'Pp' muestra fecha y hora corta
                                                             : 'Seleccionar fecha y hora'}
                                                     </Button>
                                                 </PopoverTrigger>
-                                                <PopoverContent className="w-auto p-0 flex flex-col" align="start">
+                                                <PopoverContent
+                                                    className="flex w-auto flex-col p-0"
+                                                    align="start"
+                                                >
                                                     {/* 1. Selector de Fecha */}
                                                     <Calendar
                                                         mode="single"
-                                                        selected={data.issue_date}
+                                                        selected={
+                                                            data.issue_date
+                                                        }
                                                         onSelect={(date) => {
                                                             if (date) {
                                                                 // Preservar la hora actual si ya existía una
-                                                                const newDate = new Date(date);
-                                                                newDate.setHours(data.issue_date.getHours());
-                                                                newDate.setMinutes(data.issue_date.getMinutes());
-                                                                onFieldChange('issue_date', newDate);
+                                                                const newDate =
+                                                                    new Date(
+                                                                        date,
+                                                                    );
+                                                                newDate.setHours(
+                                                                    data.issue_date.getHours(),
+                                                                );
+                                                                newDate.setMinutes(
+                                                                    data.issue_date.getMinutes(),
+                                                                );
+                                                                onFieldChange(
+                                                                    'issue_date',
+                                                                    newDate,
+                                                                );
                                                             }
                                                         }}
                                                         initialFocus
                                                     />
 
                                                     {/* 2. Selector de Hora (Añadido al pie del calendario) */}
-                                                    <div className="border-t p-3 bg-muted/20 flex items-center justify-between gap-4">
+                                                    <div className="flex items-center justify-between gap-4 border-t bg-muted/20 p-3">
                                                         <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-bold text-muted-foreground uppercase">Hora:</span>
+                                                            <span className="text-xs font-bold text-muted-foreground uppercase">
+                                                                Hora:
+                                                            </span>
                                                             <Input
                                                                 type="time"
                                                                 className="h-8 w-[120px] font-mono font-bold"
-                                                                value={format(data.issue_date, 'HH:mm')}
-                                                                onChange={(e) => {
-                                                                    const [hours, minutes] = e.target.value.split(':');
-                                                                    const newDate = new Date(data.issue_date);
-                                                                    newDate.setHours(parseInt(hours), parseInt(minutes));
-                                                                    onFieldChange('issue_date', newDate);
+                                                                value={format(
+                                                                    data.issue_date,
+                                                                    'HH:mm',
+                                                                )}
+                                                                onChange={(
+                                                                    e,
+                                                                ) => {
+                                                                    const [
+                                                                        hours,
+                                                                        minutes,
+                                                                    ] =
+                                                                        e.target.value.split(
+                                                                            ':',
+                                                                        );
+                                                                    const newDate =
+                                                                        new Date(
+                                                                            data.issue_date,
+                                                                        );
+                                                                    newDate.setHours(
+                                                                        parseInt(
+                                                                            hours,
+                                                                        ),
+                                                                        parseInt(
+                                                                            minutes,
+                                                                        ),
+                                                                    );
+                                                                    onFieldChange(
+                                                                        'issue_date',
+                                                                        newDate,
+                                                                    );
                                                                 }}
                                                             />
                                                         </div>
-                                                        <span className="text-[10px] text-muted-foreground font-medium uppercase italic">
-                    Formato 24h
-                </span>
+                                                        <span className="text-[10px] font-medium text-muted-foreground uppercase italic">
+                                                            Formato 24h
+                                                        </span>
                                                     </div>
                                                 </PopoverContent>
                                             </Popover>
@@ -978,7 +1027,7 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                                     {receipt.children &&
                                     receipt.children.length > 0 ? (
                                         <Table>
-                                            <TableHeader className="bg-purple-50/50">
+                                            <TableHeader className="bg-muted/50 dark:bg-neutral-900">
                                                 <TableRow>
                                                     <TableHead>
                                                         Código NC
@@ -1000,7 +1049,7 @@ export default function EditReceipt({ receipt, documentTypes }: Props) {
                                                             )
                                                         }
                                                     >
-                                                        <TableCell className="font-mono font-bold text-purple-700">
+                                                        <TableCell className="font-mono font-bold text-purple-700 dark:text-purple-400">
                                                             {nc.receipt_code}
                                                         </TableCell>
                                                         <TableCell>

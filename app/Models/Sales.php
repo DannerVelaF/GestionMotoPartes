@@ -23,6 +23,7 @@ class Sales extends Model
         'document_type',
         'series',
         'number',
+        "id_method_payment",
         "receiver_id_number",
         "receiver_name",
         "receiver_address",
@@ -44,5 +45,10 @@ class Sales extends Model
     public function details(): HasMany
     {
         return $this->hasMany(SaleDetail::class, "id_sales");
+    }
+
+    public function methodPayment(): BelongsTo
+    {
+        return $this->belongsTo(MethodPayment::class, 'id_method_payment');
     }
 }

@@ -14,7 +14,6 @@ import reports from '@/routes/reports';
 import sales from '@/routes/sales';
 import { Head, router } from '@inertiajs/react';
 import {
-    ArrowLeft,
     Briefcase,
     Calendar,
     Filter,
@@ -116,7 +115,7 @@ export default function BrandAnalysis({
                         <Button
                             type="submit"
                             size="sm"
-                            className="bg-blue-600 font-bold hover:bg-blue-700"
+                            className="bg-blue-600 font-bold hover:bg-blue-700 dark:text-white"
                         >
                             <Filter className="mr-2 h-3.5 w-3.5" /> Filtrar
                         </Button>
@@ -238,7 +237,7 @@ export default function BrandAnalysis({
                                                             key={idx}
                                                             className="transition-colors hover:bg-muted/50 dark:border-neutral-800"
                                                         >
-                                                            <TableCell className="flex items-center gap-3 font-bold">
+                                                            <TableCell className="flex items-center gap-3 font-bold capitalize">
                                                                 <div
                                                                     className="h-2 w-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.1)]"
                                                                     style={{

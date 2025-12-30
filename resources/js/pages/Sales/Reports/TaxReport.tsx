@@ -14,7 +14,6 @@ import reports from '@/routes/reports';
 import sales from '@/routes/sales';
 import { Head, router } from '@inertiajs/react';
 import {
-    ArrowLeft,
     Calculator,
     Calendar,
     Download,
@@ -76,7 +75,16 @@ export default function TaxReport({
             { preserveState: true, preserveScroll: true },
         );
     };
+    const handleDownloadExcel = () => {
+        // Construimos la URL con los parámetros de filtro actuales
+        const url = reports.exportTaxExcel.url({
+            from: filters.from,
+            to: filters.to,
+        });
 
+        // Redirigimos el navegador para iniciar la descarga
+        window.location.href = url;
+    };
     return (
         <AppLayout
             breadcrumbs={[
@@ -124,17 +132,18 @@ export default function TaxReport({
                         <Button
                             type="submit"
                             size="sm"
-                            className="bg-blue-600 font-bold hover:bg-blue-700"
+                            className="bg-blue-600 font-bold hover:bg-blue-700 dark:text-white"
                         >
                             <Filter className="mr-2 h-3.5 w-3.5" /> Filtrar
                         </Button>
                         <Button
                             variant="outline"
                             size="sm"
+                            type="button"
+                            onClick={handleDownloadExcel}
                             className="dark:border-neutral-800 dark:hover:bg-neutral-900"
                         >
-                            <Download className="mr-2 h-3.5 w-3.5" /> SUNAT
-                            (CSV)
+                            <Download className="mr-2 h-3.5 w-3.5" /> Exportar
                         </Button>
                     </form>
                 </div>

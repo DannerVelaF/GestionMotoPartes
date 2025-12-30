@@ -67,27 +67,45 @@ export const Columns: ColumnDef<Sale>[] = [
         accessorKey: 'document_type',
         header: 'Tipo',
         cell: ({ row }) => {
-            const type = row.original.document_type?.toLowerCase();
+            const type = (row.original.document_type || '').toLowerCase();
+
+            // Configuración unificada con soporte Dark Mode
             const config: Record<string, { label: string; classes: string }> = {
                 factura: {
                     label: 'Factura',
-                    classes: 'border-blue-200 bg-blue-50 text-blue-700',
+                    classes:
+                        'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300',
                 },
                 boleta: {
                     label: 'Boleta',
                     classes:
-                        'border-emerald-200 bg-emerald-50 text-emerald-700',
+                        'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
                 },
                 nota_venta: {
                     label: 'Nota Venta',
-                    classes: 'border-gray-200 bg-gray-50 text-gray-700',
+                    classes:
+                        'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300',
+                },
+                // Agregamos Nota de Crédito/Débito por si aparecen en el futuro en este listado
+                nota_credito: {
+                    label: 'Nota Crédito',
+                    classes:
+                        'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
                 },
             };
-            const item = config[type] || { label: type, classes: '' };
+
+            const defaultConfig = {
+                label: type,
+                classes:
+                    'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400',
+            };
+
+            const item = config[type] || defaultConfig;
+
             return (
                 <Badge
                     variant="outline"
-                    className={`font-normal ${item.classes}`}
+                    className={`font-normal whitespace-nowrap ${item.classes}`}
                 >
                     {item.label}
                 </Badge>
@@ -100,7 +118,7 @@ export const Columns: ColumnDef<Sale>[] = [
         cell: ({ row }) => (
             <div className="flex flex-col">
                 <span className="truncate font-medium">
-                    {row.original.receiver_name || 'Venta al paso'}
+                    {row.original.receiver_name || '--'}
                 </span>
                 <span className="text-[10px] text-muted-foreground">
                     {row.original.receiver_id_number}
