@@ -12,7 +12,6 @@ import productTypes from '@/routes/product-types';
 import productsRoute from '@/routes/products';
 import rolesRoute from '@/routes/roles';
 import suppliers from '@/routes/suppliers';
-import usersRoute from '@/routes/users';
 import { router, usePage } from '@inertiajs/react';
 import {
     Activity,
@@ -30,7 +29,6 @@ import {
     Trophy,
     Truck,
     Type,
-    UserCog,
 } from 'lucide-react';
 
 export function AppNavigationMenu() {
@@ -123,6 +121,7 @@ export function AppNavigationMenu() {
                         </MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>
+
                 {/* Módulo: INVENTARIO */}
                 {isInventoryModule && (
                     <MenubarMenu>
@@ -155,64 +154,84 @@ export function AppNavigationMenu() {
 
                 {/* Módulo: VENTAS */}
                 {isSalesModule && (
-                    <MenubarMenu>
-                        <MenubarTrigger className="cursor-pointer font-bold text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30">
-                            Analítica de Ventas
-                        </MenubarTrigger>
-                        <MenubarContent className="min-w-[220px]">
-                            <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                                Finanzas
-                            </div>
-                            <MenubarItem
-                                className={itemClass}
-                                onClick={() =>
-                                    router.visit(
-                                        '/ventas/reportes/resumen-diario',
-                                    )
-                                }
-                            >
-                                <CalendarDays className="h-4 w-4 text-blue-600" />{' '}
-                                Resumen Diario
-                            </MenubarItem>
-                            <MenubarItem
-                                className={itemClass}
-                                onClick={() =>
-                                    router.visit('/ventas/reportes/impuestos')
-                                }
-                            >
-                                <Percent className="h-4 w-4 text-emerald-600" />{' '}
-                                Libro de Ventas (IGV)
-                            </MenubarItem>
+                    <>
+                        <MenubarMenu>
+                            <MenubarTrigger className="cursor-pointer font-bold text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/30">
+                                Analítica de Ventas
+                            </MenubarTrigger>
+                            <MenubarContent className="min-w-[220px]">
+                                <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                                    Finanzas
+                                </div>
+                                <MenubarItem
+                                    className={itemClass}
+                                    onClick={() =>
+                                        router.visit(
+                                            '/ventas/reportes/resumen-diario',
+                                        )
+                                    }
+                                >
+                                    <CalendarDays className="h-4 w-4 text-blue-600" />{' '}
+                                    Resumen Diario
+                                </MenubarItem>
+                                <MenubarItem
+                                    className={itemClass}
+                                    onClick={() =>
+                                        router.visit(
+                                            '/ventas/reportes/impuestos',
+                                        )
+                                    }
+                                >
+                                    <Percent className="h-4 w-4 text-emerald-600" />{' '}
+                                    Libro de Ventas (IGV)
+                                </MenubarItem>
 
-                            <MenubarSeparator className="my-1 h-px bg-muted" />
+                                <MenubarSeparator className="my-1 h-px bg-muted" />
 
-                            <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                                Movimiento de Stock
-                            </div>
-                            <MenubarItem
-                                className={itemClass}
-                                onClick={() =>
-                                    router.visit(
-                                        '/ventas/reportes/productos-estrella',
-                                    )
-                                }
-                            >
-                                <Trophy className="h-4 w-4 text-amber-500" />{' '}
-                                Productos Estrella
-                            </MenubarItem>
-                            <MenubarItem
-                                className={itemClass}
-                                onClick={() =>
-                                    router.visit(
-                                        '/ventas/reportes/analisis-marcas',
-                                    )
-                                }
-                            >
-                                <PieChart className="h-4 w-4 text-purple-600" />{' '}
-                                Ventas por Marca
-                            </MenubarItem>
-                        </MenubarContent>
-                    </MenubarMenu>
+                                <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                                    Movimiento de Stock
+                                </div>
+                                <MenubarItem
+                                    className={itemClass}
+                                    onClick={() =>
+                                        router.visit(
+                                            '/ventas/reportes/productos-estrella',
+                                        )
+                                    }
+                                >
+                                    <Trophy className="h-4 w-4 text-amber-500" />{' '}
+                                    Productos Estrella
+                                </MenubarItem>
+                                <MenubarItem
+                                    className={itemClass}
+                                    onClick={() =>
+                                        router.visit(
+                                            '/ventas/reportes/analisis-marcas',
+                                        )
+                                    }
+                                >
+                                    <PieChart className="h-4 w-4 text-purple-600" />{' '}
+                                    Ventas por Marca
+                                </MenubarItem>
+                            </MenubarContent>
+                        </MenubarMenu>
+                        <MenubarMenu>
+                            <MenubarTrigger className="cursor-pointer font-bold text-fuchsia-700 hover:bg-fuchsia-50 dark:text-fuchsia-400 dark:hover:bg-fuchsia-950/30">
+                                Métodos de pago
+                            </MenubarTrigger>
+                            <MenubarContent className="min-w-[220px]">
+                                <MenubarItem
+                                    className={itemClass}
+                                    onClick={() =>
+                                        router.visit('/ventas/metodoPago')
+                                    }
+                                >
+                                    <CalendarDays className="h-4 w-4 text-fuchsia-600" />{' '}
+                                    Métodos de pago
+                                </MenubarItem>
+                            </MenubarContent>
+                        </MenubarMenu>
+                    </>
                 )}
 
                 {/* Módulo: COMPRAS (RECIBOS) */}

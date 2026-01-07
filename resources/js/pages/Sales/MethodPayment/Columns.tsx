@@ -2,22 +2,27 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ColumnDef } from '@tanstack/react-table';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { ArrowUpDown } from 'lucide-react';
 
-// Definimos el tipo de dato para Marcas
-export type Brand = {
-    id_brand: number;
-    name_brand: string;
+// Definimos el tipo de dato basándonos en tu DB
+export type MethodPayment = {
+    id_method_payment: number;
+    name_method_payment: string;
     status: 'active' | 'inactive';
     created_at: string;
 };
 
-export const Columns: ColumnDef<Brand>[] = [
+export const Columns: ColumnDef<MethodPayment>[] = [
     {
         id: 'select',
         header: ({ table }) => (
             <Checkbox
-                checked={table.getIsAllPageRowsSelected()}
+                checked={
+                    table.getIsAllPageRowsSelected() ||
+                    (table.getIsSomePageRowsSelected() && 'indeterminate')
+                }
                 onCheckedChange={(value) =>
                     table.toggleAllPageRowsSelected(!!value)
                 }
@@ -25,22 +30,25 @@ export const Columns: ColumnDef<Brand>[] = [
             />
         ),
         cell: ({ row }) => (
-            <Checkbox
-                checked={row.getIsSelected()}
-                onCheckedChange={(value) => row.toggleSelected(!!value)}
-                aria-label="Select row"
-                onClick={(e) => e.stopPropagation()}
-            />
+            <div onClick={(e) => e.stopPropagation()}>
+                <Checkbox
+                    checked={row.getIsSelected()}
+                    onCheckedChange={(value) => row.toggleSelected(!!value)}
+                    aria-label="Select row"
+                    onClick={(e) => e.stopPropagation()}
+                />
+            </div>
         ),
         enableSorting: false,
         enableHiding: false,
     },
     {
-        accessorKey: 'name_brand',
+        accessorKey: 'name_method_payment',
         header: ({ column }) => {
             return (
                 <Button
                     variant="ghost"
+                    // Si tienes lógica de ordenamiento en backend, esto funcionará visualmente
                     onClick={() =>
                         column.toggleSorting(column.getIsSorted() === 'asc')
                     }
@@ -52,8 +60,8 @@ export const Columns: ColumnDef<Brand>[] = [
             );
         },
         cell: ({ row }) => (
-            <div className="text-sm font-medium capitalize">
-                {row.getValue('name_brand')}
+            <div className="text-sm font-medium text-foreground capitalize">
+                {row.getValue('name_method_payment')}
             </div>
         ),
     },
@@ -89,10 +97,10 @@ export const Columns: ColumnDef<Brand>[] = [
             </div>
         ),
         cell: ({ row }) => {
-            const createdAt = new Date(row.getValue('created_at') as string);
+            const date = new Date(row.getValue('created_at'));
             return (
                 <div className="text-sm text-muted-foreground">
-                    {createdAt.toLocaleDateString()}
+                    {format(date, "d 'de' MMMM, yyyy", { locale: es })}
                 </div>
             );
         },

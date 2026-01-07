@@ -39,7 +39,6 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
-// --- Interfaces ---
 interface SaleDetail {
     id_sales_details: number;
     id_product: number;
@@ -50,6 +49,11 @@ interface SaleDetail {
         product_name: string;
         product_code: string;
     };
+}
+
+interface MethodPayment {
+    id_method_payment: number;
+    name_method_payment: string;
 }
 
 interface Sale {
@@ -65,6 +69,7 @@ interface Sale {
     total: number;
     user: { name: string };
     details: SaleDetail[];
+    method_payment?: MethodPayment;
 }
 
 interface Props {
@@ -79,7 +84,6 @@ export default function ShowSales({ sale }: Props) {
     const [showSuccess, setShowSuccess] = useState(false);
     const [showPrintModal, setShowPrintModal] = useState(false);
 
-    // --- LÓGICA DE AUTO-IMPRESIÓN ---
     useEffect(() => {
         if (flash?.saleId) {
             setShowPrintModal(true);
@@ -114,6 +118,7 @@ export default function ShowSales({ sale }: Props) {
         >
             <Head title={`Venta ${sale.code_sales}`} />
 
+            {/* ... ALERTAS Y DIÁLOGOS ... */}
             {showSuccess && flash?.success && (
                 <div className="fixed top-6 right-6 z-[100] w-auto max-w-md animate-in fade-in slide-in-from-top-2">
                     <Alert className="border-2 border-emerald-500 bg-emerald-50 text-emerald-800 shadow-xl">
@@ -159,7 +164,7 @@ export default function ShowSales({ sale }: Props) {
             </Dialog>
 
             <div className="flex h-full flex-col bg-background">
-                {/* --- HEADER STICKY --- */}
+                {/* ... HEADER ... */}
                 <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b bg-background/95 px-8 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                     <div className="flex items-center gap-3">
                         <span className="flex items-center gap-2 font-mono text-xl font-bold tracking-tight text-foreground/90">
@@ -199,6 +204,7 @@ export default function ShowSales({ sale }: Props) {
                             className="mt-6 animate-in duration-300 fade-in-50"
                         >
                             <div className="mb-12 grid grid-cols-1 gap-x-20 gap-y-10 md:grid-cols-2">
+                                {/* ... COLUMNA IZQUIERDA ... */}
                                 <div className="space-y-8">
                                     <div className="group space-y-2">
                                         <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:text-neutral-400">
@@ -247,13 +253,13 @@ export default function ShowSales({ sale }: Props) {
                                     </div>
                                 </div>
 
+                                {/* COLUMNA DERECHA */}
                                 <div className="space-y-8">
                                     <div className="group space-y-2">
                                         <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase">
                                             <CalendarIcon className="h-3 w-3" />{' '}
                                             Fecha y Hora de Venta
                                         </Label>
-                                        {/* SE AGREGÓ HORA Y MINUTOS AQUÍ */}
                                         <Input
                                             value={format(
                                                 new Date(sale.date_sales),
@@ -275,9 +281,26 @@ export default function ShowSales({ sale }: Props) {
                                             className={disabledInputClass}
                                         />
                                     </div>
+
+                                    <div className="group space-y-2">
+                                        <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase">
+                                            <FileText className="h-3 w-3" />{' '}
+                                            Método de pago
+                                        </Label>
+                                        <Input
+                                            value={
+                                                sale.method_payment
+                                                    ?.name_method_payment ||
+                                                'NO ESPECIFICADO'
+                                            }
+                                            disabled
+                                            className={disabledInputClass}
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
+                            {/* ... RESTO DE LA TABLA (IGUAL QUE ANTES) ... */}
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between border-b border-blue-100 pb-2">
                                     <h3 className="flex items-center gap-2 font-bold tracking-tight text-foreground uppercase dark:text-neutral-200">

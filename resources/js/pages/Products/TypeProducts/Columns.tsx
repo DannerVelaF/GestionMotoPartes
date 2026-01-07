@@ -81,4 +81,20 @@ export const Columns: ColumnDef<ProductType>[] = [
             );
         },
     },
+    {
+        accessorKey: 'created_at',
+        header: () => (
+            <div className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+                Fecha Registro
+            </div>
+        ),
+        cell: ({ row }) => {
+            const createdAt = new Date(row.getValue('created_at') as string);
+            return (
+                <div className="text-sm text-muted-foreground">
+                    {createdAt.toLocaleDateString()}
+                </div>
+            );
+        },
+    },
 ];

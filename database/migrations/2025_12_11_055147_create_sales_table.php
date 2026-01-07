@@ -39,7 +39,7 @@ return new class extends Migration
             $table->decimal("total", 10, 2);
 
             $table->unsignedBigInteger("id_method_payment")->nullable();
-            $table->foreign("id_method_payment")->references("id")->on("method_payments")->onDelete("set null");
+            $table->foreign("id_method_payment")->references("id_method_payment")->on("method_payments")->onDelete("set null");
 
             $table->enum("status", array_column(SalesStatus::cases(), 'value'))
                 ->default(SalesStatus::PENDING->value);

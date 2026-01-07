@@ -80,7 +80,8 @@ export const Columns: ColumnDef<Receipt>[] = [
         },
         cell: ({ row }) => {
             const dateValue = row.getValue('issue_date');
-            if (!dateValue) return <span className="text-muted-foreground">-</span>;
+            if (!dateValue)
+                return <span className="text-muted-foreground">-</span>;
 
             const date = new Date(dateValue as string);
             return (
@@ -97,37 +98,78 @@ export const Columns: ColumnDef<Receipt>[] = [
         accessorKey: 'document_type',
         header: 'Tipo',
         cell: ({ row }) => {
-            const type = (row.getValue('document_type') as string)?.toLowerCase();
+            const type = (
+                row.getValue('document_type') as string
+            )?.toLowerCase();
 
             // Configuración de estilos y etiquetas según el Enum
-            const typeConfig: Record<string, { label: string; classes: string }> = {
+            const typeConfig: Record<
+                string,
+                { label: string; classes: string }
+            > = {
                 // Facturas
-                invoice: { label: 'Factura', classes: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300' },
-                factura: { label: 'Factura', classes: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300' },
+                invoice: {
+                    label: 'Factura',
+                    classes:
+                        'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300',
+                },
+                factura: {
+                    label: 'Factura',
+                    classes:
+                        'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300',
+                },
 
                 // Boletas
-                receipt: { label: 'Boleta', classes: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300' },
-                boleta: { label: 'Boleta', classes: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300' },
+                receipt: {
+                    label: 'Boleta',
+                    classes:
+                        'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
+                },
+                boleta: {
+                    label: 'Boleta',
+                    classes:
+                        'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
+                },
 
                 // Notas de Crédito (Importante para tu devolución)
-                credit_note: { label: 'Nota Crédito', classes: 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300' },
-                nota_credito: { label: 'Nota Crédito', classes: 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300' },
+                credit_note: {
+                    label: 'Nota Crédito',
+                    classes:
+                        'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300',
+                },
+                nota_credito: {
+                    label: 'Nota Crédito',
+                    classes:
+                        'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300',
+                },
 
                 // Notas de Débito
-                debit_note: { label: 'Nota Débito', classes: 'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-900 dark:bg-purple-950 dark:text-purple-300' },
-                nota_debito: { label: 'Nota Débito', classes: 'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-900 dark:bg-purple-950 dark:text-purple-300' },
+                debit_note: {
+                    label: 'Nota Débito',
+                    classes:
+                        'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-900 dark:bg-purple-950 dark:text-purple-300',
+                },
+                nota_debito: {
+                    label: 'Nota Débito',
+                    classes:
+                        'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-900 dark:bg-purple-950 dark:text-purple-300',
+                },
             };
 
             // Valor por defecto si llega algo desconocido
             const defaultConfig = {
                 label: type || 'Otro',
-                classes: 'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400'
+                classes:
+                    'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400',
             };
 
             const config = typeConfig[type] || defaultConfig;
 
             return (
-                <Badge variant="outline" className={`font-normal whitespace-nowrap ${config.classes}`}>
+                <Badge
+                    variant="outline"
+                    className={`font-normal whitespace-nowrap ${config.classes}`}
+                >
                     {config.label}
                 </Badge>
             );
@@ -184,8 +226,26 @@ export const Columns: ColumnDef<Receipt>[] = [
             }).format(amount);
 
             return (
-                <div className={`text-right font-bold tabular-nums ${isNegative ? 'text-red-500' : ''}`}>
+                <div
+                    className={`text-right font-bold tabular-nums ${isNegative ? 'text-red-500' : ''}`}
+                >
                     {formatted}
+                </div>
+            );
+        },
+    },
+    {
+        accessorKey: 'created_at',
+        header: () => (
+            <div className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+                Fecha Registro
+            </div>
+        ),
+        cell: ({ row }) => {
+            const date = new Date(row.getValue('created_at'));
+            return (
+                <div className="text-sm text-muted-foreground">
+                    {format(date, "d 'de' MMMM, yyyy", { locale: es })}
                 </div>
             );
         },

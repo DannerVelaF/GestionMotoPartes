@@ -25,6 +25,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
+import sales from '@/routes/sales';
 import paymentMethods from '@/routes/sales/methodPayments';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
@@ -154,7 +155,7 @@ export default function EditMethodPayment({
     };
 
     const breadcrumbs = [
-        { title: 'Configuración', href: '#' },
+        { title: 'Ventas', href: sales.index().url },
         { title: 'Métodos de Pago', href: paymentMethods.index().url },
         { title: data.name_method_payment || 'Editar', href: '' },
     ];

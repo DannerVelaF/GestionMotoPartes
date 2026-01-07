@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class MethodPayment extends Model
 {
     protected $table = 'method_payments';
-
+    protected $primaryKey = 'id_method_payment';
     protected $fillable = [
         'name_method_payment',
         'status',

@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
+import productcRoutes from '@/routes/products';
 import receiptsRoute from '@/routes/receipts';
 import suppliersRoute from '@/routes/suppliers';
 import { Head, router, useForm } from '@inertiajs/react';
@@ -54,7 +55,6 @@ import {
     X,
 } from 'lucide-react';
 import { FormEventHandler, useState } from 'react';
-
 // --- Estilos ---
 const cleanInputClass =
     'h-9 w-full rounded-none border-0 border-b border-muted bg-transparent px-0 text-sm shadow-none focus:ring-0 focus:border-blue-600 focus:outline-none transition-all font-medium dark:text-foreground';
@@ -608,7 +608,7 @@ export default function CreateReceipt({
                                 <div className="space-y-2">
                                     <Label
                                         className={cn(
-                                            'text-[10px] font-black font-bold uppercase',
+                                            'text-[10px] font-bold uppercase',
                                             errors.file
                                                 ? 'text-red-500'
                                                 : 'text-muted-foreground',
@@ -757,6 +757,12 @@ export default function CreateReceipt({
                                                                     0,
                                                             );
                                                         }}
+                                                        onCreate={() =>
+                                                            router.visit(
+                                                                productcRoutes.create()
+                                                                    .url,
+                                                            )
+                                                        }
                                                         placeholder="Producto..."
                                                         className={cn(
                                                             cleanInputClass,

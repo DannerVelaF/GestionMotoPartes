@@ -60,6 +60,7 @@ class SalesService extends BaseService
                 'tax'                => $tax,
                 'discount'           => 0,
                 'total'              => $total,
+                "id_method_payment"  => $data['method_payment_id'],
                 'status'             => SalesStatus::COMPLETED->value, // Asegúrate que COMPLETED existe en tu Enum
                 'id_user'            => Auth::id(),
             ];

@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers\Sales;
 
+use App\Enums\GenericStatus;
+use App\Exports\DailyReportExport;
 use App\Exports\TaxReportExport;
 use App\Http\Controllers\Controller;
 use App\Http\Services\Sales\SalesService;
 use App\Models\BusinessConfig;
+use App\Models\MethodPayment;
 use App\Models\Products;
 use App\Models\Sales;
 use Carbon\Carbon;
@@ -72,9 +75,14 @@ class SalesController extends Controller
     public function create()
     {
         // CAMBIO: Añadimos where('status', 'active')
-        $products = Products::where('status', 'active')
+        $products = Products::where('status', GenericStatus::ACTIVE->value)
             ->select('id_product', 'product_name', 'product_code', 'sale_price', 'stock')
             ->orderBy('product_name')
+            ->get();
+
+        $methodsPayment = MethodPayment::where("status", GenericStatus::ACTIVE->value)
+            ->select('id_method_payment', 'name_method_payment')
+            ->orderBy('name_method_payment')
             ->get();
 
         $documentTypes = [
@@ -85,40 +93,64 @@ class SalesController extends Controller
 
         return Inertia::render('Sales/CreateSales', [
             'products' => $products,
+            'methodsPayment' => $methodsPayment,
             'documentTypes' => $documentTypes,
         ]);
     }
 
     public function store(Request $request)
     {
-        $request->validate([
-            'document_type' => 'required',
+        // 1. Reglas de Validación
+        $rules = [
+            'document_type' => 'required|string',
             'issue_date'    => 'required|date',
-            'details'       => 'required|array|min:1',
+            'method_payment_id' => 'required|exists:method_payments,id_method_payment',
+            'details'              => 'required|array|min:1',
             'details.*.id_product' => 'required|exists:products,id_product',
             'details.*.quantity'   => 'required|numeric|min:0.1',
             'details.*.unit_price' => 'required|numeric|min:0',
-        ]);
+        ];
+
+        $messages = [
+            'document_type.required'     => 'El tipo de documento es obligatorio.',
+            'issue_date.required'        => 'La fecha de emisión es obligatoria.',
+            'issue_date.date'            => 'La fecha de emisión no es válida.',
+
+            'method_payment_id.required' => 'Debes seleccionar un método de pago.',
+            'method_payment_id.exists'   => 'El método de pago seleccionado no es válido.',
+
+            'details.required'           => 'Debes agregar al menos un producto a la venta.',
+            'details.min'                => 'La venta debe tener al menos un producto.',
+
+            'details.*.id_product.required' => 'El producto es obligatorio.',
+            'details.*.id_product.exists'   => 'Uno de los productos seleccionados no existe en la base de datos.',
+
+            'details.*.quantity.required'   => 'La cantidad es obligatoria.',
+            'details.*.quantity.min'        => 'La cantidad debe ser mayor a 0.',
+
+            'details.*.unit_price.required' => 'El precio unitario es obligatorio.',
+            'details.*.unit_price.min'      => 'El precio no puede ser negativo.',
+        ];
+
+        // Ejecutar validación
+        $validatedData = $request->validate($rules, $messages);
 
         try {
             $sale = $this->service->createSale($request->all());
 
-            // Redirigimos a la vista 'show' de la venta recién creada
             return redirect()->route('sales.show', $sale->id_sales)->with([
-                'saleId' => $sale->id_sales, // Mantenemos esto para que el frontend pueda abrir el modal
+                'saleId'  => $sale->id_sales,
                 'success' => 'Venta registrada correctamente.'
             ]);
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'Error al registrar venta: ' . $e->getMessage()]);
         }
     }
-
     public function show($id)
     {
         // Cargamos la venta con sus detalles y los productos de esos detalles
-        $sale = Sales::with(['details.product', 'user:id,name'])
+        $sale = Sales::with(['details.product', 'user:id,name', "methodPayment"])
             ->findOrFail($id);
-
         return Inertia::render('Sales/ShowSale', [
             'sale' => $sale,
         ]);
@@ -158,18 +190,15 @@ class SalesController extends Controller
         $range = $this->getDateRange($request);
         $period = $request->input('period', 'daily');
 
-        // Aquí estás definiendo la variable $sql
+        // 1. Definir formato de fecha SQL
         switch ($period) {
             case 'weekly':
-                // Inicio de la semana (Lunes)
                 $sql = 'STR_TO_DATE(CONCAT(YEARWEEK(date_sales, 1), " Monday"), "%x%v %W")';
                 break;
             case 'monthly':
-                // Inicio del mes
                 $sql = 'DATE_FORMAT(date_sales, "%Y-%m-01")';
                 break;
             case 'yearly':
-                // Inicio del año
                 $sql = 'DATE_FORMAT(date_sales, "%Y-01-01")';
                 break;
             case 'daily':
@@ -178,49 +207,61 @@ class SalesController extends Controller
                 break;
         }
 
-        // 2. Ejecutamos la consulta usando selectRaw y groupByRaw
-        $data = Sales::query()
+        // 2. Consulta agrupada por FECHA y MÉTODO DE PAGO
+        // Usamos leftJoin para no perder ventas sin método (aunque no debería haber)
+        $rawQuery = Sales::query()
             ->join('sale_details', 'sales.id_sales', '=', 'sale_details.id_sales')
+            ->leftJoin('method_payments', 'sales.id_method_payment', '=', 'method_payments.id_method_payment')
 
-            // CORRECCIÓN: Usamos $sql en lugar de $sqlDate
-            ->selectRaw("{$sql} as date")
+            ->selectRaw("{$sql} as date_group")
+            // Si es null, le ponemos 'Otros'
+            ->selectRaw("COALESCE(method_payments.name_method_payment, 'Otros') as method_name")
 
-            // Ingresos (Ventas)
-            ->selectRaw('SUM(sale_details.subtotal) as total_revenue')
+            // Métricas
+            ->selectRaw('SUM(sale_details.subtotal) as revenue')
+            ->selectRaw('SUM(sale_details.quantity * sale_details.cost) as cost')
+            ->selectRaw('COUNT(DISTINCT sales.id_sales) as tx_count')
 
-            // Costos (Usando la nueva columna histórica)
-            ->selectRaw('SUM(sale_details.quantity * sale_details.cost) as total_cost')
-
-            ->selectRaw('COUNT(DISTINCT sales.id_sales) as transactions')
             ->whereBetween('sales.date_sales', $range)
-            ->groupByRaw("date")
-            ->orderBy('date', 'ASC')
+            ->groupByRaw("date_group, method_name")
+            ->orderBy('date_group', 'ASC')
             ->get();
 
-        // Procesamiento en PHP (Cálculo de Ganancia)
-        $processedData = $data->map(function ($item) {
-            $revenue = (float) $item->total_revenue;
-            $cost = (float) $item->total_cost;
-            $profit = $revenue - $cost;
+        // 3. Procesamiento con Colecciones (Agrupar por Fecha para el Frontend)
+        $reportData = $rawQuery->groupBy('date_group')->map(function ($dayGroup) {
 
-            // Evitar división por cero
-            $margin = $revenue > 0 ? ($profit / $revenue) * 100 : 0;
+            // Totales del día
+            $totalRevenue = $dayGroup->sum('revenue');
+            $totalCost    = $dayGroup->sum('cost');
+            $profit       = $totalRevenue - $totalCost;
+            $margin       = $totalRevenue > 0 ? ($profit / $totalRevenue) * 100 : 0;
+            $transactions = $dayGroup->sum('tx_count');
+
+            // Desglose por método dentro de este día
+            $methods = $dayGroup->map(function ($row) {
+                return [
+                    'name'  => $row->method_name,
+                    'total' => (float) $row->revenue,
+                    'count' => (int) $row->tx_count,
+                ];
+            })->values();
 
             return [
-                'date' => $item->date,
-                'total' => $revenue,
-                'cost' => $cost,
-                'profit' => $profit,
-                'margin' => round($margin, 2),
-                'transactions' => $item->transactions
+                'date'         => $dayGroup->first()->date_group,
+                'total'        => $totalRevenue,
+                'cost'         => $totalCost,
+                'profit'       => $profit,
+                'margin'       => round($margin, 2),
+                'transactions' => $transactions,
+                'methods'      => $methods
             ];
-        });
+        })->values();
 
         return Inertia::render('Sales/Reports/DailySummary', [
-            'reportData' => $processedData,
+            'reportData' => $reportData,
             'filters' => [
                 'from' => $request->input('from', Carbon::now()->subDays(30)->format('Y-m-d')),
-                'to' => $request->input('to', Carbon::now()->format('Y-m-d')),
+                'to'   => $request->input('to', Carbon::now()->format('Y-m-d')),
                 'period' => $period
             ]
         ]);
@@ -328,5 +369,15 @@ class SalesController extends Controller
 
         // Descarga el archivo usando la clase exportadora
         return Excel::download(new TaxReportExport($from, $to), $fileName);
+    }
+    public function exportDailyExcel(Request $request)
+    {
+        $from = $request->input('from', Carbon::now()->subDays(30)->format('Y-m-d'));
+        $to = $request->input('to', Carbon::now()->format('Y-m-d'));
+        $period = $request->input('period', 'daily');
+
+        $fileName = 'Reporte_Economico_' . $period . '_' . Carbon::now()->format('Ymd_His') . '.xlsx';
+
+        return Excel::download(new DailyReportExport($from, $to, $period), $fileName);
     }
 }

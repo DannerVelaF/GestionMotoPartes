@@ -305,7 +305,7 @@ export default function Dashboard({
                                                 </span>
                                             </div>
                                             <div className="rounded-lg bg-muted px-2 py-1 text-[10px] font-black uppercase tabular-nums">
-                                                {prod.sold} uds
+                                                {prod.sold} unidades
                                             </div>
                                         </div>
                                     ))

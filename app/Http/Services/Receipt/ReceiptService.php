@@ -67,7 +67,11 @@ class ReceiptService extends BaseService
 
                 // Registrar en Kardex con la fecha del documento
                 $this->inventoryService->registerMovement(
-                    $detail['id_product'], $qty, 'purchase', $price, $receipt,
+                    $detail['id_product'],
+                    $qty,
+                    'purchase',
+                    $price,
+                    $receipt,
                     "Ingreso por Compra {$receipt->series}-{$receipt->number}",
                     $issueDate
                 );
@@ -167,7 +171,11 @@ class ReceiptService extends BaseService
                     ]);
 
                     $this->inventoryService->registerMovement(
-                        $item['id_product'], -$qty, 'purchase_return', $price, $creditNote,
+                        $item['id_product'],
+                        -$qty,
+                        'purchase_return',
+                        $price,
+                        $creditNote,
                         "Devolución parcial de Compra {$originalReceipt->series}-{$originalReceipt->number}",
                         $now
                     );
@@ -189,7 +197,11 @@ class ReceiptService extends BaseService
                 $finalQty = ($receipt->document_type != DocumentType::CREDIT_NOTE) ? -$qty : $qty;
 
                 $this->inventoryService->registerMovement(
-                    $detail->id_product, $finalQty, 'adjustment', $detail->unit_price, $receipt,
+                    $detail->id_product,
+                    $finalQty,
+                    'adjustment',
+                    $detail->unit_price,
+                    $receipt,
                     "Anulación de " . ($receipt->document_type == DocumentType::CREDIT_NOTE ? "Nota de Crédito" : "Compra"),
                     Carbon::now()
                 );
@@ -198,6 +210,33 @@ class ReceiptService extends BaseService
             if ($receipt->receipt_path) Storage::disk('public')->delete($receipt->receipt_path);
             $receipt->details()->delete();
             return $this->repo->delete($id);
+        });
+    }
+
+    public function deleteReceipts(array $ids)
+    {
+        return DB::transaction(function () use ($ids) {
+            foreach ($ids as $id) {
+                $receipt = $this->repo->find($id);
+                if (!$receipt) continue;
+                foreach ($receipt->details as $detail) {
+                    $qty = abs($detail->quantity);
+                    $finalQty = ($receipt->document_type != DocumentType::CREDIT_NOTE) ? -$qty : $qty;
+
+                    $this->inventoryService->registerMovement(
+                        $detail->id_product,
+                        $finalQty,
+                        'adjustment',
+                        $detail->unit_price,
+                        $receipt,
+                        "Anulación de " . ($receipt->document_type == DocumentType::CREDIT_NOTE ? "Nota de Crédito" : "Compra"),
+                        Carbon::now()
+                    );
+                }
+                if ($receipt->receipt_path) Storage::disk('public')->delete($receipt->receipt_path);
+                $receipt->details()->delete();
+                $this->repo->delete($id);
+            }
         });
     }
 

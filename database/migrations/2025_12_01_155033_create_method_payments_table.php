@@ -13,7 +13,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('method_payments', function (Blueprint $table) {
-            $table->id();
+            $table->id("id_method_payment");
             $table->string("name_method_payment");
             $table->enum("status", array_column(GenericStatus::cases(), "value"))->default(GenericStatus::ACTIVE->value);
             $table->timestamps();

@@ -150,4 +150,21 @@ export const Columns: ColumnDef<Sale>[] = [
             );
         },
     },
+
+    {
+        accessorKey: 'created_at',
+        header: () => (
+            <div className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+                Fecha Registro
+            </div>
+        ),
+        cell: ({ row }) => {
+            const date = new Date(row.getValue('created_at'));
+            return (
+                <div className="text-sm text-muted-foreground">
+                    {format(date, "d 'de' MMMM, yyyy", { locale: es })}
+                </div>
+            );
+        },
+    },
 ];
