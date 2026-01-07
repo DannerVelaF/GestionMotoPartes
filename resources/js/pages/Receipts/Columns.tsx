@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ArrowUpDown } from 'lucide-react';
 
-// Interfaz actualizada para reflejar tipos más amplios
+// Interfaz actualizada con el campo 'currency'
 export interface Receipt {
     id_receipt: number;
     receipt_code: string;
@@ -14,7 +14,8 @@ export interface Receipt {
     number: string;
     issue_date: string;
     total_amount: number;
-    document_type: string; // 'invoice', 'receipt', 'credit_note', 'nota_credito', etc.
+    document_type: string;
+    currency: string; // <--- NUEVO: Para saber si es PEN o USD
     supplier?: { company_name: string; ruc: string };
 }
 
@@ -32,7 +33,7 @@ export const Columns: ColumnDef<Receipt>[] = [
                     table.toggleAllPageRowsSelected(!!value)
                 }
                 aria-label="Seleccionar todos"
-                className="translate-y-[2px]"
+                className="border-slate-300 dark:border-slate-600"
             />
         ),
         cell: ({ row }) => (
@@ -40,7 +41,7 @@ export const Columns: ColumnDef<Receipt>[] = [
                 checked={row.getIsSelected()}
                 onCheckedChange={(value) => row.toggleSelected(!!value)}
                 aria-label="Seleccionar fila"
-                className="translate-y-[2px]"
+                className="border-slate-300 dark:border-slate-600"
                 onClick={(e) => e.stopPropagation()}
             />
         ),
@@ -93,7 +94,7 @@ export const Columns: ColumnDef<Receipt>[] = [
         size: 120,
     },
 
-    // --- TIPO DOCUMENTO (CORREGIDO) ---
+    // --- TIPO DOCUMENTO ---
     {
         accessorKey: 'document_type',
         header: 'Tipo',
@@ -102,12 +103,10 @@ export const Columns: ColumnDef<Receipt>[] = [
                 row.getValue('document_type') as string
             )?.toLowerCase();
 
-            // Configuración de estilos y etiquetas según el Enum
             const typeConfig: Record<
                 string,
                 { label: string; classes: string }
             > = {
-                // Facturas
                 invoice: {
                     label: 'Factura',
                     classes:
@@ -118,8 +117,6 @@ export const Columns: ColumnDef<Receipt>[] = [
                     classes:
                         'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300',
                 },
-
-                // Boletas
                 receipt: {
                     label: 'Boleta',
                     classes:
@@ -130,8 +127,6 @@ export const Columns: ColumnDef<Receipt>[] = [
                     classes:
                         'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
                 },
-
-                // Notas de Crédito (Importante para tu devolución)
                 credit_note: {
                     label: 'Nota Crédito',
                     classes:
@@ -142,8 +137,6 @@ export const Columns: ColumnDef<Receipt>[] = [
                     classes:
                         'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300',
                 },
-
-                // Notas de Débito
                 debit_note: {
                     label: 'Nota Débito',
                     classes:
@@ -156,7 +149,6 @@ export const Columns: ColumnDef<Receipt>[] = [
                 },
             };
 
-            // Valor por defecto si llega algo desconocido
             const defaultConfig = {
                 label: type || 'Otro',
                 classes:
@@ -210,19 +202,20 @@ export const Columns: ColumnDef<Receipt>[] = [
         ),
     },
 
-    // --- TOTAL ---
+    // --- TOTAL (CORREGIDO CON MONEDA) ---
     {
         accessorKey: 'total_amount',
         header: () => <div className="text-right">Total</div>,
         cell: ({ row }) => {
             const amount = parseFloat(row.getValue('total_amount'));
+            // Obtenemos la moneda del registro, por defecto PEN si falla
+            const currency = row.original.currency || 'PEN';
 
-            // Detectar si es negativo (Nota de crédito) para pintarlo rojo
             const isNegative = amount < 0;
 
             const formatted = new Intl.NumberFormat('es-PE', {
                 style: 'currency',
-                currency: 'PEN',
+                currency: currency, // Usamos la moneda dinámica
             }).format(amount);
 
             return (
@@ -230,22 +223,6 @@ export const Columns: ColumnDef<Receipt>[] = [
                     className={`text-right font-bold tabular-nums ${isNegative ? 'text-red-500' : ''}`}
                 >
                     {formatted}
-                </div>
-            );
-        },
-    },
-    {
-        accessorKey: 'created_at',
-        header: () => (
-            <div className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                Fecha Registro
-            </div>
-        ),
-        cell: ({ row }) => {
-            const date = new Date(row.getValue('created_at'));
-            return (
-                <div className="text-sm text-muted-foreground">
-                    {format(date, "d 'de' MMMM, yyyy", { locale: es })}
                 </div>
             );
         },

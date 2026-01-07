@@ -32,10 +32,15 @@ import {
     Search,
     X,
 } from 'lucide-react';
-import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+    KeyboardEvent,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 import { useDebounce } from 'use-debounce';
 import { Columns, Sale } from './Columns';
-import React from 'react';
 
 interface PaginatedSales {
     data: Sale[];
@@ -320,7 +325,7 @@ export default function ListSales({ sales, filters }: Props) {
             <Head title="Ventas" />
             <div className="flex h-full flex-1 flex-col overflow-hidden">
                 <div
-                    className={`flex items-center justify-between border-b px-6 py-3 transition-colors duration-300 ${selectedCount > 0 ? 'bg-blue-50' : 'bg-background'}`}
+                    className={`flex items-center justify-between border-b px-6 py-3 transition-colors duration-300 ${selectedCount > 0 ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-background'}`}
                 >
                     <div className="flex items-center gap-4">
                         {selectedCount > 0 ? (

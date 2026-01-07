@@ -40,8 +40,10 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
     AlertCircle,
+    ArrowRightLeft,
+    Box,
+    Briefcase,
     CalendarIcon,
-    Clock,
     FileText,
     Paperclip,
     Plus,
@@ -55,13 +57,14 @@ import {
     X,
 } from 'lucide-react';
 import { FormEventHandler, useState } from 'react';
-// --- Estilos ---
+
+// --- ESTILOS REUTILIZABLES ---
 const cleanInputClass =
     'h-9 w-full rounded-none border-0 border-b border-muted bg-transparent px-0 text-sm shadow-none focus:ring-0 focus:border-blue-600 focus:outline-none transition-all font-medium dark:text-foreground';
 const tableInputClass =
     'h-8 border-transparent bg-transparent text-right shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-blue-500 tabular-nums';
 
-// Helper para mostrar errores de campo
+// --- HELPER COMPONENT: ERROR MESSAGE ---
 const InputError = ({
     message,
     className,
@@ -82,6 +85,7 @@ const InputError = ({
     );
 };
 
+// --- INTERFACES ---
 interface Supplier {
     id_supplier: number;
     company_name: string;
@@ -95,7 +99,9 @@ interface Product {
 }
 interface DetailRow {
     id: number;
-    id_product: string;
+    type: 'product' | 'service';
+    id_product: string | null;
+    description: string;
     quantity: number;
     unit_price: number;
     sale_price: number;
@@ -107,41 +113,57 @@ interface Props {
     documentTypes: { value: string; label: string }[];
 }
 
+// --- HELPER COMPONENT: INDICADOR DE MARGEN ---
 const MarginIndicator = ({
     cost,
     salePrice,
+    currency,
+    exchangeRate,
 }: {
     cost: number;
     salePrice: number;
+    currency: string;
+    exchangeRate: number;
 }) => {
     const numericCost = Number(cost) || 0;
+    // Convertimos a Soles si la compra es en Dólares para comparar con el precio de venta (que suele ser en Soles)
+    const costInSoles =
+        currency === 'USD' ? numericCost * exchangeRate : numericCost;
+
     const numericSalePrice = Number(salePrice) || 0;
+
+    // Si no hay precio de venta definido, no mostramos nada
     if (numericSalePrice <= 0) return null;
-    const margin = numericSalePrice - numericCost;
+
+    const margin = numericSalePrice - costInSoles;
     const marginPercent = (margin / numericSalePrice) * 100;
     const marginText = `S/ ${margin.toFixed(2)}`;
 
-    if (numericCost > numericSalePrice) {
+    // CASO DE PÉRDIDA
+    if (costInSoles > numericSalePrice) {
         return (
             <TooltipProvider>
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <div className="flex cursor-help items-center gap-1 font-bold text-red-600">
+                        <div className="flex cursor-help items-center justify-center gap-1 font-bold text-red-600">
                             <TrendingDown className="h-4 w-4" />
                             <span className="text-[10px]">{marginText}</span>
                         </div>
                     </TooltipTrigger>
                     <TooltipContent className="border-none bg-red-600 text-white">
                         <p className="text-xs font-bold uppercase">
-                            Aviso de Pérdida
+                            Posible Pérdida (Ref. Cambio)
                         </p>
                     </TooltipContent>
                 </Tooltip>
             </TooltipProvider>
         );
     }
+
+    // CASO DE GANANCIA
     const colorClass =
         marginPercent < 15 ? 'text-yellow-600' : 'text-emerald-600';
+
     return (
         <TooltipProvider>
             <Tooltip>
@@ -149,7 +171,7 @@ const MarginIndicator = ({
                     <div
                         className={cn(
                             colorClass,
-                            'flex cursor-help items-center gap-1 font-bold',
+                            'flex cursor-help items-center justify-center gap-1 font-bold',
                         )}
                     >
                         <TrendingUp className="h-4 w-4" />
@@ -164,7 +186,7 @@ const MarginIndicator = ({
                 >
                     <p className="text-[10px] font-bold uppercase">
                         {marginPercent < 15
-                            ? 'Margen Ajustado'
+                            ? 'Margen Ajustado (<15%)'
                             : '¡Margen Óptimo!'}
                     </p>
                 </TooltipContent>
@@ -173,16 +195,21 @@ const MarginIndicator = ({
     );
 };
 
+// --- COMPONENTE PRINCIPAL ---
 export default function CreateReceipt({
     suppliers,
     products,
     documentTypes,
 }: Props) {
     const [formError, setFormError] = useState<string | null>(null);
+
+    // Estado inicial de las filas
     const [rows, setRows] = useState<DetailRow[]>([
         {
             id: Date.now(),
+            type: 'product',
             id_product: '',
+            description: '',
             quantity: 1,
             unit_price: 0,
             sale_price: 0,
@@ -203,21 +230,51 @@ export default function CreateReceipt({
         document_type: '',
         series: '',
         number: '',
+        currency: 'PEN', // Por defecto Soles
+        exchange_rate: '1.000', // Por defecto 1.000
         issue_date: new Date(),
         file: null as File | null,
         details: [] as any[],
     });
 
-    // Detectamos si hay errores en cualquier parte de los detalles (tabla)
-    const hasDetailErrors = Object.keys(errors).some((key) =>
-        key.startsWith('details'),
-    );
+    const symbol = data.currency === 'USD' ? '$' : 'S/';
 
+    // --- MANEJADORES ---
+
+    const handleCurrencyChange = (val: string) => {
+        setData((prev) => ({
+            ...prev,
+            currency: val,
+            // Resetear o sugerir tipo de cambio al cambiar moneda
+            exchange_rate: val === 'PEN' ? '1.000' : '3.800',
+        }));
+    };
+
+    const toggleRowType = (id: number) => {
+        setRows((prev) =>
+            prev.map((row) => {
+                if (row.id === id) {
+                    const isNowService = row.type === 'product';
+                    return {
+                        ...row,
+                        type: isNowService ? 'service' : 'product',
+                        id_product: '', // Limpiamos ID al cambiar
+                        description: '', // Limpiamos descripción al cambiar
+                        sale_price: 0, // Servicios no suelen tener P.Venta sugerido directo
+                    };
+                }
+                return row;
+            }),
+        );
+    };
+
+    // Helper para actualizar campos del formulario general
     const onFieldChange = (field: keyof typeof data, value: any) => {
         setData(field, value);
         if (errors[field]) clearErrors(field);
     };
 
+    // Helper para actualizar filas de la tabla
     const updateRow = (id: number, field: keyof DetailRow, value: any) => {
         setRows((prev) =>
             prev.map((row) =>
@@ -226,6 +283,12 @@ export default function CreateReceipt({
         );
     };
 
+    // Detectar errores en array de detalles para pintar borde rojo
+    const hasDetailErrors = Object.keys(errors).some((key) =>
+        key.startsWith('details'),
+    );
+
+    // --- CÁLCULOS ---
     const totalAmount = rows.reduce(
         (acc, row) => acc + row.quantity * row.unit_price,
         0,
@@ -233,6 +296,13 @@ export default function CreateReceipt({
     const igvAmount = totalAmount - totalAmount / 1.18;
     const subTotal = totalAmount - igvAmount;
 
+    // Total referencial en soles (si es USD)
+    const totalInSoles =
+        data.currency === 'USD'
+            ? totalAmount * Number(data.exchange_rate)
+            : totalAmount;
+
+    // --- PREPARACIÓN DE OPCIONES ---
     const supplierOptions = suppliers.map((s) => ({
         value: String(s.id_supplier),
         label: s.company_name,
@@ -244,7 +314,11 @@ export default function CreateReceipt({
             : p.product_name,
         salePrice: p.sale_price,
     }));
+    const selectedProductIds = rows
+        .map((r) => r.id_product)
+        .filter((id) => id !== '');
 
+    // --- SUBMIT ---
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         setFormError(null);
@@ -252,45 +326,32 @@ export default function CreateReceipt({
         transform((data) => ({
             ...data,
             issue_date: format(data.issue_date, 'yyyy-MM-dd HH:mm:ss'),
+            exchange_rate: parseFloat(data.exchange_rate),
             details: rows.map((r) => ({
-                id_product: r.id_product,
+                id_product: r.type === 'product' ? r.id_product : null,
+                description: r.type === 'service' ? r.description : null,
                 quantity: r.quantity,
                 unit_price: r.unit_price,
                 sale_price: r.sale_price,
+                is_service: r.type === 'service',
             })),
         }));
 
         post(receiptsRoute.store().url, {
             forceFormData: true,
             onError: (err: any) => {
-                // Prioridad 1: Error manual desde el backend (catch/validación manual)
                 if (err.error) {
                     setFormError(err.error);
-                }
-                // Prioridad 2: Errores de validación estándar de Laravel
-                else if (Object.keys(err).length > 0) {
-                    // Si hay errores en los detalles específicamente
-                    const hasDetailsError = Object.keys(err).some((k) =>
-                        k.startsWith('details'),
+                } else if (Object.keys(err).length > 0) {
+                    setFormError(
+                        hasDetailErrors
+                            ? 'Hay errores en la lista de ítems.'
+                            : 'Por favor corrige los campos obligatorios.',
                     );
-
-                    if (hasDetailsError) {
-                        setFormError(
-                            'Hay errores en la lista de productos. Revisa las filas marcadas en rojo.',
-                        );
-                    } else {
-                        setFormError(
-                            'Por favor corrige los campos obligatorios del formulario.',
-                        );
-                    }
                 }
             },
         });
     };
-
-    const selectedProductIds = rows
-        .map((r) => r.id_product)
-        .filter((id) => id !== '');
 
     return (
         <AppLayout
@@ -305,7 +366,7 @@ export default function CreateReceipt({
                 onSubmit={submit}
                 className="flex h-full flex-col bg-background"
             >
-                {/* --- HEADER --- */}
+                {/* --- HEADER STICKY (RESTAURADO) --- */}
                 <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b bg-background/95 px-8 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                     <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
@@ -342,14 +403,16 @@ export default function CreateReceipt({
 
                 <div className="w-full animate-in px-8 py-8 duration-500 fade-in slide-in-from-bottom-4">
                     <div className="mx-auto max-w-7xl space-y-10">
+                        {/* --- GRID SUPERIOR: DATOS GENERALES --- */}
                         <div className="grid grid-cols-1 gap-x-16 gap-y-10 md:grid-cols-2">
-                            {/* BLOQUE PROVEEDOR */}
+                            {/* COLUMNA IZQUIERDA: COMERCIAL */}
                             <div className="space-y-6">
                                 <h3 className="flex items-center gap-2 border-b pb-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:text-neutral-400">
-                                    <Truck className="h-3 w-3" /> Información
-                                    del Proveedor
+                                    <Truck className="h-3 w-3" /> Datos
+                                    Comerciales
                                 </h3>
                                 <div className="space-y-4">
+                                    {/* Proveedor */}
                                     <div className="space-y-2">
                                         <Label
                                             className={cn(
@@ -386,6 +449,70 @@ export default function CreateReceipt({
                                             message={errors.id_supplier}
                                         />
                                     </div>
+
+                                    {/* Moneda y TC */}
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div className="space-y-2">
+                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase">
+                                                Moneda
+                                            </Label>
+                                            <Select
+                                                value={data.currency}
+                                                onValueChange={
+                                                    handleCurrencyChange
+                                                }
+                                            >
+                                                <SelectTrigger
+                                                    className={cleanInputClass}
+                                                >
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="PEN">
+                                                        S/ Soles (PEN)
+                                                    </SelectItem>
+                                                    <SelectItem value="USD">
+                                                        $ Dólares (USD)
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <Label
+                                                className={cn(
+                                                    'text-[10px] font-bold text-muted-foreground uppercase',
+                                                    data.currency === 'PEN' &&
+                                                        'opacity-50',
+                                                )}
+                                            >
+                                                Tipo de Cambio
+                                            </Label>
+                                            <div className="relative">
+                                                <ArrowRightLeft className="absolute top-2.5 left-0 h-3 w-3 text-muted-foreground" />
+                                                <Input
+                                                    type="number"
+                                                    step="0.001"
+                                                    value={data.exchange_rate}
+                                                    onChange={(e) =>
+                                                        onFieldChange(
+                                                            'exchange_rate',
+                                                            e.target.value,
+                                                        )
+                                                    }
+                                                    disabled={
+                                                        data.currency === 'PEN'
+                                                    }
+                                                    className={cn(
+                                                        cleanInputClass,
+                                                        'pl-6 font-mono',
+                                                    )}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Serie y Número */}
                                     <div className="grid grid-cols-2 gap-6">
                                         <div className="space-y-2">
                                             <Label
@@ -427,7 +554,7 @@ export default function CreateReceipt({
                                                         : 'text-muted-foreground',
                                                 )}
                                             >
-                                                Número Correlativo
+                                                Número
                                             </Label>
                                             <Input
                                                 value={data.number}
@@ -452,121 +579,122 @@ export default function CreateReceipt({
                                 </div>
                             </div>
 
-                            {/* BLOQUE DOCUMENTO (CON HORA) */}
+                            {/* COLUMNA DERECHA: DOCUMENTO */}
                             <div className="space-y-6">
                                 <h3 className="flex items-center gap-2 border-b pb-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:text-neutral-400">
                                     <FileText className="h-3 w-3" /> Detalles
-                                    del Documento
+                                    Documento
                                 </h3>
-                                <div className="grid grid-cols-2 gap-6">
-                                    <div className="space-y-2">
-                                        <Label
-                                            className={cn(
-                                                'text-[10px] font-bold uppercase',
-                                                errors.document_type
-                                                    ? 'text-red-500'
-                                                    : 'text-muted-foreground',
-                                            )}
-                                        >
-                                            Tipo Comprobante
-                                        </Label>
-                                        <Select
-                                            value={data.document_type}
-                                            onValueChange={(val) =>
-                                                onFieldChange(
-                                                    'document_type',
-                                                    val,
-                                                )
-                                            }
-                                        >
-                                            <SelectTrigger
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                                        <div className="space-y-2">
+                                            <Label
                                                 className={cn(
-                                                    cleanInputClass,
-                                                    errors.document_type &&
-                                                        'border-red-500',
+                                                    'text-[10px] font-bold uppercase',
+                                                    errors.document_type
+                                                        ? 'text-red-500'
+                                                        : 'text-muted-foreground',
                                                 )}
                                             >
-                                                <SelectValue placeholder="Seleccionar..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {documentTypes.map((dt) => (
-                                                    <SelectItem
-                                                        key={dt.value}
-                                                        value={dt.value}
-                                                    >
-                                                        {dt.label}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <InputError
-                                            message={errors.document_type}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label
-                                            className={cn(
-                                                'text-[10px] font-bold uppercase',
-                                                errors.issue_date
-                                                    ? 'text-red-500'
-                                                    : 'text-muted-foreground',
-                                            )}
-                                        >
-                                            Fecha y Hora Recepción
-                                        </Label>
-                                        <Popover>
-                                            <PopoverTrigger asChild>
-                                                <Button
-                                                    variant="outline"
+                                                Tipo Comprobante
+                                            </Label>
+                                            <Select
+                                                value={data.document_type}
+                                                onValueChange={(val) =>
+                                                    onFieldChange(
+                                                        'document_type',
+                                                        val,
+                                                    )
+                                                }
+                                            >
+                                                <SelectTrigger
                                                     className={cn(
                                                         cleanInputClass,
-                                                        'text-left font-medium',
-                                                        !data.issue_date &&
-                                                            'text-muted-foreground',
-                                                        errors.issue_date &&
-                                                            'border-red-500 text-red-500',
+                                                        errors.document_type &&
+                                                            'border-red-500',
                                                     )}
                                                 >
-                                                    <CalendarIcon className="mr-2 h-4 w-4 text-blue-600" />
-                                                    {data.issue_date
-                                                        ? format(
-                                                              data.issue_date,
-                                                              'Pp',
-                                                              { locale: es },
-                                                          )
-                                                        : 'Elegir fecha...'}
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent
-                                                className="flex w-auto flex-col p-0"
-                                                align="start"
+                                                    <SelectValue placeholder="Seleccionar..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {documentTypes.map((dt) => (
+                                                        <SelectItem
+                                                            key={dt.value}
+                                                            value={dt.value}
+                                                        >
+                                                            {dt.label}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <InputError
+                                                message={errors.document_type}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label
+                                                className={cn(
+                                                    'text-[10px] font-bold uppercase',
+                                                    errors.issue_date
+                                                        ? 'text-red-500'
+                                                        : 'text-muted-foreground',
+                                                )}
                                             >
-                                                <Calendar
-                                                    mode="single"
-                                                    selected={data.issue_date}
-                                                    onSelect={(d) => {
-                                                        if (d) {
-                                                            const newDate =
-                                                                new Date(d);
-                                                            newDate.setHours(
-                                                                data.issue_date.getHours(),
-                                                            );
-                                                            newDate.setMinutes(
-                                                                data.issue_date.getMinutes(),
-                                                            );
-                                                            onFieldChange(
-                                                                'issue_date',
-                                                                newDate,
-                                                            );
+                                                Fecha Emisión
+                                            </Label>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        variant="outline"
+                                                        className={cn(
+                                                            cleanInputClass,
+                                                            'text-left font-medium',
+                                                            !data.issue_date &&
+                                                                'text-muted-foreground',
+                                                            errors.issue_date &&
+                                                                'border-red-500 text-red-500',
+                                                        )}
+                                                    >
+                                                        <CalendarIcon className="mr-2 h-4 w-4 text-blue-600" />
+                                                        {data.issue_date
+                                                            ? format(
+                                                                  data.issue_date,
+                                                                  'Pp',
+                                                                  {
+                                                                      locale: es,
+                                                                  },
+                                                              )
+                                                            : 'Elegir fecha...'}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent
+                                                    className="flex w-auto flex-col p-0"
+                                                    align="start"
+                                                >
+                                                    <Calendar
+                                                        mode="single"
+                                                        selected={
+                                                            data.issue_date
                                                         }
-                                                    }}
-                                                    disabled={(date) =>
-                                                        date > new Date()
-                                                    }
-                                                />
-                                                <div className="flex items-center justify-between gap-4 border-t bg-muted/20 p-3">
-                                                    <div className="flex items-center gap-2">
-                                                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                                                        onSelect={(d) => {
+                                                            if (d) {
+                                                                const newDate =
+                                                                    new Date(d);
+                                                                newDate.setHours(
+                                                                    data.issue_date.getHours(),
+                                                                    data.issue_date.getMinutes(),
+                                                                );
+                                                                onFieldChange(
+                                                                    'issue_date',
+                                                                    newDate,
+                                                                );
+                                                            }
+                                                        }}
+                                                        disabled={(date) =>
+                                                            date > new Date()
+                                                        }
+                                                    />
+                                                    <div className="flex items-center justify-between gap-4 border-t bg-muted/20 p-3">
                                                         <span className="text-[10px] font-bold text-muted-foreground uppercase">
                                                             Hora:
                                                         </span>
@@ -597,43 +725,58 @@ export default function CreateReceipt({
                                                             }}
                                                         />
                                                     </div>
-                                                </div>
-                                            </PopoverContent>
-                                        </Popover>
-                                        <InputError
-                                            message={errors.issue_date}
-                                        />
+                                                </PopoverContent>
+                                            </Popover>
+                                            <InputError
+                                                message={errors.issue_date}
+                                            />
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label
-                                        className={cn(
-                                            'text-[10px] font-bold uppercase',
-                                            errors.file
-                                                ? 'text-red-500'
-                                                : 'text-muted-foreground',
-                                        )}
-                                    >
-                                        Archivo Adjunto
-                                    </Label>
-                                    <div className="group relative">
+                                    <div className="space-y-2">
+                                        <Label
+                                            className={cn(
+                                                'text-[10px] font-bold uppercase',
+                                                errors.file
+                                                    ? 'text-red-500'
+                                                    : 'text-muted-foreground',
+                                            )}
+                                        >
+                                            Archivo Adjunto
+                                        </Label>
+
                                         <div
                                             className={cn(
-                                                'flex items-center gap-2 border-b border-muted py-2 transition-all',
+                                                'relative flex items-center gap-2 border-b border-muted py-2 transition-all',
+                                                'cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/20',
                                                 data.file &&
-                                                    'rounded-t-sm border-emerald-500/50 bg-emerald-50/30 px-2',
+                                                    'rounded-t-sm border-emerald-500/50 bg-emerald-50/30 px-2 hover:bg-emerald-100/30',
                                                 errors.file && 'border-red-500',
                                             )}
                                         >
-                                            <Paperclip className="h-4 w-4 text-blue-600" />
-                                            <span className="flex-1 truncate text-xs font-medium">
-                                                {data.file
-                                                    ? data.file.name
-                                                    : 'Subir Comprobante (PDF/JPG)'}
+                                            <Paperclip
+                                                className={cn(
+                                                    'h-4 w-4 transition-colors',
+                                                    'text-blue-600 group-hover:text-blue-700',
+                                                )}
+                                            />
+
+                                            <span className="flex-1 truncate text-xs font-medium text-foreground/80">
+                                                {data.file ? (
+                                                    <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                                                        {data.file.name}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-muted-foreground group-hover:text-blue-600">
+                                                        Clic para subir
+                                                        Comprobante (PDF/JPG)
+                                                    </span>
+                                                )}
                                             </span>
+
                                             <Input
                                                 type="file"
-                                                className="absolute inset-0 cursor-pointer opacity-0"
+                                                accept=".pdf,.jpg,.jpeg,.png"
+                                                className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
                                                 onChange={(e) =>
                                                     onFieldChange(
                                                         'file',
@@ -642,30 +785,33 @@ export default function CreateReceipt({
                                                     )
                                                 }
                                             />
+
                                             {data.file && (
                                                 <Button
                                                     type="button"
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-5 w-5 hover:bg-red-100"
-                                                    onClick={() =>
+                                                    // z-20 para estar ENCIMA del input invisible
+                                                    className="relative z-20 h-6 w-6 hover:bg-red-100 hover:text-red-600"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
                                                         onFieldChange(
                                                             'file',
                                                             null,
-                                                        )
-                                                    }
+                                                        );
+                                                    }}
                                                 >
-                                                    <Trash2 className="h-3 w-3 text-red-500" />
+                                                    <Trash2 className="h-4 w-4" />
                                                 </Button>
                                             )}
                                         </div>
+                                        <InputError message={errors.file} />
                                     </div>
-                                    <InputError message={errors.file} />
                                 </div>
                             </div>
                         </div>
 
-                        {/* --- TABLA DE PRODUCTOS --- */}
+                        {/* --- TABLA DE DETALLES --- */}
                         <div className="space-y-4 pt-6">
                             <h3
                                 className={cn(
@@ -676,16 +822,15 @@ export default function CreateReceipt({
                                 )}
                             >
                                 <ShoppingBag className="h-4 w-4" /> Líneas de
-                                Compra
+                                Compra ({data.currency})
                             </h3>
 
-                            {/* Alerta visual ENCIMA de la tabla si hay errores en cualquier fila */}
+                            {/* Alerta visual si hay errores */}
                             {hasDetailErrors && (
                                 <div className="mb-2 rounded-md border border-red-200 bg-red-50 p-3 text-red-600 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
                                     <p className="flex items-center gap-2 text-xs font-bold">
                                         <AlertCircle className="h-4 w-4" />
-                                        Existen errores en los productos
-                                        listados. Revisa las celdas rojas.
+                                        Existen errores en los ítems listados.
                                     </p>
                                 </div>
                             )}
@@ -700,23 +845,26 @@ export default function CreateReceipt({
                                 <Table>
                                     <TableHeader className="bg-muted/30 dark:bg-neutral-900">
                                         <TableRow className="dark:border-neutral-800">
+                                            <TableHead className="w-[50px] text-center text-[10px] font-bold uppercase">
+                                                Tipo
+                                            </TableHead>
                                             <TableHead className="w-[35%] text-[10px] font-bold uppercase">
-                                                Producto
+                                                Descripción / Producto
                                             </TableHead>
                                             <TableHead className="w-[10%] text-right text-[10px] font-bold uppercase">
                                                 Cant.
                                             </TableHead>
                                             <TableHead className="w-[15%] text-right text-[10px] font-bold uppercase">
-                                                Costo Unit.
+                                                Costo Unit. ({symbol})
                                             </TableHead>
                                             <TableHead className="w-[15%] text-right text-[10px] font-bold uppercase">
-                                                P. Venta Ref.
+                                                P. Venta Ref. (S/)
                                             </TableHead>
                                             <TableHead className="w-[10%] text-center text-[10px] font-bold uppercase">
                                                 Margen
                                             </TableHead>
                                             <TableHead className="w-[15%] text-right text-[10px] font-bold uppercase">
-                                                Subtotal
+                                                Subtotal ({symbol})
                                             </TableHead>
                                             <TableHead className="w-[50px]"></TableHead>
                                         </TableRow>
@@ -727,52 +875,127 @@ export default function CreateReceipt({
                                                 key={row.id}
                                                 className="hover:bg-muted/20 dark:border-neutral-800"
                                             >
-                                                <TableCell className="p-2">
-                                                    <SearchableSelect
-                                                        options={productOptions.filter(
-                                                            (o) =>
-                                                                !selectedProductIds.includes(
-                                                                    o.value,
-                                                                ) ||
-                                                                o.value ===
-                                                                    row.id_product,
-                                                        )}
-                                                        value={row.id_product}
-                                                        onChange={(val) => {
-                                                            const opt =
-                                                                productOptions.find(
-                                                                    (o) =>
-                                                                        o.value ===
-                                                                        val,
-                                                                );
-                                                            updateRow(
-                                                                row.id,
-                                                                'id_product',
-                                                                val,
-                                                            );
-                                                            updateRow(
-                                                                row.id,
-                                                                'sale_price',
-                                                                opt?.salePrice ||
-                                                                    0,
-                                                            );
-                                                        }}
-                                                        onCreate={() =>
-                                                            router.visit(
-                                                                productcRoutes.create()
-                                                                    .url,
-                                                            )
-                                                        }
-                                                        placeholder="Producto..."
-                                                        className={cn(
-                                                            cleanInputClass,
-                                                            errors[
-                                                                `details.${index}.id_product`
-                                                            ] &&
-                                                                'border-b-red-500',
-                                                        )}
-                                                    />
+                                                {/* 1. TIPO TOGGLE */}
+                                                <TableCell className="p-2 text-center">
+                                                    <TooltipProvider>
+                                                        <Tooltip>
+                                                            <TooltipTrigger
+                                                                asChild
+                                                            >
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className={cn(
+                                                                        'h-8 w-8 rounded-full',
+                                                                        row.type ===
+                                                                            'service'
+                                                                            ? 'bg-purple-100 text-purple-600 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300'
+                                                                            : 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300',
+                                                                    )}
+                                                                    onClick={() =>
+                                                                        toggleRowType(
+                                                                            row.id,
+                                                                        )
+                                                                    }
+                                                                >
+                                                                    {row.type ===
+                                                                    'product' ? (
+                                                                        <Box className="h-4 w-4" />
+                                                                    ) : (
+                                                                        <Briefcase className="h-4 w-4" />
+                                                                    )}
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>
+                                                                <p>
+                                                                    {row.type ===
+                                                                    'product'
+                                                                        ? 'Producto de Inventario'
+                                                                        : 'Servicio / Gasto'}
+                                                                </p>
+                                                            </TooltipContent>
+                                                        </Tooltip>
+                                                    </TooltipProvider>
                                                 </TableCell>
+
+                                                {/* 2. SELECTOR O INPUT DESCRIPCIÓN */}
+                                                <TableCell className="p-2">
+                                                    {row.type === 'product' ? (
+                                                        <SearchableSelect
+                                                            options={productOptions.filter(
+                                                                (o) =>
+                                                                    !selectedProductIds.includes(
+                                                                        o.value,
+                                                                    ) ||
+                                                                    o.value ===
+                                                                        row.id_product,
+                                                            )}
+                                                            value={
+                                                                row.id_product ||
+                                                                ''
+                                                            }
+                                                            onChange={(val) => {
+                                                                const opt =
+                                                                    productOptions.find(
+                                                                        (o) =>
+                                                                            o.value ===
+                                                                            val,
+                                                                    );
+                                                                updateRow(
+                                                                    row.id,
+                                                                    'id_product',
+                                                                    val,
+                                                                );
+                                                                updateRow(
+                                                                    row.id,
+                                                                    'sale_price',
+                                                                    opt?.salePrice ||
+                                                                        0,
+                                                                );
+                                                            }}
+                                                            onCreate={() =>
+                                                                router.visit(
+                                                                    productcRoutes.create()
+                                                                        .url,
+                                                                )
+                                                            }
+                                                            placeholder="Buscar Producto..."
+                                                            className={cn(
+                                                                cleanInputClass,
+                                                                errors[
+                                                                    `details.${index}.id_product`
+                                                                ] &&
+                                                                    'border-b-red-500',
+                                                            )}
+                                                        />
+                                                    ) : (
+                                                        <Input
+                                                            placeholder="Ej. Hosting Anual, Servicio de Luz..."
+                                                            value={
+                                                                row.description
+                                                            }
+                                                            onChange={(e) =>
+                                                                updateRow(
+                                                                    row.id,
+                                                                    'description',
+                                                                    e.target
+                                                                        .value,
+                                                                )
+                                                            }
+                                                            className={cn(
+                                                                cleanInputClass,
+                                                                errors[
+                                                                    `details.${index}.description`
+                                                                ] &&
+                                                                    'border-b-red-500',
+                                                            )}
+                                                            autoFocus
+                                                        />
+                                                    )}
+                                                </TableCell>
+
+                                                {/* 3. CANTIDAD */}
                                                 <TableCell className="p-2">
                                                     <Input
                                                         type="number"
@@ -796,21 +1019,14 @@ export default function CreateReceipt({
                                                         }
                                                     />
                                                 </TableCell>
+
+                                                {/* 4. COSTO UNIT (Moneda seleccionada) */}
                                                 <TableCell className="p-2">
                                                     <Input
                                                         type="number"
                                                         step="0.01"
                                                         className={cn(
                                                             tableInputClass,
-                                                            Number(
-                                                                row.unit_price,
-                                                            ) >
-                                                                Number(
-                                                                    row.sale_price,
-                                                                ) &&
-                                                                row.sale_price >
-                                                                    0 &&
-                                                                'font-black text-red-600',
                                                             errors[
                                                                 `details.${index}.unit_price`
                                                             ] &&
@@ -829,41 +1045,70 @@ export default function CreateReceipt({
                                                         }
                                                     />
                                                 </TableCell>
+
+                                                {/* 5. PRECIO VENTA (Siempre Soles) */}
                                                 <TableCell className="p-2">
-                                                    <Input
-                                                        type="number"
-                                                        step="0.01"
-                                                        className={
-                                                            tableInputClass
-                                                        }
-                                                        value={row.sale_price}
-                                                        onChange={(e) =>
-                                                            updateRow(
-                                                                row.id,
-                                                                'sale_price',
-                                                                parseFloat(
-                                                                    e.target
-                                                                        .value,
-                                                                ) || 0,
-                                                            )
-                                                        }
-                                                    />
+                                                    <div className="relative">
+                                                        <span className="absolute top-1.5 left-0 text-[10px] font-bold text-muted-foreground">
+                                                            S/
+                                                        </span>
+                                                        <Input
+                                                            type="number"
+                                                            step="0.01"
+                                                            className={cn(
+                                                                tableInputClass,
+                                                                'pl-4',
+                                                            )}
+                                                            value={
+                                                                row.sale_price
+                                                            }
+                                                            onChange={(e) =>
+                                                                updateRow(
+                                                                    row.id,
+                                                                    'sale_price',
+                                                                    parseFloat(
+                                                                        e.target
+                                                                            .value,
+                                                                    ) || 0,
+                                                                )
+                                                            }
+                                                        />
+                                                    </div>
                                                 </TableCell>
+
+                                                {/* 6. INDICADOR MARGEN */}
                                                 <TableCell className="p-2 text-center">
-                                                    <MarginIndicator
-                                                        cost={row.unit_price}
-                                                        salePrice={
-                                                            row.sale_price
-                                                        }
-                                                    />
+                                                    {row.type === 'product' ? (
+                                                        <MarginIndicator
+                                                            cost={
+                                                                row.unit_price
+                                                            }
+                                                            salePrice={
+                                                                row.sale_price
+                                                            }
+                                                            currency={
+                                                                data.currency
+                                                            }
+                                                            exchangeRate={Number(
+                                                                data.exchange_rate,
+                                                            )}
+                                                        />
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">
+                                                            -
+                                                        </span>
+                                                    )}
                                                 </TableCell>
+
+                                                {/* 7. SUBTOTAL */}
                                                 <TableCell className="p-2 text-right font-bold text-foreground tabular-nums">
-                                                    S/{' '}
+                                                    {symbol}{' '}
                                                     {(
                                                         row.quantity *
                                                         row.unit_price
                                                     ).toFixed(2)}
                                                 </TableCell>
+
                                                 <TableCell className="p-2 text-center">
                                                     <Button
                                                         type="button"
@@ -890,6 +1135,7 @@ export default function CreateReceipt({
                                 </Table>
                             </div>
 
+                            {/* --- FOOTER: TOTALES --- */}
                             <div className="flex items-start justify-between pt-6">
                                 <Button
                                     type="button"
@@ -900,7 +1146,9 @@ export default function CreateReceipt({
                                             ...rows,
                                             {
                                                 id: Date.now(),
+                                                type: 'product',
                                                 id_product: '',
+                                                description: '',
                                                 quantity: 1,
                                                 unit_price: 0,
                                                 sale_price: 0,
@@ -910,26 +1158,44 @@ export default function CreateReceipt({
                                     className="text-[10px] font-bold tracking-widest text-blue-600 uppercase hover:bg-blue-50 dark:hover:bg-blue-500/10"
                                 >
                                     <Plus className="mr-2 h-4 w-4" /> Añadir
-                                    Producto
+                                    Ítem
                                 </Button>
 
-                                <div className="w-full max-w-xs space-y-3 rounded-xl border bg-muted/10 p-6 dark:border-neutral-800">
+                                <div className="w-full max-w-sm space-y-3 rounded-xl border bg-muted/10 p-6 dark:border-neutral-800">
                                     <div className="flex justify-between text-sm font-medium text-muted-foreground">
                                         <span>Base Imponible</span>
-                                        <span>S/ {subTotal.toFixed(2)}</span>
+                                        <span>
+                                            {symbol} {subTotal.toFixed(2)}
+                                        </span>
                                     </div>
                                     <div className="flex justify-between text-sm font-medium text-muted-foreground">
                                         <span>IGV (18%)</span>
-                                        <span>S/ {igvAmount.toFixed(2)}</span>
+                                        <span>
+                                            {symbol} {igvAmount.toFixed(2)}
+                                        </span>
                                     </div>
+
                                     <div className="mt-4 flex justify-between border-t border-blue-200 pt-4 dark:border-neutral-700">
                                         <span className="text-lg font-black tracking-tighter text-foreground uppercase">
                                             Total Compra
                                         </span>
                                         <span className="text-2xl font-black text-blue-600 tabular-nums dark:text-blue-400">
-                                            S/ {totalAmount.toFixed(2)}
+                                            {symbol} {totalAmount.toFixed(2)}
                                         </span>
                                     </div>
+
+                                    {/* Mostrar ref. en Soles si es USD */}
+                                    {data.currency === 'USD' && (
+                                        <div className="flex justify-between border-t border-dashed border-neutral-300 pt-2 text-xs text-muted-foreground">
+                                            <span>
+                                                Valor en Soles (Ref. T.C.{' '}
+                                                {data.exchange_rate})
+                                            </span>
+                                            <span className="font-bold">
+                                                S/ {totalInSoles.toFixed(2)}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -937,7 +1203,7 @@ export default function CreateReceipt({
                 </div>
             </form>
 
-            {/* ALERTA DE ERROR ESTILIZADA PARA DARK MODE (TEXTO MÁS CLARO) */}
+            {/* --- ALERTA FLOTANTE --- */}
             {formError && (
                 <div className="fixed top-6 right-6 z-[100] w-auto max-w-md animate-in fade-in slide-in-from-top-2">
                     <Alert

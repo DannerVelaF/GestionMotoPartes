@@ -22,7 +22,6 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ReceiptController extends Controller
 {
-
     protected $service;
 
     public function __construct(ReceiptService $service)
@@ -34,14 +33,14 @@ class ReceiptController extends Controller
     {
         $search = $request->input('search');
         $perPage = $request->input('per_page', 20);
-        $groupBy = $request->input('group_by') ?? 'none'; // Default 'none'
+        $groupBy = $request->input('group_by') ?? 'none';
 
         if (!is_numeric($perPage) || $perPage < 1) {
             $perPage = 20;
         }
 
         $query = Receipt::query()
-            ->with(['supplier:id_supplier,company_name,ruc']) // Cargar relación
+            ->with(['supplier:id_supplier,company_name,ruc'])
             ->when($search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('receipt_code', 'like', "%{$search}%")
@@ -54,11 +53,9 @@ class ReceiptController extends Controller
                 });
             });
 
-        // Lógica de Ordenamiento para que el agrupamiento visual funcione bien
         if ($groupBy === 'document_type') {
             $query->orderBy('document_type', 'asc');
         } elseif ($groupBy === 'month') {
-            // Ordenar por fecha para agrupar por mes
             $query->orderBy('issue_date', 'desc');
         } else {
             $query->orderBy('created_at', 'desc');
@@ -87,7 +84,6 @@ class ReceiptController extends Controller
             'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')
                 ->orderBy('company_name')
                 ->get(),
-            // Esto ya lo tenías bien, se mantiene:
             'products' => Products::where('status', 'active')
                 ->select('id_product', 'product_name', 'product_code', 'sale_price')
                 ->orderBy('product_name')
@@ -107,51 +103,71 @@ class ReceiptController extends Controller
             'series.required' => 'La serie del comprobante es obligatoria.',
             'number.required' => 'El número del comprobante es obligatorio.',
             'issue_date.required' => 'La fecha de emisión es obligatoria.',
-            'details.required' => 'Debes agregar al menos un producto.',
-            'details.*.id_product.required' => 'El producto es obligatorio en cada línea.',
-            'details.*.id_product.exists' => 'Uno de los productos seleccionados no es válido.',
+            'details.required' => 'Debes agregar al menos un ítem.',
+            'details.*.id_product.required_if' => 'Seleccione un producto o escriba una descripción.',
+            'details.*.description.required_if' => 'La descripción es obligatoria para servicios.',
             'details.*.quantity.required' => 'La cantidad es obligatoria.',
             'details.*.quantity.min' => 'La cantidad debe ser mayor a 0.',
             'details.*.unit_price.required' => 'El costo unitario es obligatorio.',
             'details.*.unit_price.min' => 'El costo unitario debe ser mayor o igual a 0.',
-            'details.*.sale_price.required' => 'El precio de venta es obligatorio.',
-            'details.*.sale_price.min' => 'El precio de venta debe ser mayor o igual a 0.',
         ];
 
         $validated = $request->validate([
-            'id_supplier'           => 'required|exists:suppliers,id_supplier',
-            'document_type'         => ['required', Rule::enum(DocumentType::class)],
-            'series'                => 'required|string|max:10',
-            'number'                => 'required|string|max:20',
-            'issue_date'            => 'required|date',
-            'file'                  => 'nullable|file|mimes:pdf,jpg,png,jpeg|max:5120',
-            'details'               => 'required|array|min:1',
-            'details.*.id_product'  => 'required|exists:products,id_product',
-            'details.*.quantity'    => 'required|numeric|min:0.01',
-            'details.*.unit_price'  => 'required|numeric|min:0',
-            'details.*.sale_price'  => 'required|numeric|min:0',
+            'id_supplier'       => 'required|exists:suppliers,id_supplier',
+            'document_type'     => ['required', Rule::enum(DocumentType::class)],
+
+            // --- NUEVOS CAMPOS ---
+            'currency'          => 'required|in:PEN,USD',
+            'exchange_rate'     => 'required|numeric|min:0.0001',
+
+            'series'            => 'required|string|max:10',
+            'number'            => 'required|string|max:20',
+            'issue_date'        => 'required|date',
+            'file'              => 'nullable|file|mimes:pdf,jpg,png,jpeg|max:5120',
+
+            'details'           => 'required|array|min:1',
+            'details.*.is_service' => 'boolean',
+            'details.*.id_product' => 'nullable|required_if:details.*.is_service,false|exists:products,id_product',
+            'details.*.description' => 'nullable|required_if:details.*.is_service,true|string|max:255',
+            'details.*.quantity'   => 'required|numeric|min:0.01',
+            'details.*.unit_price' => 'required|numeric|min:0',
+            'details.*.sale_price' => 'nullable|numeric|min:0',
         ], $messages);
 
-
         if (empty($validated['details'])) {
-            return back()->withErrors(['error' => 'Debes agregar al menos un producto.']);
+            return back()->withErrors(['error' => 'Debes agregar al menos un ítem.']);
         }
 
-
         try {
-            $productNames = Products::whereIn('id_product', collect($validated['details'])->pluck('id_product'))
-                ->pluck('product_name', 'id_product');
+            // Validación de Márgenes (Solo si es Producto)
+            // NOTA: Si es USD, convertimos a Soles para comparar con el precio de venta (que suele estar en Soles)
+            $exchangeRate = (float) $validated['exchange_rate'];
+            $isUSD = $validated['currency'] === 'USD';
 
-            foreach ($validated['details'] as $detail) {
-                $cost = (float)$detail['unit_price'];
-                $salePrice = (float)$detail['sale_price'];
-                $productId = $detail['id_product'];
-                $productName = $productNames[$productId] ?? "ID {$productId}";
+            $productIds = collect($validated['details'])
+                ->where('is_service', false)
+                ->pluck('id_product');
 
-                if ($salePrice > 0 && $cost > $salePrice) {
-                    return back()->withErrors([
-                        'error' => "El costo unitario (S/ {$cost}) del producto '{$productName}' es mayor que su precio de venta sugerido (S/ {$salePrice}). La compra generaría pérdida."
-                    ]);
+            if ($productIds->isNotEmpty()) {
+                $productNames = Products::whereIn('id_product', $productIds)
+                    ->pluck('product_name', 'id_product');
+
+                foreach ($validated['details'] as $detail) {
+                    if (!empty($detail['is_service'])) continue;
+
+                    $cost = (float)$detail['unit_price'];
+                    // Convertir costo a soles si la compra es en dólares
+                    $costInSoles = $isUSD ? $cost * $exchangeRate : $cost;
+
+                    $salePrice = (float)($detail['sale_price'] ?? 0);
+                    $productId = $detail['id_product'];
+                    $productName = $productNames[$productId] ?? "ID {$productId}";
+
+                    if ($salePrice > 0 && $costInSoles > $salePrice) {
+                        return back()->withErrors([
+                            'error' => "El costo unitario (S/ " . round($costInSoles, 2) . ") del producto '{$productName}' es mayor que su precio de venta sugerido (S/ {$salePrice}). Revise los montos o el tipo de cambio."
+                        ]);
+                    }
                 }
             }
 
@@ -176,9 +192,11 @@ class ReceiptController extends Controller
             $query->with('supplier', 'details');
             $query->orderBy('issue_date', 'desc');
         }])->findOrFail($id);
+
         if (Session::has('success')) {
             Session::forget('success');
         }
+
         return Inertia::render('Receipts/EditReceipt', [
             'receipt' => $receipt,
             'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')->orderBy('company_name')->get(),
@@ -196,18 +214,23 @@ class ReceiptController extends Controller
     public function update(Request $request, $id)
     {
         $validated = $request->validate([
-            'id_supplier'          => 'required|exists:suppliers,id_supplier',
-            'document_type'        => ['required', Rule::enum(DocumentType::class)],
-            'series'               => 'required|string|max:10',
-            'number'               => 'required|string|max:20',
-            'issue_date'           => 'required|date',
-            'file'                 => 'nullable|file|mimes:pdf,jpg,png,jpeg|max:5120', // Archivo es opcional en update
+            'id_supplier'       => 'required|exists:suppliers,id_supplier',
+            'document_type'     => ['required', Rule::enum(DocumentType::class)],
+            'currency'          => 'required|in:PEN,USD',
+            'exchange_rate'     => 'required|numeric|min:0.0001',
 
-            'details'              => 'required|array|min:1',
-            'details.*.id_product' => 'required|exists:products,id_product',
+            'series'            => 'required|string|max:10',
+            'number'            => 'required|string|max:20',
+            'issue_date'        => 'required|date',
+            'file'              => 'nullable|file|mimes:pdf,jpg,png,jpeg|max:5120',
+
+            'details'           => 'required|array|min:1',
+            'details.*.is_service' => 'boolean',
+            'details.*.id_product' => 'nullable|required_if:details.*.is_service,false|exists:products,id_product',
+            'details.*.description' => 'nullable|required_if:details.*.is_service,true|string|max:255',
             'details.*.quantity'   => 'required|numeric|min:0.01',
             'details.*.unit_price' => 'required|numeric|min:0',
-
+            'details.*.sale_price' => 'nullable|numeric|min:0',
         ]);
 
         try {
@@ -274,7 +297,8 @@ class ReceiptController extends Controller
         // 1. Validación simple
         $validated = $request->validate([
             'return_items' => 'required|array',
-            'return_items.*.id_product' => 'required|exists:products,id_product',
+            'return_items.*.id_product' => 'nullable',
+            'return_items.*.description' => 'nullable|string',
             'return_items.*.return_quantity' => 'required|numeric|min:0',
             'return_items.*.unit_price' => 'required|numeric',
         ]);
@@ -303,19 +327,41 @@ class ReceiptController extends Controller
 
     public function taxReport(Request $request)
     {
-        $from = $request->input('from', Carbon::now()->startOfMonth()->toDateString());
-        $to = $request->input('to', Carbon::now()->toDateString());
+        // CORRECCIÓN DE FECHAS
+        $from = Carbon::parse($request->input('from', Carbon::now()->startOfMonth()))->startOfDay();
+        $to = Carbon::parse($request->input('to', Carbon::now()))->endOfDay();
+        $idProduct = $request->input('id_product');
 
-        $reportData = Receipt::select(
-            'document_type',
-            DB::raw('SUM(total_amount) as total_sum')
+        $query = Receipt::query();
+
+        if ($idProduct) {
+            $query->join('receipt_details', 'receipts.id_receipt', '=', 'receipt_details.id_receipt')
+                ->where('receipt_details.id_product', $idProduct);
+
+            $sumExpression = 'SUM(
+                CASE 
+                    WHEN receipts.currency = "USD" THEN receipt_details.subtotal * receipts.exchange_rate 
+                    ELSE receipt_details.subtotal 
+                END
+            )';
+        } else {
+            $sumExpression = 'SUM(
+                CASE 
+                    WHEN receipts.currency = "USD" THEN receipts.total_amount * receipts.exchange_rate 
+                    ELSE receipts.total_amount 
+                END
+            )';
+        }
+
+        $reportData = $query->select(
+            'receipts.document_type',
+            DB::raw("$sumExpression as total_sum_pen")
         )
-            ->whereBetween('issue_date', [$from, $to])
-            ->groupBy('document_type')
+            ->whereBetween('receipts.issue_date', [$from, $to])
+            ->groupBy('receipts.document_type')
             ->get()
             ->map(function ($item) {
-                $total = (float) $item->total_sum;
-                // Cálculo contable Perú (IGV 18%)
+                $total = (float) $item->total_sum_pen;
                 $base = $total / 1.18;
                 $igv = $total - $base;
 
@@ -329,18 +375,95 @@ class ReceiptController extends Controller
 
         return Inertia::render('Receipts/Reports/TaxReport', [
             'reportData' => $reportData,
+            'productsList' => Products::select('id_product as value', 'product_name as label')->orderBy('product_name')->get(),
             'filters' => [
-                'from' => $from,
-                'to' => $to
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString(),
+                'id_product' => $idProduct
             ]
         ]);
     }
 
+    public function expenseDistributionReport(Request $request)
+    {
+        // CORRECCIÓN AQUÍ: Usamos startOfDay y endOfDay
+        $from = Carbon::parse($request->input('from', Carbon::now()->startOfMonth()))->startOfDay();
+        $to = Carbon::parse($request->input('to', Carbon::now()))->endOfDay();
+
+        // 1. Resumen Agrupado
+        $summary = DB::table('receipt_details')
+            ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
+            ->whereBetween('receipts.issue_date', [$from, $to])
+            ->select(
+                DB::raw('
+                    CASE 
+                        WHEN receipt_details.id_product IS NOT NULL THEN "Productos"
+                        ELSE "Servicios"
+                    END as expense_type
+                '),
+                DB::raw('COUNT(receipt_details.id_receipt_detail) as count'),
+                DB::raw('SUM(
+                    CASE 
+                        WHEN receipts.currency = "USD" THEN receipt_details.subtotal * receipts.exchange_rate 
+                        ELSE receipt_details.subtotal 
+                    END
+                ) as total_amount')
+            )
+            ->groupBy('expense_type')
+            ->get();
+
+        $grandTotal = $summary->sum('total_amount');
+
+        $reportData = $summary->map(function ($item) use ($grandTotal) {
+            return [
+                'name' => $item->expense_type,
+                'value' => round((float)$item->total_amount, 2),
+                'count' => $item->count,
+                'percentage' => $grandTotal > 0 ? round(($item->total_amount / $grandTotal) * 100, 1) : 0
+            ];
+        });
+
+        // 2. Detalle Específico
+        $details = DB::table('receipt_details')
+            ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
+            ->leftJoin('products', 'receipt_details.id_product', '=', 'products.id_product')
+            ->whereBetween('receipts.issue_date', [$from, $to])
+            ->select(
+                DB::raw('
+                    CASE 
+                        WHEN receipt_details.id_product IS NOT NULL THEN "Productos"
+                        ELSE "Servicios"
+                    END as category
+                '),
+                DB::raw('COALESCE(products.product_name, receipt_details.description) as item_name'),
+                DB::raw('SUM(
+                    CASE 
+                        WHEN receipts.currency = "USD" THEN receipt_details.subtotal * receipts.exchange_rate 
+                        ELSE receipt_details.subtotal 
+                    END
+                ) as total_amount')
+            )
+            ->groupBy('category', 'item_name')
+            ->orderByDesc('total_amount')
+            ->limit(50)
+            ->get();
+
+        return Inertia::render('Receipts/Reports/ExpenseDistributionReport', [
+            'reportData' => $reportData,
+            'detailedData' => $details,
+            // Enviamos las fechas formateadas Y-m-d al frontend para que el input type="date" las lea bien
+            'filters' => [
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString()
+            ]
+        ]);
+    }
 
     public function marginReport(Request $request)
     {
-        $from = $request->input('from', Carbon::now()->startOfMonth()->toDateString());
-        $to = $request->input('to', Carbon::now()->toDateString());
+        // CORRECCIÓN DE FECHAS
+        $from = Carbon::parse($request->input('from', Carbon::now()->startOfMonth()))->startOfDay();
+        $to = Carbon::parse($request->input('to', Carbon::now()))->endOfDay();
 
         $reportData = DB::table('receipt_details')
             ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
@@ -349,15 +472,20 @@ class ReceiptController extends Controller
             ->select(
                 'products.product_name',
                 'products.product_code',
-                'products.sale_price as current_sale_price', // <--- Cambiado aquí
-                DB::raw('AVG(receipt_details.unit_price) as avg_cost'),
+                'products.sale_price as current_sale_price',
+                DB::raw('AVG(
+                    CASE 
+                        WHEN receipts.currency = "USD" THEN receipt_details.unit_price * receipts.exchange_rate 
+                        ELSE receipt_details.unit_price 
+                    END
+                ) as avg_cost'),
                 DB::raw('SUM(receipt_details.quantity) as total_qty')
             )
             ->groupBy('products.id_product', 'products.product_name', 'products.product_code', 'products.sale_price')
             ->get()
             ->map(function ($item) {
                 $cost = (float) $item->avg_cost;
-                $sale = (float) $item->current_sale_price; // Usamos el precio del maestro de productos
+                $sale = (float) $item->current_sale_price;
 
                 $profit_per_unit = $sale - $cost;
                 $margin_percent = $sale > 0 ? ($profit_per_unit / $sale) * 100 : 0;
@@ -377,13 +505,15 @@ class ReceiptController extends Controller
 
         return Inertia::render('Receipts/Reports/MarginReport', [
             'reportData' => $reportData,
-            'filters' => ['from' => $from, 'to' => $to]
+            'filters' => ['from' => $from->toDateString(), 'to' => $to->toDateString()]
         ]);
     }
+
     public function supplierReport(Request $request)
     {
-        $from = $request->input('from', Carbon::now()->startOfMonth()->toDateString());
-        $to = $request->input('to', Carbon::now()->toDateString());
+        // CORRECCIÓN DE FECHAS
+        $from = Carbon::parse($request->input('from', Carbon::now()->startOfMonth()))->startOfDay();
+        $to = Carbon::parse($request->input('to', Carbon::now()))->endOfDay();
 
         $reportData = DB::table('receipts')
             ->join('suppliers', 'receipts.id_supplier', '=', 'suppliers.id_supplier')
@@ -392,7 +522,12 @@ class ReceiptController extends Controller
                 'suppliers.company_name',
                 'suppliers.ruc',
                 DB::raw('COUNT(receipts.id_receipt) as purchase_count'),
-                DB::raw('SUM(receipts.total_amount) as total_invested'),
+                DB::raw('SUM(
+                    CASE 
+                        WHEN receipts.currency = "USD" THEN receipts.total_amount * receipts.exchange_rate 
+                        ELSE receipts.total_amount 
+                    END
+                ) as total_invested'),
                 DB::raw('MAX(receipts.issue_date) as last_purchase')
             )
             ->groupBy('suppliers.id_supplier', 'suppliers.company_name', 'suppliers.ruc')
@@ -410,19 +545,20 @@ class ReceiptController extends Controller
 
         return Inertia::render('Receipts/Reports/SupplierReport', [
             'reportData' => $reportData,
-            'filters' => ['from' => $from, 'to' => $to]
+            'filters' => ['from' => $from->toDateString(), 'to' => $to->toDateString()]
         ]);
     }
 
     public function variationReport(Request $request)
     {
-        $from = $request->input('from', Carbon::now()->subMonths(6)->toDateString());
-        $to = $request->input('to', Carbon::now()->toDateString());
+        // CORRECCIÓN DE FECHAS
+        $from = Carbon::parse($request->input('from', Carbon::now()->subMonths(6)))->startOfDay();
+        $to = Carbon::parse($request->input('to', Carbon::now()))->endOfDay();
         $id_product = $request->input('id_product');
 
-        // 1. Obtener datos para el gráfico (Promedio diario para no saturar la línea)
         $trendQuery = DB::table('receipt_details')
             ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
+            ->whereNotNull('receipt_details.id_product')
             ->whereBetween('receipts.issue_date', [$from, $to]);
 
         if ($id_product) {
@@ -431,13 +567,17 @@ class ReceiptController extends Controller
 
         $trendData = $trendQuery->select(
             'receipts.issue_date as date',
-            DB::raw('AVG(receipt_details.unit_price) as price')
+            DB::raw('AVG(
+                CASE 
+                    WHEN receipts.currency = "USD" THEN receipt_details.unit_price * receipts.exchange_rate 
+                    ELSE receipt_details.unit_price 
+                END
+            ) as price')
         )
             ->groupBy('receipts.issue_date')
             ->orderBy('receipts.issue_date', 'asc')
             ->get();
 
-        // 2. LÓGICA CORREGIDA: Obtener el PRIMER y ÚLTIMO precio real por ID
         $products = DB::table('receipt_details')
             ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
             ->join('products', 'receipt_details.id_product', '=', 'products.id_product')
@@ -445,23 +585,27 @@ class ReceiptController extends Controller
             ->select(
                 'products.id_product',
                 'products.product_name',
-                // Obtenemos el ID del primer y último detalle registrado en ese rango
                 DB::raw('MIN(receipt_details.id_receipt_detail) as first_detail_id'),
                 DB::raw('MAX(receipt_details.id_receipt_detail) as last_detail_id')
             )
             ->groupBy('products.id_product', 'products.product_name')
             ->get()
             ->map(function ($p) {
-                // Buscamos el precio exacto del primer registro
-                $firstPrice = DB::table('receipt_details')
-                    ->where('id_receipt_detail', $p->first_detail_id)
-                    ->value('unit_price');
+                $getNormalizedPrice = function ($detailId) {
+                    $record = DB::table('receipt_details')
+                        ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
+                        ->where('receipt_details.id_receipt_detail', $detailId)
+                        ->select('receipt_details.unit_price', 'receipts.currency', 'receipts.exchange_rate')
+                        ->first();
 
-                // Buscamos el precio exacto del último registro
-                $lastPrice = DB::table('receipt_details')
-                    ->where('id_receipt_detail', $p->last_detail_id)
-                    ->value('unit_price');
+                    if (!$record) return 0;
+                    return $record->currency === 'USD'
+                        ? $record->unit_price * $record->exchange_rate
+                        : $record->unit_price;
+                };
 
+                $firstPrice = $getNormalizedPrice($p->first_detail_id);
+                $lastPrice = $getNormalizedPrice($p->last_detail_id);
                 $variation = $firstPrice > 0 ? (($lastPrice - $firstPrice) / $firstPrice) * 100 : 0;
 
                 return [
@@ -472,27 +616,31 @@ class ReceiptController extends Controller
                     'variation' => round($variation, 2)
                 ];
             })
-            ->sortByDesc(fn($item) => abs($item['variation'])) // Ordenar por los que más cambiaron
+            ->sortByDesc(fn($item) => abs($item['variation']))
             ->values();
 
         return Inertia::render('Receipts/Reports/CostVariationReport', [
             'trendData' => $trendData,
             'reportData' => $products,
-            'productsList' => \App\Models\Products::select('id_product as value', 'product_name as label')->get(),
+            'productsList' => Products::select('id_product as value', 'product_name as label')->get(),
             'filters' => [
-                'from' => $from,
-                'to' => $to,
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString(),
                 'id_product' => $id_product
             ]
         ]);
     }
     public function exportTaxExcel(Request $request)
     {
+        // CORRECCIÓN DE FECHAS EN EXPORTACIÓN TAMBIÉN
+        // Aquí no usamos startOfDay/endOfDay porque TaxReportExport ya lo hace internamente (o debería hacerlo)
+        // Pero para ser consistentes, pasamos strings Y-m-d y que el exportador maneje las horas.
         $from = $request->input('from', Carbon::now()->startOfMonth()->toDateString());
         $to = $request->input('to', Carbon::now()->toDateString());
+        $idProduct = $request->input('id_product');
 
         return Excel::download(
-            new TaxReportExport($from, $to),
+            new TaxReportExport($from, $to, $idProduct),
             "libro_compras_{$from}_al_{$to}.xlsx"
         );
     }

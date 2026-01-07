@@ -23,28 +23,30 @@ import { Head, router } from '@inertiajs/react';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
+    ArrowDownCircle,
+    ArrowUpCircle,
     BarChart3,
     Calendar,
     Download,
     Filter,
     LineChart,
-    TrendingUp,
+    Wallet,
 } from 'lucide-react';
 import { useState } from 'react';
 import {
-    Area,
-    AreaChart,
     Bar,
     BarChart,
     CartesianGrid,
     Tooltip as ChartTooltip,
     Legend,
+    Line,
+    LineChart as RechartsLineChart,
     ResponsiveContainer,
     XAxis,
     YAxis,
 } from 'recharts';
 
-// --- Interfaces ---
+// --- Interfaces Actualizadas ---
 interface MethodBreakdown {
     name: string;
     total: number;
@@ -53,12 +55,11 @@ interface MethodBreakdown {
 
 interface ReportItem {
     date: string;
-    total: string | number;
-    cost: string | number;
-    profit: string | number;
-    margin: string | number;
+    income: number;
+    expense: number;
+    balance: number;
     transactions: number;
-    methods: MethodBreakdown[];
+    methods: MethodBreakdown[]; // <--- Recuperado
 }
 
 interface Props {
@@ -67,37 +68,33 @@ interface Props {
 }
 
 export default function DailySummary({ reportData, filters }: Props) {
-    // Estado para controlar el tipo de gráfico (area = líneas/área, bar = barras)
-    const [chartType, setChartType] = useState<'area' | 'bar'>('area');
+    const [chartType, setChartType] = useState<'line' | 'bar'>('bar');
 
-    const totalRevenue = reportData.reduce(
-        (acc, item) => acc + Number(item.total),
+    // Totales Generales
+    const totalIncome = reportData.reduce((acc, item) => acc + item.income, 0);
+    const totalExpense = reportData.reduce(
+        (acc, item) => acc + item.expense,
         0,
     );
-    const totalCost = reportData.reduce(
-        (acc, item) => acc + Number(item.cost),
-        0,
-    );
-    const totalProfit = reportData.reduce(
-        (acc, item) => acc + Number(item.profit),
-        0,
-    );
+    const totalBalance = totalIncome - totalExpense;
 
     const formatLabelByPeriod = (dateStr: string) => {
+        if (!dateStr) return '-';
         const date = parseISO(dateStr);
         switch (filters.period) {
             case 'monthly':
-                return format(date, 'MMM yyyy', { locale: es });
+                return format(date, 'MMM yy', { locale: es });
             case 'yearly':
                 return format(date, 'yyyy', { locale: es });
             case 'weekly':
-                return 'Sem. ' + format(date, 'dd/MM', { locale: es });
+                return format(date, 'dd/MM', { locale: es });
             default:
                 return format(date, 'dd MMM', { locale: es });
         }
     };
 
     const formatTableDate = (dateStr: string) => {
+        if (!dateStr) return '-';
         const date = parseISO(dateStr);
         switch (filters.period) {
             case 'monthly':
@@ -116,8 +113,6 @@ export default function DailySummary({ reportData, filters }: Props) {
     const chartData = reportData.map((item) => ({
         ...item,
         formattedDate: formatLabelByPeriod(item.date),
-        total: Number(item.total),
-        profit: Number(item.profit),
     }));
 
     const handleFilterChange = (
@@ -138,10 +133,10 @@ export default function DailySummary({ reportData, filters }: Props) {
     };
 
     const currency = (amount: number) =>
-        amount.toLocaleString('es-PE', {
+        `S/ ${amount.toLocaleString('es-PE', {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
-        });
+        })}`;
 
     const handleExport = () => {
         const queryParams = new URLSearchParams({
@@ -149,29 +144,31 @@ export default function DailySummary({ reportData, filters }: Props) {
             to: filters.to,
             period: filters.period,
         }).toString();
-
-        // CAMBIO AQUÍ: Usar la ruta en español definida en web.php
         window.location.href = `/ventas/reportes/resumen-diario/export?${queryParams}`;
     };
+
     return (
         <AppLayout
             breadcrumbs={[
                 { title: 'Ventas', href: sales.index().url },
                 { title: 'Reportes', href: '#' },
-                { title: 'Análisis de Rentabilidad', href: '' },
+                { title: 'Flujo de Caja', href: '' },
             ]}
         >
-            <Head title="Resumen Económico" />
+            <Head title="Ingresos vs Egresos" />
 
             <div className="flex h-full flex-col bg-background">
                 {/* --- HEADER --- */}
                 <div className="sticky top-0 z-30 flex items-center justify-between border-b bg-background/95 px-8 py-4 backdrop-blur dark:border-neutral-800">
                     <div>
                         <h1 className="text-lg font-bold tracking-tight">
-                            Reporte Económico
+                            Flujo de Caja (Ingresos vs Egresos)
                         </h1>
-                        <p className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                        <p className="flex items-center gap-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
                             Periodo: {filters.from} al {filters.to}
+                            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                EN SOLES (PEN)
+                            </span>
                         </p>
                     </div>
 
@@ -228,313 +225,212 @@ export default function DailySummary({ reportData, filters }: Props) {
                         <Button
                             variant="outline"
                             size="sm"
+                            type="button"
                             onClick={handleExport}
-                            className="border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-900/20 dark:text-emerald-400"
+                            className="dark:border-neutral-800 dark:hover:bg-neutral-900"
                         >
-                            <Download className="mr-2 h-3.5 w-3.5" />
-                            Excel
+                            <Download className="mr-2 h-3.5 w-3.5" /> Excel
                         </Button>
                     </div>
                 </div>
 
                 <div className="flex-1 overflow-auto bg-muted/5 p-8 dark:bg-neutral-950/20">
                     <div className="mx-auto max-w-7xl space-y-6">
-                        <div className="grid grid-cols-1 gap-6 md:grid-cols-12">
-                            {/* --- 1. RESUMEN KPI --- */}
-                            <div className="md:col-span-4 lg:col-span-3">
-                                <Card className="h-full rounded-3xl border-none shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900/50 dark:ring-neutral-800">
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
-                                            Resumen del Periodo
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <div className="overflow-hidden rounded-xl border dark:border-neutral-800">
-                                            <table className="w-full text-sm">
-                                                <tbody>
-                                                    <tr className="border-b bg-blue-50/50 dark:border-neutral-800 dark:bg-blue-900/10">
-                                                        <td className="px-4 py-3 font-bold text-blue-700 dark:text-blue-400">
-                                                            INGRESOS
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right font-bold text-slate-700 tabular-nums dark:text-slate-300">
-                                                            {currency(
-                                                                totalRevenue,
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                    <tr className="border-b bg-red-50/50 dark:border-neutral-800 dark:bg-red-900/10">
-                                                        <td className="px-4 py-3 font-bold text-red-700 dark:text-red-400">
-                                                            COSTO
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right font-bold text-slate-700 tabular-nums dark:text-slate-300">
-                                                            {currency(
-                                                                totalCost,
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                    <tr className="bg-emerald-50/50 dark:bg-emerald-900/10">
-                                                        <td className="px-4 py-3 font-black text-emerald-700 dark:text-emerald-400">
-                                                            UB (Utilidad)
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right font-black text-emerald-700 tabular-nums dark:text-emerald-400">
-                                                            {currency(
-                                                                totalProfit,
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                        <div className="mt-4 text-center">
-                                            <span className="text-xs text-muted-foreground">
-                                                Margen Bruto:{' '}
-                                            </span>
-                                            <span className="text-lg font-black text-slate-700 dark:text-slate-200">
-                                                {totalRevenue > 0
-                                                    ? (
-                                                          (totalProfit /
-                                                              totalRevenue) *
-                                                          100
-                                                      ).toFixed(2)
-                                                    : 0}
-                                                %
-                                            </span>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </div>
+                        {/* --- 1. RESUMEN KPI --- */}
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                            <Card className="rounded-3xl border-none shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900/50 dark:ring-neutral-800">
+                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                    <CardTitle className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                                        Total Ingresos (Ventas)
+                                    </CardTitle>
+                                    <div className="rounded-lg bg-emerald-100 p-2 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                        <ArrowUpCircle className="h-4 w-4" />
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-black text-emerald-600 tabular-nums dark:text-emerald-400">
+                                        {currency(totalIncome)}
+                                    </div>
+                                </CardContent>
+                            </Card>
 
-                            {/* --- 2. GRÁFICO --- */}
-                            <div className="md:col-span-8 lg:col-span-9">
-                                <Card className="h-full rounded-3xl border-none shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900/50 dark:ring-neutral-800">
-                                    <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/30 dark:border-neutral-800">
-                                        <CardTitle className="flex items-center gap-2 text-xs font-black tracking-widest uppercase">
-                                            <TrendingUp className="h-4 w-4 text-blue-600" />{' '}
-                                            {chartData.length > 1
-                                                ? 'Tendencia de Rentabilidad'
-                                                : 'Balance del Periodo'}
-                                        </CardTitle>
+                            <Card className="rounded-3xl border-none shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900/50 dark:ring-neutral-800">
+                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                    <CardTitle className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                                        Total Egresos (Compras)
+                                    </CardTitle>
+                                    <div className="rounded-lg bg-red-100 p-2 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                                        <ArrowDownCircle className="h-4 w-4" />
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="text-2xl font-black text-red-600 tabular-nums dark:text-red-400">
+                                        {currency(totalExpense)}
+                                    </div>
+                                </CardContent>
+                            </Card>
 
-                                        {/* BOTÓN TOGGLE GRÁFICO */}
-                                        <div className="flex items-center gap-1 rounded-lg border bg-background p-1 shadow-sm dark:border-neutral-800">
-                                            {chartData.length > 1 && (
-                                                <>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            setChartType('area')
-                                                        }
-                                                        className={`h-6 w-6 rounded-md ${chartType === 'area' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                                                        title="Gráfico de Líneas"
-                                                    >
-                                                        <LineChart className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() =>
-                                                            setChartType('bar')
-                                                        }
-                                                        className={`h-6 w-6 rounded-md ${chartType === 'bar' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                                                        title="Gráfico de Barras"
-                                                    >
-                                                        <BarChart3 className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </>
+                            <Card className="rounded-3xl border-none shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900/50 dark:ring-neutral-800">
+                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                    <CardTitle className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                                        Balance Neto (Saldo)
+                                    </CardTitle>
+                                    <div className="rounded-lg bg-blue-100 p-2 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                                        <Wallet className="h-4 w-4" />
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    <div
+                                        className={`text-2xl font-black tabular-nums ${
+                                            totalBalance >= 0
+                                                ? 'text-blue-600 dark:text-blue-400'
+                                                : 'text-red-600 dark:text-red-400'
+                                        }`}
+                                    >
+                                        {currency(totalBalance)}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* --- 2. GRÁFICO --- */}
+                        <div className="grid grid-cols-1">
+                            <Card className="h-full rounded-3xl border-none shadow-sm ring-1 ring-slate-200 dark:bg-neutral-900/50 dark:ring-neutral-800">
+                                <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/30 dark:border-neutral-800">
+                                    <CardTitle className="flex items-center gap-2 text-xs font-black tracking-widest uppercase">
+                                        <BarChart3 className="h-4 w-4 text-blue-600" />
+                                        Comparativa Ingresos vs Egresos
+                                    </CardTitle>
+                                    <div className="flex items-center gap-1 rounded-lg border bg-background p-1 shadow-sm dark:border-neutral-800">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => setChartType('bar')}
+                                            className={`h-6 w-6 rounded-md ${chartType === 'bar' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                        >
+                                            <BarChart3 className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => setChartType('line')}
+                                            className={`h-6 w-6 rounded-md ${chartType === 'line' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                        >
+                                            <LineChart className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </div>
+                                </CardHeader>
+                                <CardContent className="pt-6">
+                                    <div className="h-[300px] w-full">
+                                        <ResponsiveContainer
+                                            width="100%"
+                                            height="100%"
+                                        >
+                                            {chartType === 'bar' ? (
+                                                <BarChart data={chartData}>
+                                                    <CartesianGrid
+                                                        strokeDasharray="3 3"
+                                                        vertical={false}
+                                                        strokeOpacity={0.1}
+                                                    />
+                                                    <XAxis
+                                                        dataKey="formattedDate"
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                        tick={{
+                                                            fontSize: 10,
+                                                            fill: '#888',
+                                                        }}
+                                                    />
+                                                    <YAxis
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                        tick={{
+                                                            fontSize: 10,
+                                                            fill: '#888',
+                                                        }}
+                                                    />
+                                                    <ChartTooltip
+                                                        contentStyle={{
+                                                            borderRadius:
+                                                                '12px',
+                                                            border: 'none',
+                                                            backgroundColor:
+                                                                '#000',
+                                                            color: '#fff',
+                                                        }}
+                                                    />
+                                                    <Legend />
+                                                    <Bar
+                                                        dataKey="income"
+                                                        name="Ingresos"
+                                                        fill="#10b981"
+                                                        radius={[4, 4, 0, 0]}
+                                                    />
+                                                    <Bar
+                                                        dataKey="expense"
+                                                        name="Egresos"
+                                                        fill="#ef4444"
+                                                        radius={[4, 4, 0, 0]}
+                                                    />
+                                                </BarChart>
+                                            ) : (
+                                                <RechartsLineChart
+                                                    data={chartData}
+                                                >
+                                                    <CartesianGrid
+                                                        strokeDasharray="3 3"
+                                                        vertical={false}
+                                                        strokeOpacity={0.1}
+                                                    />
+                                                    <XAxis
+                                                        dataKey="formattedDate"
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                        tick={{
+                                                            fontSize: 10,
+                                                            fill: '#888',
+                                                        }}
+                                                    />
+                                                    <YAxis
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                        tick={{
+                                                            fontSize: 10,
+                                                            fill: '#888',
+                                                        }}
+                                                    />
+                                                    <ChartTooltip
+                                                        contentStyle={{
+                                                            borderRadius:
+                                                                '12px',
+                                                            border: 'none',
+                                                            backgroundColor:
+                                                                '#000',
+                                                            color: '#fff',
+                                                        }}
+                                                    />
+                                                    <Legend />
+                                                    <Line
+                                                        type="monotone"
+                                                        dataKey="income"
+                                                        name="Ingresos"
+                                                        stroke="#10b981"
+                                                        strokeWidth={3}
+                                                    />
+                                                    <Line
+                                                        type="monotone"
+                                                        dataKey="expense"
+                                                        name="Egresos"
+                                                        stroke="#ef4444"
+                                                        strokeWidth={3}
+                                                    />
+                                                </RechartsLineChart>
                                             )}
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="pt-6">
-                                        <div className="h-[250px] w-full">
-                                            <ResponsiveContainer
-                                                width="100%"
-                                                height="100%"
-                                            >
-                                                {/* Lógica: Si hay 1 solo dato O si el usuario eligió Barras -> BarChart */}
-                                                {chartData.length === 1 ||
-                                                chartType === 'bar' ? (
-                                                    <BarChart
-                                                        data={chartData}
-                                                        barSize={
-                                                            chartData.length >
-                                                            10
-                                                                ? undefined
-                                                                : 60
-                                                        } // Ajuste dinámico de ancho
-                                                    >
-                                                        <CartesianGrid
-                                                            strokeDasharray="3 3"
-                                                            vertical={false}
-                                                            strokeOpacity={0.1}
-                                                        />
-                                                        <XAxis
-                                                            dataKey="formattedDate"
-                                                            axisLine={false}
-                                                            tickLine={false}
-                                                            tick={{
-                                                                fontSize: 10,
-                                                                fill: '#888',
-                                                                fontWeight:
-                                                                    'bold',
-                                                            }}
-                                                        />
-                                                        <YAxis
-                                                            axisLine={false}
-                                                            tickLine={false}
-                                                            tick={{
-                                                                fontSize: 10,
-                                                                fill: '#888',
-                                                            }}
-                                                        />
-                                                        <ChartTooltip
-                                                            cursor={{
-                                                                fill: 'transparent',
-                                                            }}
-                                                            contentStyle={{
-                                                                borderRadius:
-                                                                    '12px',
-                                                                border: 'none',
-                                                                backgroundColor:
-                                                                    '#000',
-                                                                color: '#fff',
-                                                                fontSize:
-                                                                    '12px',
-                                                            }}
-                                                        />
-                                                        <Legend
-                                                            iconType="circle"
-                                                            wrapperStyle={{
-                                                                fontSize:
-                                                                    '12px',
-                                                                paddingTop:
-                                                                    '10px',
-                                                            }}
-                                                        />
-                                                        <Bar
-                                                            dataKey="total"
-                                                            name="Ingresos"
-                                                            fill="#2563eb"
-                                                            radius={[
-                                                                4, 4, 0, 0,
-                                                            ]}
-                                                        />
-                                                        <Bar
-                                                            dataKey="profit"
-                                                            name="Utilidad"
-                                                            fill="#10b981"
-                                                            radius={[
-                                                                4, 4, 0, 0,
-                                                            ]}
-                                                        />
-                                                    </BarChart>
-                                                ) : (
-                                                    <AreaChart data={chartData}>
-                                                        <defs>
-                                                            <linearGradient
-                                                                id="colorTotal"
-                                                                x1="0"
-                                                                y1="0"
-                                                                x2="0"
-                                                                y2="1"
-                                                            >
-                                                                <stop
-                                                                    offset="5%"
-                                                                    stopColor="#2563eb"
-                                                                    stopOpacity={
-                                                                        0.1
-                                                                    }
-                                                                />
-                                                                <stop
-                                                                    offset="95%"
-                                                                    stopColor="#2563eb"
-                                                                    stopOpacity={
-                                                                        0
-                                                                    }
-                                                                />
-                                                            </linearGradient>
-                                                            <linearGradient
-                                                                id="colorProfit"
-                                                                x1="0"
-                                                                y1="0"
-                                                                x2="0"
-                                                                y2="1"
-                                                            >
-                                                                <stop
-                                                                    offset="5%"
-                                                                    stopColor="#10b981"
-                                                                    stopOpacity={
-                                                                        0.1
-                                                                    }
-                                                                />
-                                                                <stop
-                                                                    offset="95%"
-                                                                    stopColor="#10b981"
-                                                                    stopOpacity={
-                                                                        0
-                                                                    }
-                                                                />
-                                                            </linearGradient>
-                                                        </defs>
-                                                        <CartesianGrid
-                                                            strokeDasharray="3 3"
-                                                            vertical={false}
-                                                            strokeOpacity={0.1}
-                                                        />
-                                                        <XAxis
-                                                            dataKey="formattedDate"
-                                                            axisLine={false}
-                                                            tickLine={false}
-                                                            tick={{
-                                                                fontSize: 10,
-                                                                fill: '#888',
-                                                            }}
-                                                        />
-                                                        <YAxis
-                                                            axisLine={false}
-                                                            tickLine={false}
-                                                            tick={{
-                                                                fontSize: 10,
-                                                                fill: '#888',
-                                                            }}
-                                                        />
-                                                        <ChartTooltip
-                                                            contentStyle={{
-                                                                borderRadius:
-                                                                    '12px',
-                                                                border: 'none',
-                                                                backgroundColor:
-                                                                    '#000',
-                                                                color: '#fff',
-                                                                fontSize:
-                                                                    '12px',
-                                                            }}
-                                                        />
-                                                        <Area
-                                                            type="monotone"
-                                                            dataKey="total"
-                                                            name="Ingresos"
-                                                            stroke="#2563eb"
-                                                            strokeWidth={2}
-                                                            fillOpacity={1}
-                                                            fill="url(#colorTotal)"
-                                                        />
-                                                        <Area
-                                                            type="monotone"
-                                                            dataKey="profit"
-                                                            name="Utilidad"
-                                                            stroke="#10b981"
-                                                            strokeWidth={2}
-                                                            fillOpacity={1}
-                                                            fill="url(#colorProfit)"
-                                                        />
-                                                    </AreaChart>
-                                                )}
-                                            </ResponsiveContainer>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </div>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </div>
 
                         {/* --- 3. TABLA DE DETALLE --- */}
@@ -550,22 +446,19 @@ export default function DailySummary({ reportData, filters }: Props) {
                                                 Periodo
                                             </TableHead>
                                             <TableHead className="text-center font-bold">
-                                                Ops
+                                                Transacciones
                                             </TableHead>
                                             <TableHead className="font-bold">
                                                 Detalle por Método
                                             </TableHead>
-                                            <TableHead className="text-right font-bold">
+                                            <TableHead className="text-right font-bold text-emerald-600 dark:text-emerald-400">
                                                 Ingresos
                                             </TableHead>
                                             <TableHead className="text-right font-bold text-red-600 dark:text-red-400">
-                                                Costo
+                                                Egresos
                                             </TableHead>
-                                            <TableHead className="text-right font-bold text-emerald-600 dark:text-emerald-400">
-                                                UB
-                                            </TableHead>
-                                            <TableHead className="text-right font-bold">
-                                                Margen
+                                            <TableHead className="text-right font-bold text-blue-600 dark:text-blue-400">
+                                                Balance
                                             </TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -585,77 +478,74 @@ export default function DailySummary({ reportData, filters }: Props) {
                                                         {item.transactions}
                                                     </TableCell>
 
-                                                    {/* CELDA DE DESGLOSE DE MÉTODOS */}
+                                                    {/* CELDA DE MÉTODOS RESTAURADA */}
                                                     <TableCell className="align-top">
                                                         <div className="flex flex-col gap-1">
-                                                            {item.methods.map(
-                                                                (
-                                                                    method,
-                                                                    mIdx,
-                                                                ) => (
-                                                                    <div
-                                                                        key={
-                                                                            mIdx
-                                                                        }
-                                                                        className="flex items-center justify-between gap-4 rounded bg-muted/30 px-2 py-1 text-xs"
-                                                                    >
-                                                                        <div className="flex items-center gap-2">
-                                                                            <span className="font-bold text-foreground">
-                                                                                {
-                                                                                    method.name
-                                                                                }
-                                                                            </span>
-                                                                            <span className="text-[10px] text-muted-foreground">
-                                                                                (
-                                                                                {
-                                                                                    method.count
-                                                                                }{' '}
-                                                                                vts)
+                                                            {item.methods &&
+                                                            item.methods
+                                                                .length > 0 ? (
+                                                                item.methods.map(
+                                                                    (
+                                                                        method,
+                                                                        mIdx,
+                                                                    ) => (
+                                                                        <div
+                                                                            key={
+                                                                                mIdx
+                                                                            }
+                                                                            className="flex items-center justify-between gap-4 rounded bg-muted/30 px-2 py-1 text-xs"
+                                                                        >
+                                                                            <div className="flex items-center gap-2">
+                                                                                <span className="font-bold text-foreground">
+                                                                                    {
+                                                                                        method.name
+                                                                                    }
+                                                                                </span>
+                                                                                <span className="text-[10px] text-muted-foreground">
+                                                                                    (
+                                                                                    {
+                                                                                        method.count
+                                                                                    }{' '}
+                                                                                    ops)
+                                                                                </span>
+                                                                            </div>
+                                                                            <span className="font-medium tabular-nums">
+                                                                                {currency(
+                                                                                    method.total,
+                                                                                )}
                                                                             </span>
                                                                         </div>
-                                                                        <span className="font-medium tabular-nums">
-                                                                            S/{' '}
-                                                                            {currency(
-                                                                                method.total,
-                                                                            )}
-                                                                        </span>
-                                                                    </div>
-                                                                ),
+                                                                    ),
+                                                                )
+                                                            ) : (
+                                                                <span className="text-xs text-muted-foreground">
+                                                                    -
+                                                                </span>
                                                             )}
                                                         </div>
                                                     </TableCell>
 
-                                                    <TableCell className="text-right align-top font-bold tabular-nums">
-                                                        S/{' '}
-                                                        {currency(
-                                                            Number(item.total),
-                                                        )}
+                                                    <TableCell className="text-right align-top font-bold text-emerald-600 tabular-nums dark:text-emerald-400">
+                                                        {currency(item.income)}
                                                     </TableCell>
-                                                    <TableCell className="text-right align-top font-medium text-red-600 tabular-nums dark:text-red-400">
-                                                        S/{' '}
-                                                        {currency(
-                                                            Number(item.cost),
-                                                        )}
+                                                    <TableCell className="text-right align-top font-bold text-red-600 tabular-nums dark:text-red-400">
+                                                        {currency(item.expense)}
                                                     </TableCell>
-                                                    <TableCell className="text-right align-top font-black text-emerald-600 tabular-nums dark:text-emerald-400">
-                                                        S/{' '}
-                                                        {currency(
-                                                            Number(item.profit),
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="text-right align-top text-xs font-bold text-muted-foreground tabular-nums">
-                                                        {item.margin}%
+                                                    <TableCell
+                                                        className={`text-right align-top font-black tabular-nums ${item.balance >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-500'}`}
+                                                    >
+                                                        {currency(item.balance)}
                                                     </TableCell>
                                                 </TableRow>
                                             ))
                                         ) : (
                                             <TableRow>
                                                 <TableCell
-                                                    colSpan={7}
+                                                    colSpan={6}
                                                     className="h-32 text-center text-muted-foreground"
                                                 >
-                                                    No hay datos registrados en
-                                                    este rango.
+                                                    No hay movimientos
+                                                    registrados en este rango.
                                                 </TableCell>
                                             </TableRow>
                                         )}

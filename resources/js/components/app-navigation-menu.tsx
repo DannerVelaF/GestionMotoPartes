@@ -23,6 +23,7 @@ import {
     Package,
     Percent,
     PieChart,
+    PieChartIcon,
     Shield,
     Tag,
     TrendingUp,
@@ -244,6 +245,17 @@ export function AppNavigationMenu() {
                             <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
                                 Finanzas y Auditoría
                             </div>
+                            <MenubarItem
+                                className={itemClass}
+                                onClick={() =>
+                                    router.visit(
+                                        '/recibos/reportes/distribucion',
+                                    )
+                                }
+                            >
+                                <PieChartIcon className="h-4 w-4 text-amber-500" />{' '}
+                                Estructura de Gastos
+                            </MenubarItem>
                             <MenubarItem
                                 className={itemClass}
                                 onClick={() =>

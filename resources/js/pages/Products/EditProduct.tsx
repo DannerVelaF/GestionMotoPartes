@@ -1,5 +1,15 @@
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -120,8 +130,6 @@ export default function EditProduct({
 }: Props) {
     const { flash = {} } = usePage<FlashProps>().props;
     const [showSuccess, setShowSuccess] = useState(false);
-    const [isDeleteProductAlertOpen, setIsDeleteProductAlertOpen] =
-        useState(false);
     const [isRemoveImageAlertOpen, setIsRemoveImageAlertOpen] = useState(false);
     const [isImageModalOpen, setIsImageModalOpen] = useState(false);
 
@@ -196,10 +204,18 @@ export default function EditProduct({
     const inputClasses =
         'h-10 w-full rounded-none border-0 border-b bg-transparent px-0 text-sm shadow-none transition-all focus:ring-0 focus:border-blue-600 font-medium dark:text-foreground';
 
+    // Filtramos movimientos según lo que queramos mostrar en cada Tab
     const saleMovements =
-        product.movements?.filter((m: any) => m.type === 'sale') || [];
+        product.movements?.filter((m: any) =>
+            ['sale', 'return'].includes(m.type),
+        ) || [];
     const purchaseMovements =
-        product.movements?.filter((m: any) => m.type === 'purchase') || [];
+        product.movements?.filter((m: any) =>
+            ['purchase', 'purchase_return'].includes(m.type),
+        ) || [];
+
+    // Todos los movimientos para la tab de inventario
+    const allMovements = product.movements || [];
 
     return (
         <AppLayout
@@ -227,7 +243,30 @@ export default function EditProduct({
                     </div>
                 </DialogContent>
             </Dialog>
-
+            <AlertDialog
+                open={isRemoveImageAlertOpen}
+                onOpenChange={setIsRemoveImageAlertOpen}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción eliminará la imagen actual del producto.
+                            Esta acción no se puede deshacer una vez guardes los
+                            cambios.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={executeRemoveImage}
+                            className="bg-red-600 text-white hover:bg-red-700"
+                        >
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             <form
                 onSubmit={submit}
                 className="flex h-full flex-col bg-background"
@@ -485,84 +524,15 @@ export default function EditProduct({
                                                     placeholder="Seleccionar marca..."
                                                     className={inputClasses}
                                                 />
-                                                {errors.id_brand && (
-                                                    <p className="mt-1 text-sm font-medium text-red-500">
-                                                        {errors.id_brand}
-                                                    </p>
-                                                )}
                                             </div>
-                                        </div>
-
-                                        <div className="group space-y-2">
-                                            <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:text-neutral-400">
-                                                <DollarSign className="h-3 w-3" />{' '}
-                                                Precio de Venta
-                                            </Label>
-                                            <div className="flex items-end gap-2 border-b-2 border-muted transition-colors focus-within:border-blue-600 dark:border-neutral-800">
-                                                <span className="mb-2 text-2xl font-light text-muted-foreground">
-                                                    S/
-                                                </span>
-                                                <Input
-                                                    type="number"
-                                                    step="0.01"
-                                                    value={data.sale_price}
-                                                    onChange={(e) =>
-                                                        onFieldChange(
-                                                            'sale_price',
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    className="h-10 border-0 bg-transparent px-0 text-3xl font-black focus-visible:ring-0"
-                                                    placeholder="0.00"
-                                                />
-                                            </div>
-                                            {errors.sale_price && (
-                                                <p className="text-sm font-medium text-red-500">
-                                                    {errors.sale_price}
+                                            {errors.id_brand && (
+                                                <p className="mt-1 text-sm font-medium text-red-500">
+                                                    {errors.id_brand}
                                                 </p>
                                             )}
                                         </div>
-                                        <div className="flex items-start space-x-3 rounded-xl border border-dashed border-muted-foreground/20 p-4 transition-colors hover:bg-muted/5">
-                                            <Checkbox
-                                                id="product-status"
-                                                checked={
-                                                    data.status === 'active'
-                                                }
-                                                onCheckedChange={(checked) =>
-                                                    onFieldChange(
-                                                        'status',
-                                                        checked
-                                                            ? 'active'
-                                                            : 'inactive',
-                                                    )
-                                                }
-                                                className="mt-1 h-5 w-5 border-2 border-blue-600 data-[state=checked]:bg-blue-600"
-                                            />
-                                            <div className="grid gap-1.5 leading-none">
-                                                <Label
-                                                    htmlFor="product-status"
-                                                    className="flex cursor-pointer items-center gap-2 text-sm font-black tracking-tight text-foreground"
-                                                >
-                                                    <Power
-                                                        className={cn(
-                                                            'h-3.5 w-3.5',
-                                                            data.status ===
-                                                                'active'
-                                                                ? 'text-emerald-500'
-                                                                : 'text-red-500',
-                                                        )}
-                                                    />{' '}
-                                                    LISTAR PRODUCTO EN VENTAS Y
-                                                    COMPRAS
-                                                </Label>
-                                                <p className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                                    {data.status === 'active'
-                                                        ? 'El producto es visible y está disponible para transacciones.'
-                                                        : 'El producto está archivado y no aparecerá en los buscadores.'}
-                                                </p>
-                                            </div>
-                                        </div>
                                     </div>
+
                                     <div className="space-y-10">
                                         <div className="group space-y-2">
                                             <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:text-neutral-400">
@@ -619,6 +589,74 @@ export default function EditProduct({
                                                     {errors.product_code}
                                                 </p>
                                             )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-10 grid grid-cols-1 gap-x-20 gap-y-10 md:grid-cols-2">
+                                    <div className="group space-y-2">
+                                        <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:text-neutral-400">
+                                            <DollarSign className="h-3 w-3" />{' '}
+                                            Precio de Venta
+                                        </Label>
+                                        <div className="flex items-end gap-2 border-b-2 border-muted transition-colors focus-within:border-blue-600 dark:border-neutral-800">
+                                            <span className="mb-2 text-2xl font-light text-muted-foreground">
+                                                S/
+                                            </span>
+                                            <Input
+                                                type="number"
+                                                step="0.01"
+                                                value={data.sale_price}
+                                                onChange={(e) =>
+                                                    onFieldChange(
+                                                        'sale_price',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                className="h-10 border-0 bg-transparent px-0 text-3xl font-black focus-visible:ring-0"
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+                                        {errors.sale_price && (
+                                            <p className="text-sm font-medium text-red-500">
+                                                {errors.sale_price}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="mt-auto flex items-start space-x-3 rounded-xl border border-dashed border-muted-foreground/20 p-4 transition-colors hover:bg-muted/5">
+                                        <Checkbox
+                                            id="product-status"
+                                            checked={data.status === 'active'}
+                                            onCheckedChange={(checked) =>
+                                                onFieldChange(
+                                                    'status',
+                                                    checked
+                                                        ? 'active'
+                                                        : 'inactive',
+                                                )
+                                            }
+                                            className="mt-1 h-5 w-5 border-2 border-blue-600 data-[state=checked]:bg-blue-600"
+                                        />
+                                        <div className="grid gap-1.5 leading-none">
+                                            <Label
+                                                htmlFor="product-status"
+                                                className="flex cursor-pointer items-center gap-2 text-sm font-black tracking-tight text-foreground"
+                                            >
+                                                <Power
+                                                    className={cn(
+                                                        'h-3.5 w-3.5',
+                                                        data.status === 'active'
+                                                            ? 'text-emerald-500'
+                                                            : 'text-red-500',
+                                                    )}
+                                                />{' '}
+                                                LISTAR PRODUCTO EN VENTAS Y
+                                                COMPRAS
+                                            </Label>
+                                            <p className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                                                {data.status === 'active'
+                                                    ? 'El producto es visible y está disponible para transacciones.'
+                                                    : 'El producto está archivado y no aparecerá en los buscadores.'}
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
@@ -780,181 +818,11 @@ export default function EditProduct({
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="p-0">
-                                        <div className="overflow-auto">
-                                            <Table>
-                                                <TableHeader className="bg-muted/30 dark:bg-neutral-900">
-                                                    <TableRow className="hover:bg-transparent dark:border-neutral-800">
-                                                        <TableHead className="px-6 text-xs font-bold uppercase dark:text-neutral-300">
-                                                            Fecha Kardex
-                                                        </TableHead>
-                                                        <TableHead className="px-6 text-xs font-bold uppercase dark:text-neutral-300">
-                                                            Tipo Mov.
-                                                        </TableHead>
-                                                        <TableHead className="px-6 text-xs font-bold uppercase dark:text-neutral-300">
-                                                            Referencia
-                                                        </TableHead>
-                                                        <TableHead className="px-6 text-right text-xs font-bold uppercase dark:text-neutral-300">
-                                                            Cant.
-                                                        </TableHead>
-                                                        <TableHead className="px-6 text-right text-xs font-bold uppercase dark:text-neutral-300">
-                                                            Saldo
-                                                        </TableHead>
-                                                        <TableHead className="px-6 text-right text-xs font-bold uppercase dark:text-neutral-300">
-                                                            Usuario
-                                                        </TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {product.movements
-                                                        ?.length ? (
-                                                        product.movements.map(
-                                                            (move: any) => {
-                                                                const typeStyles: Record<
-                                                                    string,
-                                                                    string
-                                                                > = {
-                                                                    purchase:
-                                                                        'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400',
-                                                                    sale: 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400',
-                                                                    purchase_return:
-                                                                        'bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400',
-                                                                    return: 'bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400',
-                                                                    adjustment:
-                                                                        'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400',
-                                                                };
-                                                                return (
-                                                                    <TableRow
-                                                                        key={
-                                                                            move.id_movement
-                                                                        }
-                                                                        className="cursor-pointer transition-colors hover:bg-muted/40 dark:border-neutral-800/50 dark:hover:bg-neutral-800/20"
-                                                                        onClick={() => {
-                                                                            if (
-                                                                                !move.reference_id
-                                                                            )
-                                                                                return;
-                                                                            const url =
-                                                                                move.type ===
-                                                                                    'sale' ||
-                                                                                move.type ===
-                                                                                    'return'
-                                                                                    ? sales.show(
-                                                                                          {
-                                                                                              sale: move.reference_id,
-                                                                                          },
-                                                                                      )
-                                                                                          .url
-                                                                                    : receipts.show(
-                                                                                          {
-                                                                                              receipt:
-                                                                                                  move.reference_id,
-                                                                                          },
-                                                                                      )
-                                                                                          .url;
-                                                                            router.visit(
-                                                                                url,
-                                                                            );
-                                                                        }}
-                                                                    >
-                                                                        <TableCell className="px-6 py-4 text-sm font-medium text-foreground/80">
-                                                                            {format(
-                                                                                new Date(
-                                                                                    move.created_at,
-                                                                                ),
-                                                                                'dd/MM/yyyy HH:mm',
-                                                                            )}
-                                                                        </TableCell>
-                                                                        <TableCell className="px-6 py-4">
-                                                                            <span
-                                                                                className={cn(
-                                                                                    'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-black tracking-tighter uppercase',
-                                                                                    typeStyles[
-                                                                                        move
-                                                                                            .type
-                                                                                    ] ||
-                                                                                        'bg-muted text-muted-foreground',
-                                                                                )}
-                                                                            >
-                                                                                {move.type ===
-                                                                                'purchase'
-                                                                                    ? 'Compra'
-                                                                                    : move.type ===
-                                                                                        'sale'
-                                                                                      ? 'Venta'
-                                                                                      : move.type ===
-                                                                                          'purchase_return'
-                                                                                        ? 'Devolución Compra (NC)'
-                                                                                        : move.type ===
-                                                                                            'return'
-                                                                                          ? 'Devolución Venta'
-                                                                                          : move.type ===
-                                                                                              'adjustment'
-                                                                                            ? 'Ajuste de Stock'
-                                                                                            : move.type}
-                                                                            </span>
-                                                                        </TableCell>
-                                                                        <TableCell className="max-w-[200px] truncate px-6 py-4 text-xs text-muted-foreground">
-                                                                            {
-                                                                                move.reference_label
-                                                                            }
-                                                                        </TableCell>
-                                                                        <TableCell
-                                                                            className={cn(
-                                                                                'px-6 py-4 text-right font-bold tabular-nums',
-                                                                                Number(
-                                                                                    move.quantity,
-                                                                                ) >
-                                                                                    0
-                                                                                    ? 'text-emerald-600 dark:text-emerald-400'
-                                                                                    : 'text-red-600 dark:text-red-400',
-                                                                            )}
-                                                                        >
-                                                                            {Number(
-                                                                                move.quantity,
-                                                                            ) >
-                                                                            0
-                                                                                ? `+${Number(move.quantity).toFixed(2)}`
-                                                                                : Number(
-                                                                                      move.quantity,
-                                                                                  ).toFixed(
-                                                                                      2,
-                                                                                  )}
-                                                                        </TableCell>
-                                                                        <TableCell className="px-6 py-4 text-right font-black text-foreground tabular-nums dark:text-neutral-200">
-                                                                            {Number(
-                                                                                move.balance,
-                                                                            ).toFixed(
-                                                                                2,
-                                                                            )}
-                                                                        </TableCell>
-                                                                        <TableCell className="px-6 py-4 text-right">
-                                                                            <span className="flex items-center justify-end gap-2 text-xs font-semibold text-muted-foreground">
-                                                                                <User2 className="h-3.5 w-3.5" />{' '}
-                                                                                {move
-                                                                                    .user
-                                                                                    ?.name ||
-                                                                                    'Sist.'}
-                                                                            </span>
-                                                                        </TableCell>
-                                                                    </TableRow>
-                                                                );
-                                                            },
-                                                        )
-                                                    ) : (
-                                                        <TableRow>
-                                                            <TableCell
-                                                                colSpan={6}
-                                                                className="py-20 text-center text-xs font-bold tracking-widest text-muted-foreground uppercase opacity-50"
-                                                            >
-                                                                No se registran
-                                                                movimientos en
-                                                                el sistema
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    )}
-                                                </TableBody>
-                                            </Table>
-                                        </div>
+                                        <TransactionTable
+                                            movements={allMovements}
+                                            type="sale" // Default to show 'P. Venta' label, or adjust logic
+                                            emptyMessage="No se registran movimientos en el sistema."
+                                        />
                                     </CardContent>
                                 </Card>
                             </TabsContent>
@@ -1005,19 +873,20 @@ function TransactionTable({
     type: 'sale' | 'purchase';
     emptyMessage: string;
 }) {
-    if (!movements.length)
+    if (!movements || !movements.length)
         return (
             <div className="py-20 text-center text-xs font-bold tracking-widest text-muted-foreground uppercase opacity-50">
                 {emptyMessage}
             </div>
         );
+
     return (
         <div className="overflow-auto">
             <Table>
                 <TableHeader className="bg-muted/30 dark:bg-neutral-900">
                     <TableRow className="hover:bg-transparent dark:border-neutral-800">
                         <TableHead className="px-6 text-xs font-bold uppercase dark:text-neutral-300">
-                            Fecha Kardex
+                            Fecha
                         </TableHead>
                         <TableHead className="px-6 text-xs font-bold uppercase dark:text-neutral-300">
                             Documento / Referencia
@@ -1026,32 +895,65 @@ function TransactionTable({
                             Cantidad
                         </TableHead>
                         <TableHead className="px-6 text-right text-xs font-bold uppercase dark:text-neutral-300">
-                            {type === 'sale' ? 'P. Venta' : 'Costo Compra'}
+                            {/* Mostrar etiqueta condicional si se desea, o 'Valor Unit.' genérico */}
+                            Valor Unit.
                         </TableHead>
                         <TableHead className="px-6 text-right text-xs font-bold uppercase dark:text-neutral-300">
                             Total
+                        </TableHead>
+                        <TableHead className="px-6 text-right text-xs font-bold uppercase dark:text-neutral-300">
+                            Resp.
                         </TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {movements.map((move) => {
                         const qty = Number(move.quantity || 0);
-                        const cost = Number(move.unit_cost || 0);
+                        const unitValue = Number(move.unit_cost || 0);
+                        const totalValue = Math.abs(qty) * unitValue;
+
+                        // Configuración de estilos según tipo
+                        const typeStyles: Record<string, string> = {
+                            purchase:
+                                'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400',
+                            sale: 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400',
+                            purchase_return:
+                                'bg-purple-100 text-purple-700 dark:bg-purple-500/10 dark:text-purple-400',
+                            return: 'bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400',
+                            adjustment:
+                                'bg-amber-100 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400',
+                        };
+
+                        // Traducción amigable
+                        const typeLabels: Record<string, string> = {
+                            purchase: 'Compra',
+                            sale: 'Venta',
+                            purchase_return: 'Dev. Compra',
+                            return: 'Dev. Venta',
+                            adjustment: 'Ajuste',
+                        };
+
                         return (
                             <TableRow
                                 key={move.id_movement}
                                 className="cursor-pointer transition-colors hover:bg-muted/40 dark:border-neutral-800/50 dark:hover:bg-neutral-800/20"
                                 onClick={() => {
                                     if (!move.reference_id) return;
-                                    const url = move.reference_type.includes(
-                                        'Sales',
-                                    )
+
+                                    // Manejo seguro de reference_type que puede ser nulo o string
+                                    const refType = move.reference_type || '';
+                                    const isSaleRelated =
+                                        refType.includes('Sales') ||
+                                        ['sale', 'return'].includes(move.type);
+
+                                    const url = isSaleRelated
                                         ? sales.show({
                                               sale: move.reference_id,
                                           }).url
                                         : receipts.show({
                                               receipt: move.reference_id,
                                           }).url;
+
                                     router.visit(url);
                                 }}
                             >
@@ -1062,24 +964,44 @@ function TransactionTable({
                                     )}
                                 </TableCell>
                                 <TableCell className="px-6 py-4">
-                                    <div className="flex flex-col">
-                                        <span className="font-bold text-blue-600 dark:text-blue-400">
-                                            {move.reference_label ||
-                                                'Movimiento'}
+                                    <div className="flex flex-col gap-1">
+                                        <span
+                                            className={cn(
+                                                'inline-flex w-fit items-center rounded-md px-2 py-0.5 text-[10px] font-black tracking-tighter uppercase',
+                                                typeStyles[move.type] ||
+                                                    'bg-muted text-muted-foreground',
+                                            )}
+                                        >
+                                            {typeLabels[move.type] || move.type}
                                         </span>
-                                        <span className="text-[10px] font-black tracking-tighter text-muted-foreground uppercase">
-                                            {move.user?.name || 'Sistema'}
+                                        <span className="font-mono text-xs font-bold text-muted-foreground">
+                                            {move.reference_label || '---'}
                                         </span>
                                     </div>
                                 </TableCell>
-                                <TableCell className="px-6 py-4 text-right font-bold tabular-nums dark:text-neutral-200">
-                                    {Math.abs(qty).toFixed(2)}
+                                <TableCell
+                                    className={cn(
+                                        'px-6 py-4 text-right font-bold tabular-nums',
+                                        qty > 0
+                                            ? 'text-emerald-600 dark:text-emerald-400'
+                                            : 'text-red-600 dark:text-red-400',
+                                    )}
+                                >
+                                    {qty > 0
+                                        ? `+${qty.toFixed(2)}`
+                                        : qty.toFixed(2)}
                                 </TableCell>
                                 <TableCell className="px-6 py-4 text-right text-muted-foreground tabular-nums">
-                                    S/ {cost.toFixed(2)}
+                                    S/ {unitValue.toFixed(2)}
                                 </TableCell>
                                 <TableCell className="px-6 py-4 text-right font-black text-foreground tabular-nums dark:text-neutral-200">
-                                    S/ {(Math.abs(qty) * cost).toFixed(2)}
+                                    S/ {totalValue.toFixed(2)}
+                                </TableCell>
+                                <TableCell className="px-6 py-4 text-right">
+                                    <span className="flex items-center justify-end gap-2 text-xs font-semibold text-muted-foreground">
+                                        <User2 className="h-3.5 w-3.5" />
+                                        {move.user?.name || 'Sist.'}
+                                    </span>
                                 </TableCell>
                             </TableRow>
                         );

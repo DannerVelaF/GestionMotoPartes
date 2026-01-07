@@ -1,6 +1,5 @@
 // resources/js/Pages/Sales/Columns.tsx
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -18,32 +17,6 @@ export interface Sale {
 }
 
 export const Columns: ColumnDef<Sale>[] = [
-    {
-        id: 'select',
-        header: ({ table }) => (
-            <Checkbox
-                checked={
-                    table.getIsAllPageRowsSelected() ||
-                    (table.getIsSomePageRowsSelected() && 'indeterminate')
-                }
-                onCheckedChange={(value) =>
-                    table.toggleAllPageRowsSelected(!!value)
-                }
-                aria-label="Seleccionar todos"
-            />
-        ),
-        cell: ({ row }) => (
-            <Checkbox
-                checked={row.getIsSelected()}
-                onCheckedChange={(value) => row.toggleSelected(!!value)}
-                aria-label="Seleccionar fila"
-                onClick={(e) => e.stopPropagation()}
-            />
-        ),
-        enableSorting: false,
-        enableHiding: false,
-        size: 40,
-    },
     {
         accessorKey: 'code_sales',
         header: 'Código',
@@ -146,23 +119,6 @@ export const Columns: ColumnDef<Sale>[] = [
             return (
                 <div className="text-right font-bold tabular-nums">
                     {formatted}
-                </div>
-            );
-        },
-    },
-
-    {
-        accessorKey: 'created_at',
-        header: () => (
-            <div className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                Fecha Registro
-            </div>
-        ),
-        cell: ({ row }) => {
-            const date = new Date(row.getValue('created_at'));
-            return (
-                <div className="text-sm text-muted-foreground">
-                    {format(date, "d 'de' MMMM, yyyy", { locale: es })}
                 </div>
             );
         },

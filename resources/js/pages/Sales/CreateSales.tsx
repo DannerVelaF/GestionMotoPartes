@@ -19,8 +19,9 @@ import {
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
+import productcRoutes from '@/routes/products';
 import salesRoute from '@/routes/sales'; // Helper Wayfinder
-import { Head, useForm } from '@inertiajs/react';
+import { Head, router, useForm } from '@inertiajs/react';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -114,7 +115,7 @@ export default function CreateSales({
                 `/api/consultar-documento/${doc}`,
                 {
                     headers: { Accept: 'application/json' },
-                },  
+                },
             );
             const res = response.data;
             if (res.success) {
@@ -590,6 +591,12 @@ export default function CreateSales({
                                                             placeholder="Buscar producto..."
                                                             className={
                                                                 cleanInputClass
+                                                            }
+                                                            onCreate={() =>
+                                                                router.visit(
+                                                                    productcRoutes.create()
+                                                                        .url,
+                                                                )
                                                             }
                                                         />
                                                     </TableCell>

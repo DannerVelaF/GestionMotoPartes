@@ -23,8 +23,10 @@ return new class extends Migration
             $table->decimal('total_amount', 10, 2); // Monto total
             $table->unsignedBigInteger("id_parent")->nullable();
             $table->foreign("id_parent")->references("id_receipt")->on("receipts")->onDelete('cascade');
-            $table->enum("document_type", array_column(DocumentType::cases(),"value"))->default(DocumentType::RECEIPT->value);
+            $table->enum("document_type", array_column(DocumentType::cases(), "value"))->default(DocumentType::RECEIPT->value);
             $table->string('receipt_path')->nullable(); // Si guardan el archivo
+            $table->enum('currency', ['PEN', 'USD'])->default('PEN');
+            $table->decimal('exchange_rate', 10, 4)->default(1.0000);
             $table->timestamps();
         });
     }

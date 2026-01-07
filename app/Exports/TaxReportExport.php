@@ -3,7 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Receipt;
-// use Illuminate\Support\Facades\DB; // Ya no necesitamos DB::raw para sumas
+use Carbon\Carbon;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -29,15 +29,15 @@ class TaxReportExport implements FromCollection, WithHeadings, WithMapping, Shou
      */
     public function collection()
     {
-        // Aseguramos que tome todo el día final agregando horas si solo envías 'Y-m-d'
         $fromDate = $this->from . ' 00:00:00';
         $toDate = $this->to . ' 23:59:59';
 
         return Receipt::query()
+            ->with('supplier') // Cargar relación para evitar N+1
             ->whereBetween('issue_date', [$fromDate, $toDate])
             ->orderBy('issue_date', 'asc')
-            ->orderBy('series', 'asc') // Asumiendo que tienes columna 'series'
-            ->orderBy('number', 'asc') // Asumiendo que tienes columna 'number'
+            ->orderBy('series', 'asc')
+            ->orderBy('number', 'asc')
             ->get();
     }
 
@@ -48,11 +48,13 @@ class TaxReportExport implements FromCollection, WithHeadings, WithMapping, Shou
             'Tipo Documento',
             'Serie',
             'Número',
-            'Doc. Cliente',
-            'Razón Social / Nombre',
-            'Base Imponible',
-            'IGV (18%)',
-            'Total',
+            'RUC Proveedor',        // Corregido: Es compras, vemos Proveedores
+            'Razón Social',         // Corregido
+            'Moneda Orig.',         // Útil para auditoría
+            'T. Cambio',            // Útil para auditoría
+            'Base Imponible (S/)',  // Aclaramos que es en Soles
+            'IGV (18%) (S/)',
+            'Total (S/)',
         ];
     }
 
@@ -61,36 +63,72 @@ class TaxReportExport implements FromCollection, WithHeadings, WithMapping, Shou
      */
     public function map($receipt): array
     {
-        // Cálculos fila por fila
-        $total = (float) $receipt->total_amount;
-        $base = $total / 1.18;
-        $igv = $total - $base;
+        // 1. Normalización de Moneda a SOLES
+        $exchangeRate = (float) $receipt->exchange_rate;
+        $originalTotal = (float) $receipt->total_amount;
 
-        // Formateo del Tipo de Documento
+        // Si es USD, convertimos. Si es PEN, se mantiene.
+        $totalInSoles = ($receipt->currency === 'USD')
+            ? $originalTotal * $exchangeRate
+            : $originalTotal;
+
+        // 2. Cálculos Tributarios (Base / IGV) sobre el monto en Soles
+        $base = $totalInSoles / 1.18;
+        $igv = $totalInSoles - $base;
+
+        // 3. Formateo del Tipo de Documento
         $tipoDoc = $receipt->document_type instanceof \App\Enums\DocumentType
             ? $receipt->document_type->label()
             : ucfirst(str_replace('_', ' ', $receipt->document_type));
 
+        // 4. Datos del Proveedor (Safety checks)
+        $ruc = $receipt->supplier ? $receipt->supplier->ruc : '---';
+        $razonSocial = $receipt->supplier ? $receipt->supplier->company_name : 'Proveedor Eliminado';
+
         return [
-            $receipt->issue_date,      // Columna A
-            $tipoDoc,                  // Columna B
-            $receipt->series ?? '001', // Columna C (ajusta al nombre real de tu campo)
-            $receipt->number ?? $receipt->id, // Columna D
-            $receipt->receiver_id_number ?? '---', // Columna E (RUC/DNI)
-            $receipt->receiver_name ?? 'Cliente Varios', // Columna F
-            $base,                     // Columna G (Sin redondear aquí para que Excel sume exacto)
-            $igv,                      // Columna H
-            $total,                    // Columna I
+            // A. Fecha (Objeto Carbon o string, Excel lo formatea luego)
+            Carbon::parse($receipt->issue_date)->format('d/m/Y'),
+
+            // B. Tipo
+            $tipoDoc,
+
+            // C. Serie
+            $receipt->series,
+
+            // D. Número
+            $receipt->number,
+
+            // E. RUC
+            $ruc,
+
+            // F. Razón Social
+            $razonSocial,
+
+            // G. Moneda Original
+            $receipt->currency,
+
+            // H. Tipo de Cambio
+            $exchangeRate,
+
+            // I. Base (Soles)
+            $base,
+
+            // J. IGV (Soles)
+            $igv,
+
+            // K. Total (Soles)
+            $totalInSoles,
         ];
     }
 
     public function styles(Worksheet $sheet)
     {
         return [
-            // Fila 1 en Negrita y fondo azul suave
+            // Fila 1 (Encabezados)
             1 => [
                 'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
-                'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => '4F81BD']]
+                'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => '2563EB']], // Azul corporativo
+                'alignment' => ['horizontal' => 'center'],
             ],
         ];
     }
@@ -101,10 +139,12 @@ class TaxReportExport implements FromCollection, WithHeadings, WithMapping, Shou
     public function columnFormats(): array
     {
         return [
-            // Columna G (Base), H (IGV), I (Total) con formato numérico
-            'G' => NumberFormat::FORMAT_NUMBER_00,
-            'H' => NumberFormat::FORMAT_NUMBER_00,
+            // G (Moneda texto), H (TC 3 decimales)
+            'H' => '0.000',
+            // I (Base), J (IGV), K (Total) con formato moneda Soles
             'I' => '"S/" #,##0.00',
+            'J' => '"S/" #,##0.00',
+            'K' => '"S/" #,##0.00',
         ];
     }
 }

@@ -18,6 +18,7 @@ import {
     Calendar,
     DollarSign,
     Filter,
+    PieChart as PieIcon,
     Target,
 } from 'lucide-react';
 import {
@@ -59,13 +60,17 @@ export default function MarginReport({
         (i) => i.margin_percent < 15,
     ).length;
 
+    const totalProjectedProfit = reportData.reduce(
+        (acc, i) => acc + i.projected_profit,
+        0,
+    );
+
     const handleFilterChange = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         router.get(
             margin().url,
             {
-                // Cambia por tu ruta real
                 from: formData.get('from'),
                 to: formData.get('to'),
             },
@@ -91,8 +96,11 @@ export default function MarginReport({
                             <h1 className="text-lg font-bold tracking-tight">
                                 Análisis de Margen
                             </h1>
-                            <p className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                            <p className="flex items-center gap-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
                                 Rentabilidad Proyectada de Compras
+                                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                    EN SOLES (PEN)
+                                </span>
                             </p>
                         </div>
                     </div>
@@ -132,7 +140,7 @@ export default function MarginReport({
                         {/* --- KPI CARDS --- */}
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <StatCard
-                                title="Margen Promedio"
+                                title="Margen Promedio Global"
                                 value={`${avgMargin.toFixed(1)}%`}
                                 icon={<Target className="h-4 w-4" />}
                                 colorClass={
@@ -140,7 +148,7 @@ export default function MarginReport({
                                         ? 'text-orange-500'
                                         : 'text-emerald-500'
                                 }
-                                subtext="Rendimiento sobre venta"
+                                subtext="Rendimiento promedio sobre venta"
                             />
                             <StatCard
                                 title="Items Críticos"
@@ -151,14 +159,14 @@ export default function MarginReport({
                                         ? 'text-red-500'
                                         : 'text-emerald-500'
                                 }
-                                subtext="Margen menor al 15%"
+                                subtext="Productos con margen < 15%"
                             />
                             <StatCard
-                                title="Utilidad Proyectada"
-                                value={`S/ ${reportData.reduce((acc, i) => acc + i.projected_profit, 0).toLocaleString()}`}
+                                title="Utilidad Proyectada Total"
+                                value={`S/ ${totalProjectedProfit.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
                                 icon={<DollarSign className="h-4 w-4" />}
                                 colorClass="text-blue-500"
-                                subtext="Basado en stock recibido"
+                                subtext="Si se vende todo el stock ingresado"
                             />
                         </div>
 
@@ -166,8 +174,9 @@ export default function MarginReport({
                             {/* Gráfico de Ranking de Ganancia Proyectada */}
                             <Card className="rounded-3xl border-none shadow-sm ring-1 ring-neutral-200 lg:col-span-3 dark:bg-neutral-900/50 dark:ring-neutral-800">
                                 <CardHeader className="border-b bg-muted/30 dark:border-neutral-800">
-                                    <CardTitle className="text-[10px] font-black tracking-widest uppercase">
-                                        Top Ganancia Proyectada
+                                    <CardTitle className="flex items-center gap-2 text-[10px] font-black tracking-widest uppercase">
+                                        <PieIcon className="h-4 w-4 text-blue-500" />
+                                        Top 10 Productos por Utilidad
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="pt-6">
@@ -179,7 +188,7 @@ export default function MarginReport({
                                             <BarChart
                                                 data={reportData.slice(0, 10)}
                                                 layout="vertical"
-                                                margin={{ left: 30, right: 30 }}
+                                                margin={{ left: 10, right: 30 }}
                                             >
                                                 <CartesianGrid
                                                     strokeDasharray="3 3"
@@ -194,13 +203,12 @@ export default function MarginReport({
                                                     axisLine={false}
                                                     tickLine={false}
                                                     tick={{
-                                                        fontSize: 12,
+                                                        fontSize: 11,
                                                         fill: '#888',
-                                                        width: 120,
+                                                        fontWeight: 600,
                                                     }}
-                                                    width={120}
+                                                    width={100}
                                                 />
-                                                {/* ✅ TOOLTIP CORREGIDO */}
                                                 <ChartTooltip
                                                     cursor={{
                                                         fill: 'currentColor',
@@ -209,25 +217,15 @@ export default function MarginReport({
                                                     contentStyle={{
                                                         backgroundColor: '#000',
                                                         border: 'none',
-                                                        borderRadius: '12px',
+                                                        borderRadius: '8px',
                                                         color: '#fff',
-                                                        fontSize: '14px', // Fuente más grande
-                                                        fontWeight: '600',
-                                                        padding: '12px',
-                                                    }}
-                                                    itemStyle={{
-                                                        color: '#60a5fa',
-                                                    }} // Color celeste para el valor
-                                                    labelStyle={{
-                                                        color: '#999',
-                                                        marginBottom: '4px',
-                                                        fontSize: '11px',
+                                                        fontSize: '12px',
                                                     }}
                                                     formatter={(
                                                         value: number,
                                                     ) => [
                                                         `S/ ${value.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
-                                                        'Ganancia Proyectada',
+                                                        'Utilidad',
                                                     ]}
                                                 />
                                                 <Bar
@@ -241,10 +239,11 @@ export default function MarginReport({
                                     </div>
                                 </CardContent>
                             </Card>
+
                             {/* Detalle en Tabla */}
                             <div className="flex flex-col rounded-3xl border border-neutral-200 bg-card p-6 shadow-sm lg:col-span-2 dark:border-neutral-800 dark:bg-neutral-900/20">
                                 <h3 className="mb-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
-                                    Detalle de Margen
+                                    Detalle de Costos vs Venta
                                 </h3>
                                 <div className="flex-1 overflow-hidden rounded-2xl border dark:border-neutral-800">
                                     <Table>
@@ -254,7 +253,7 @@ export default function MarginReport({
                                                     Producto
                                                 </TableHead>
                                                 <TableHead className="text-right font-bold">
-                                                    Margen
+                                                    Margen %
                                                 </TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -265,25 +264,31 @@ export default function MarginReport({
                                                     className="transition-colors hover:bg-muted/50 dark:border-neutral-800"
                                                 >
                                                     <TableCell className="py-3">
-                                                        <p className="text-[11px] leading-tight font-black uppercase">
+                                                        <p
+                                                            className="max-w-[180px] truncate text-[11px] leading-tight font-black uppercase"
+                                                            title={item.product}
+                                                        >
                                                             {item.product}
                                                         </p>
-                                                        <span className="font-mono text-[10.5px] text-muted-foreground">
-                                                            S/ {item.avg_cost}{' '}
-                                                            vs S/{' '}
-                                                            {item.avg_sale}
-                                                        </span>
+                                                        <div className="mt-1 flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
+                                                            <span className="text-red-500">
+                                                                C:{' '}
+                                                                {item.avg_cost}
+                                                            </span>
+                                                            <span>/</span>
+                                                            <span className="text-emerald-500">
+                                                                V:{' '}
+                                                                {item.avg_sale}
+                                                            </span>
+                                                        </div>
                                                     </TableCell>
                                                     <TableCell className="text-right">
                                                         <span
-                                                            className={`text-xs font-black tabular-nums ${
+                                                            className={`rounded-md px-2 py-1 text-xs font-black ${
                                                                 item.margin_percent <
-                                                                0
-                                                                    ? 'text-red-500'
-                                                                    : item.margin_percent <
-                                                                        15
-                                                                      ? 'text-orange-500'
-                                                                      : 'text-emerald-500'
+                                                                15
+                                                                    ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                                                                    : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
                                                             }`}
                                                         >
                                                             {item.margin_percent.toFixed(

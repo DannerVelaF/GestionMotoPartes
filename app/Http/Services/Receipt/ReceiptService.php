@@ -27,54 +27,70 @@ class ReceiptService extends BaseService
     public function createReceipt(array $data)
     {
         return DB::transaction(function () use ($data) {
-            // 1. Manejo de Archivo
             $path = null;
             if (isset($data['file']) && $data['file'] instanceof UploadedFile) {
                 $path = $data['file']->store('receipts', 'public');
             }
 
-            // 2. Fecha y Totales
             $issueDate = Carbon::parse($data['issue_date']);
             $totalAmount = collect($data['details'])->sum(fn($i) => (float)$i['quantity'] * (float)$i['unit_price']);
 
-            // 3. Crear Cabecera
+            // --- 1. Crear Cabecera con Moneda ---
             $receipt = $this->repo->create([
                 'id_supplier'   => $data['id_supplier'],
                 'document_type' => $data['document_type'],
+                'currency'      => $data['currency'],       // <--- NUEVO
+                'exchange_rate' => $data['exchange_rate'],  // <--- NUEVO
                 'series'        => strtoupper($data['series']),
                 'number'        => $data['number'],
                 'issue_date'    => $issueDate,
-                'total_amount'  => $totalAmount,
+                'total_amount'  => $totalAmount, // El total se guarda en la moneda original (ej: $100)
                 'receipt_path'  => $path,
             ]);
 
-            // 4. Detalles y Kardex
+            $isUSD = $data['currency'] === 'USD';
+            $exchangeRate = (float) $data['exchange_rate'];
+
             foreach ($data['details'] as $detail) {
                 $qty = (float)$detail['quantity'];
-                $price = (float)$detail['unit_price'];
+                $price = (float)$detail['unit_price']; // Precio en moneda original
+                $isService = $detail['is_service'] ?? false;
 
-                $receipt->details()->create([
-                    'id_product' => $detail['id_product'],
-                    'quantity'   => $qty,
-                    'unit_price' => $price,
-                    'subtotal'   => $qty * $price, // Soluciona error de default value
-                ]);
+                // --- 2. Crear Detalle ---
+                $detailData = [
+                    'quantity'    => $qty,
+                    'unit_price'  => $price,
+                    'subtotal'    => $qty * $price,
+                    'id_product'  => $isService ? null : $detail['id_product'],
+                    'description' => $isService ? ($detail['description'] ?? 'Servicio') : null,
+                ];
 
-                // Actualizar precio de venta si se envió
-                if (isset($detail['sale_price']) && $detail['sale_price'] > 0) {
-                    Products::where('id_product', $detail['id_product'])->update(['sale_price' => $detail['sale_price']]);
+                $receipt->details()->create($detailData);
+
+                // --- 3. Lógica Inventario (Solo Productos) ---
+                if (!$isService && !empty($detail['id_product'])) {
+
+                    // Actualizar precio de venta sugerido (Siempre en Soles)
+                    if (isset($detail['sale_price']) && $detail['sale_price'] > 0) {
+                        Products::where('id_product', $detail['id_product'])
+                            ->update(['sale_price' => $detail['sale_price']]);
+                    }
+
+                    // --- CALCULAR PRECIO EN SOLES PARA KARDEX ---
+                    // Si la compra fue en USD, convertimos al tipo de cambio.
+                    // Si fue en PEN, usamos el precio directo.
+                    $kardexPrice = $isUSD ? ($price * $exchangeRate) : $price;
+
+                    $this->inventoryService->registerMovement(
+                        $detail['id_product'],
+                        $qty,
+                        'purchase',
+                        $kardexPrice, // <--- PRECIO CONVERTIDO A SOLES
+                        $receipt,
+                        "Ingreso por Compra {$receipt->series}-{$receipt->number} (" . ($isUSD ? 'USD' : 'PEN') . ")",
+                        $issueDate
+                    );
                 }
-
-                // Registrar en Kardex con la fecha del documento
-                $this->inventoryService->registerMovement(
-                    $detail['id_product'],
-                    $qty,
-                    'purchase',
-                    $price,
-                    $receipt,
-                    "Ingreso por Compra {$receipt->series}-{$receipt->number}",
-                    $issueDate
-                );
             }
 
             return $receipt;
@@ -86,52 +102,74 @@ class ReceiptService extends BaseService
         return DB::transaction(function () use ($data, $id) {
             $receipt = Receipt::findOrFail($id);
 
-            // 1. Revertir Stock antiguo
-            foreach ($receipt->details as $oldDetail) {
-                if ($oldDetail->product) $oldDetail->product->decrement('stock', $oldDetail->quantity);
+            if (isset($data['file']) && $data['file'] instanceof UploadedFile) {
+                if ($receipt->receipt_path) {
+                    Storage::disk('public')->delete($receipt->receipt_path);
+                }
+
+                $data['receipt_path'] = $data['file']->store('receipts', 'public');
             }
 
-            // 2. Limpiar Kardex y Detalles previos de este recibo
+            foreach ($receipt->details as $oldDetail) {
+                if ($oldDetail->id_product && $oldDetail->product) {
+                    $oldDetail->product->decrement('stock', $oldDetail->quantity);
+                }
+            }
+
             \App\Models\InventoryMovements::where('reference_id', $receipt->id_receipt)
                 ->where('reference_type', Receipt::class)
                 ->delete();
+
             $receipt->details()->delete();
 
-            // 3. Preparar Fecha con Hora
             $issueDate = \Carbon\Carbon::parse($data['issue_date']);
 
-            // 4. Actualizar Cabecera
-            $receipt->update([
+            $updateData = [
                 'id_supplier'   => $data['id_supplier'],
                 'document_type' => $data['document_type'],
+                'currency'      => $data['currency'],
+                'exchange_rate' => $data['exchange_rate'],
                 'series'        => strtoupper($data['series']),
                 'number'        => $data['number'],
-                'issue_date'    => $issueDate, // <--- SE GUARDA EN LA DB
+                'issue_date'    => $issueDate,
                 'total_amount'  => collect($data['details'])->sum(fn($i) => (float)$i['quantity'] * (float)$i['unit_price']),
-            ]);
+            ];
 
-            // 5. Grabar nuevos detalles y llamar al registro de Kardex forzado
+            if (isset($data['receipt_path'])) {
+                $updateData['receipt_path'] = $data['receipt_path'];
+            }
+
+            // 5. Actualizar
+            $receipt->update($updateData);
+
+            $isUSD = $data['currency'] === 'USD';
+            $exchangeRate = (float) $data['exchange_rate'];
             foreach ($data['details'] as $item) {
                 $qty = (float)$item['quantity'];
                 $price = (float)$item['unit_price'];
+                $isService = $item['is_service'] ?? false;
 
                 $receipt->details()->create([
-                    'id_product' => $item['id_product'],
-                    'quantity'   => $qty,
-                    'unit_price' => $price,
-                    'subtotal'   => $qty * $price,
+                    'quantity'    => $qty,
+                    'unit_price'  => $price,
+                    'subtotal'    => $qty * $price,
+                    'id_product'  => $isService ? null : $item['id_product'],
+                    'description' => $isService ? ($item['description'] ?? 'Servicio') : null,
                 ]);
 
-                // LLAMADA AL INVENTARIO PASANDO LA FECHA
-                $this->inventoryService->registerMovement(
-                    $item['id_product'],
-                    $qty,
-                    'purchase',
-                    $price,
-                    $receipt,
-                    "Compra Actualizada {$receipt->series}-{$receipt->number}",
-                    $issueDate
-                );
+                if (!$isService && !empty($item['id_product'])) {
+                    $kardexPrice = $isUSD ? ($price * $exchangeRate) : $price;
+
+                    $this->inventoryService->registerMovement(
+                        $item['id_product'],
+                        $qty,
+                        'purchase',
+                        $kardexPrice,
+                        $receipt,
+                        "Compra Actualizada {$receipt->series}-{$receipt->number}",
+                        $issueDate
+                    );
+                }
             }
 
             return $receipt;
@@ -163,25 +201,29 @@ class ReceiptService extends BaseService
                     $qty = (float)$item['return_quantity'];
                     $price = (float)$item['unit_price'];
 
+                    $isService = empty($item['id_product']);
+
                     $creditNote->details()->create([
-                        'id_product' => $item['id_product'],
-                        'quantity'   => $qty,
-                        'unit_price' => $price,
-                        'subtotal'   => $qty * $price,
+                        'id_product'  => $isService ? null : $item['id_product'],
+                        'description' => $isService ? ($item['description'] ?? 'Devolución Servicio') : null,
+                        'quantity'    => $qty,
+                        'unit_price'  => $price,
+                        'subtotal'    => $qty * $price,
                     ]);
 
-                    $this->inventoryService->registerMovement(
-                        $item['id_product'],
-                        -$qty,
-                        'purchase_return',
-                        $price,
-                        $creditNote,
-                        "Devolución parcial de Compra {$originalReceipt->series}-{$originalReceipt->number}",
-                        $now
-                    );
+                    if (!$isService) {
+                        $this->inventoryService->registerMovement(
+                            $item['id_product'],
+                            -$qty, // Salida de stock
+                            'purchase_return',
+                            $price,
+                            $creditNote,
+                            "Devolución parcial de Compra {$originalReceipt->series}-{$originalReceipt->number}",
+                            Carbon::now()
+                        );
+                    }
                 }
             }
-
             return $creditNote;
         });
     }
@@ -193,18 +235,20 @@ class ReceiptService extends BaseService
             if (!$receipt) return false;
 
             foreach ($receipt->details as $detail) {
-                $qty = abs($detail->quantity);
-                $finalQty = ($receipt->document_type != DocumentType::CREDIT_NOTE) ? -$qty : $qty;
+                if ($detail->id_product) {
+                    $qty = abs($detail->quantity);
+                    $finalQty = ($receipt->document_type != DocumentType::CREDIT_NOTE) ? -$qty : $qty;
 
-                $this->inventoryService->registerMovement(
-                    $detail->id_product,
-                    $finalQty,
-                    'adjustment',
-                    $detail->unit_price,
-                    $receipt,
-                    "Anulación de " . ($receipt->document_type == DocumentType::CREDIT_NOTE ? "Nota de Crédito" : "Compra"),
-                    Carbon::now()
-                );
+                    $this->inventoryService->registerMovement(
+                        $detail->id_product,
+                        $finalQty,
+                        'adjustment',
+                        $detail->unit_price,
+                        $receipt,
+                        "Anulación de " . ($receipt->document_type == DocumentType::CREDIT_NOTE ? "Nota de Crédito" : "Compra"),
+                        Carbon::now()
+                    );
+                }
             }
 
             if ($receipt->receipt_path) Storage::disk('public')->delete($receipt->receipt_path);

@@ -145,27 +145,31 @@ class ProductController extends Controller
 
     public function show($id)
     {
-        // 1. Cargamos movimientos con su usuario y su referencia polimórfica
         $product = Products::with(['movements' => function ($query) {
-            $query->with(['user', 'reference']) // <--- AGREGAR 'reference' AQUÍ
+            $query->with(['user', 'reference'])
                 ->orderBy('created_at', 'desc')
                 ->orderBy('id_movement', 'desc')
                 ->take(20);
         }])->findOrFail($id);
 
-        // 2. Mapeamos los movimientos para generar el label que el componente React necesita
         $mappedMovements = $product->movements->map(function ($move) {
             $refLabel = $move->notes ?? 'Movimiento manual';
 
+            $unitCostInSoles = $move->unit_cost; // Valor por defecto
+
             if ($move->reference) {
-                // Si la referencia es una Venta
+                // Venta (Siempre Soles por ahora)
                 if ($move->reference_type === \App\Models\Sales::class) {
                     $refLabel = "Venta " . ($move->reference->code_sales ?? "#{$move->reference_id}");
-                }
-                // Si la referencia es un Recibo (Compra o Devolución)
-                elseif ($move->reference_type === \App\Models\Receipt::class) {
-                    $tipo = ($move->reference->document_type === 'nota_credito') ? 'Devolución' : 'Compra';
-                    $refLabel = $tipo . " " . ($move->reference->receipt_code ?? "#{$move->reference_id}");
+                } elseif ($move->reference_type === \App\Models\Receipt::class) {
+                    $receipt = $move->reference;
+                    $tipo = ($receipt->document_type === 'nota_credito') ? 'Devolución' : 'Compra';
+                    $refLabel = $tipo . " " . ($receipt->receipt_code ?? "#{$move->reference_id}");
+
+                    // [CORRECCIÓN] Normalizar a Soles si es USD
+                    if ($receipt->currency === 'USD' && $receipt->exchange_rate > 0) {
+                        $unitCostInSoles = $move->unit_cost * $receipt->exchange_rate;
+                    }
                 }
             }
 
@@ -173,9 +177,9 @@ class ProductController extends Controller
                 'id_movement'    => $move->id_movement,
                 'type'           => $move->type,
                 'quantity'       => $move->quantity,
-                'unit_cost'      => $move->unit_cost,
+                'unit_cost'      => $unitCostInSoles, // Enviamos el valor ya convertido
                 'balance'        => $move->balance,
-                'reference_label' => $refLabel, // <--- ESTO ES LO QUE LEERÁ TU TABLA
+                'reference_label' => $refLabel,
                 'reference_type' => $move->reference_type,
                 'reference_id'   => $move->reference_id,
                 'created_at'     => $move->created_at,
@@ -184,29 +188,50 @@ class ProductController extends Controller
             ];
         });
 
-        // 3. (Analítica - Mantén tu lógica anterior aquí)
+        // 3. ANALÍTICA DE VENTAS (Siempre Soles)
         $salesAnalytics = DB::table('sale_details')
             ->where('id_product', $id)
-            ->select(DB::raw('SUM(quantity) as total_qty'), DB::raw('SUM(quantity * unit_price) as total_revenue'), DB::raw('AVG(unit_price) as avg_price'))
+            ->select(
+                DB::raw('SUM(quantity) as total_qty'),
+                DB::raw('SUM(quantity * unit_price) as total_revenue'), // Precio venta siempre es Soles
+                DB::raw('AVG(unit_price) as avg_price')
+            )
             ->first();
 
         $purchasesAnalytics = DB::table('receipt_details')
-            ->where('id_product', $id)
-            ->select(DB::raw('SUM(quantity) as total_qty'), DB::raw('SUM(quantity * unit_price) as total_investment'), DB::raw('AVG(unit_price) as avg_cost'))
+            ->join('receipts', 'receipt_details.id_receipt', '=', 'receipts.id_receipt')
+            ->where('receipt_details.id_product', $id)
+            ->where('receipts.document_type', '!=', 'nota_credito')
+            ->select(
+                DB::raw('SUM(receipt_details.quantity) as total_qty'),
+                DB::raw('SUM(
+                    CASE 
+                        WHEN receipts.currency = "USD" THEN (receipt_details.quantity * receipt_details.unit_price) * receipts.exchange_rate 
+                        ELSE (receipt_details.quantity * receipt_details.unit_price) 
+                    END
+                ) as total_investment'),
+                DB::raw('AVG(
+                    CASE 
+                        WHEN receipts.currency = "USD" THEN receipt_details.unit_price * receipts.exchange_rate 
+                        ELSE receipt_details.unit_price 
+                    END
+                ) as avg_cost')
+            )
             ->first();
 
-        // 4. Datos maestros
+        // 5. Datos maestros
         $categories = ProductCategory::where("status", GenericStatus::ACTIVE)->get();
         $brands = Brand::where("status", GenericStatus::ACTIVE)->get();
         $types = ProductType::where("status", GenericStatus::ACTIVE)->get();
 
         return Inertia::render("Products/EditProduct", [
             'product' => array_merge($product->only(['id_product', 'product_name', 'product_code', 'sale_price', 'id_category', 'id_brand', 'id_product_type', 'notes', 'status', 'url_image', 'purchase_price', 'stock']), [
-                'movements' => $mappedMovements, // <--- ENVIAMOS LOS MOVIMIENTOS MAPEADOS
+                'movements' => $mappedMovements,
                 'analytics' => [
                     'sales_qty' => (float)($salesAnalytics->total_qty ?? 0),
                     'sales_revenue' => (float)($salesAnalytics->total_revenue ?? 0),
                     'sales_avg_price' => (float)($salesAnalytics->avg_price ?? 0),
+                    // Usamos los datos normalizados
                     'purchases_qty' => (float)($purchasesAnalytics->total_qty ?? 0),
                     'purchases_investment' => (float)($purchasesAnalytics->total_investment ?? 0),
                     'purchases_avg_cost' => (float)($purchasesAnalytics->avg_cost ?? 0),

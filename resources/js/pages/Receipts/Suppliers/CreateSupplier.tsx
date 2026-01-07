@@ -5,12 +5,15 @@ import AppSidebarLayout from '@/layouts/app-layout';
 import receipts from '@/routes/receipts';
 import suppliers from '@/routes/suppliers';
 import { Head, useForm } from '@inertiajs/react';
+import axios from 'axios';
 import {
     AlertCircle,
     CheckCircle2,
     CreditCard,
+    Globe, // Nuevo icono
     Loader2,
     Mail,
+    MapPin, // Nuevo icono
     Phone,
     Save,
     Search,
@@ -18,7 +21,6 @@ import {
     User,
 } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
-import axios from 'axios';
 
 // --- COMPONENTE DE ALERTA FLOTANTE MEJORADO ---
 function FloatingAlert({
@@ -93,6 +95,7 @@ export default function CreateSupplier() {
         clearErrors,
         setError,
     } = useForm({
+        type: 'nacional', // 'nacional' | 'extranjero'
         company_name: '',
         ruc: '',
         supplier_name: '',
@@ -107,12 +110,19 @@ export default function CreateSupplier() {
         }
     };
 
+    // Cambio de tipo de proveedor (Limpia el RUC al cambiar)
+    const handleTypeChange = (newType: string) => {
+        setData((prev) => ({ ...prev, type: newType, ruc: '' }));
+        clearErrors('ruc');
+    };
+
     const handleSunatSearch = async () => {
-        // 1. Limpiar estados previos
+        // Validación local mínima
+        if (data.type !== 'nacional') return; // No buscar si es extranjero
+
         setManualAlert(null);
         clearErrors('ruc');
 
-        // 2. Validación local mínima
         if (!data.ruc || data.ruc.length !== 11) {
             setError('ruc', 'Ingresa un RUC válido de 11 dígitos para buscar.');
             return;
@@ -121,16 +131,12 @@ export default function CreateSupplier() {
         setIsSearching(true);
 
         try {
-            // 3. Petición al endpoint que creamos en el controlador
-            // Usamos el helper de rutas que tienes definido
             const response = await axios.get(suppliers.buscarSunat().url, {
-                params: { numero: data.ruc }
+                params: { numero: data.ruc },
             });
 
             if (response.data.razon_social) {
-                // 4. Actualizar el campo Razón Social con el dato de la API
                 setData('company_name', response.data.razon_social);
-
                 setManualAlert({
                     message: 'Razón Social obtenida de SUNAT.',
                     type: 'success',
@@ -138,24 +144,20 @@ export default function CreateSupplier() {
             } else {
                 throw new Error('No se encontró la razón social');
             }
-
         } catch (error: any) {
-            console.error("Error en búsqueda SUNAT:", error);
-
-            // 5. Manejo de errores dinámico
-            const errorMessage = error.response?.data?.error || 'No se pudo conectar con SUNAT.';
-
+            console.error('Error en búsqueda SUNAT:', error);
+            const errorMessage =
+                error.response?.data?.error || 'No se pudo conectar con SUNAT.';
             setManualAlert({
                 message: errorMessage,
                 type: 'error',
             });
-
             setError('ruc', 'No se encontró información para este RUC.');
         } finally {
             setIsSearching(false);
         }
     };
-    // 2. Envío del Formulario
+
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         post(suppliers.store().url);
@@ -167,7 +169,6 @@ export default function CreateSupplier() {
         { title: 'Nuevo', href: '' },
     ];
 
-    // Estilo común para inputs
     const secondaryInputClass = (hasError: boolean) =>
         `h-10 w-full rounded-none border-0 border-b bg-transparent px-0 text-lg shadow-none transition-all placeholder:text-muted-foreground/40 focus:ring-0 focus:outline-none ${
             hasError
@@ -179,7 +180,6 @@ export default function CreateSupplier() {
         <AppSidebarLayout breadcrumbs={breadcrumbs}>
             <Head title="Crear Proveedor" />
 
-            {/* --- ALERTA FLOTANTE --- */}
             {manualAlert && (
                 <FloatingAlert
                     message={manualAlert.message}
@@ -226,6 +226,43 @@ export default function CreateSupplier() {
 
                 {/* --- CONTENIDO PRINCIPAL --- */}
                 <div className="w-full max-w-5xl animate-in px-8 py-8 duration-500 fade-in slide-in-from-bottom-4">
+                    {/* SELECCIÓN DE TIPO DE PROVEEDOR */}
+                    <div className="mb-8 flex gap-4">
+                        <div
+                            onClick={() => handleTypeChange('nacional')}
+                            className={`flex flex-1 cursor-pointer flex-col gap-1 rounded-lg border p-4 transition-all hover:bg-muted/50 ${
+                                data.type === 'nacional'
+                                    ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500 dark:bg-blue-900/20'
+                                    : 'border-muted bg-card'
+                            }`}
+                        >
+                            <div className="flex items-center gap-2 text-sm font-bold uppercase">
+                                <MapPin className="h-4 w-4 text-blue-600" />{' '}
+                                Nacional (Perú)
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Con RUC (11 dígitos) y validación SUNAT.
+                            </p>
+                        </div>
+
+                        <div
+                            onClick={() => handleTypeChange('extranjero')}
+                            className={`flex flex-1 cursor-pointer flex-col gap-1 rounded-lg border p-4 transition-all hover:bg-muted/50 ${
+                                data.type === 'extranjero'
+                                    ? 'border-blue-500 bg-blue-50/50 ring-1 ring-blue-500 dark:bg-blue-900/20'
+                                    : 'border-muted bg-card'
+                            }`}
+                        >
+                            <div className="flex items-center gap-2 text-sm font-bold uppercase">
+                                <Globe className="h-4 w-4 text-purple-600" />{' '}
+                                Extranjero
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Sin RUC (Tax ID/EIN), facturación Invoice.
+                            </p>
+                        </div>
+                    </div>
+
                     {/* 1. INPUT GIGANTE: RAZÓN SOCIAL */}
                     <div className="mb-12 space-y-6 pt-2">
                         <div className="relative space-y-2">
@@ -244,7 +281,11 @@ export default function CreateSupplier() {
                                         e.target.value.toUpperCase(),
                                     )
                                 }
-                                placeholder="EJ. INVERSIONES GENERALES S.A.C."
+                                placeholder={
+                                    data.type === 'nacional'
+                                        ? 'EJ. INVERSIONES GENERALES S.A.C.'
+                                        : 'EX. DIGITAL OCEAN, LLC'
+                                }
                                 className={`h-auto w-full rounded-none border-0 border-b-2 bg-transparent px-0 py-2 text-4xl font-extrabold tracking-tight transition-all duration-300 placeholder:text-muted-foreground/20 focus:ring-0 focus:outline-none ${
                                     errors.company_name
                                         ? 'border-red-500 text-red-900 placeholder:text-red-300 focus:border-red-500'
@@ -260,14 +301,17 @@ export default function CreateSupplier() {
                     <div className="grid grid-cols-1 gap-x-20 gap-y-12 md:grid-cols-2">
                         {/* COLUMNA IZQUIERDA: DATOS LEGALES Y CONTACTO PRINCIPAL */}
                         <div className="space-y-10">
-                            {/* RUC CON BOTÓN DE BÚSQUEDA */}
+                            {/* RUC / TAX ID CON LÓGICA CONDICIONAL */}
                             <div className="relative space-y-2">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase">
                                         <CreditCard className="h-3 w-3" />
-                                        <Label>RUC (11 Dígitos)</Label>
+                                        <Label>
+                                            {data.type === 'nacional'
+                                                ? 'RUC (11 Dígitos)'
+                                                : 'Tax ID / Identificación'}
+                                        </Label>
                                     </div>
-                                    {/* Indicador de estado */}
                                     {isSearching && (
                                         <span className="animate-pulse text-xs font-medium text-blue-600">
                                             Consultando SUNAT...
@@ -278,38 +322,52 @@ export default function CreateSupplier() {
                                 <div className="relative">
                                     <input
                                         value={data.ruc}
-                                        maxLength={11}
+                                        maxLength={
+                                            data.type === 'nacional' ? 11 : 20
+                                        }
                                         onChange={(e) => {
-                                            const val = e.target.value
-                                                .replace(/\D/g, '')
-                                                .slice(0, 11);
+                                            let val = e.target.value;
+                                            // Si es nacional, solo números. Si es extranjero, permite todo.
+                                            if (data.type === 'nacional') {
+                                                val = val
+                                                    .replace(/\D/g, '')
+                                                    .slice(0, 11);
+                                            }
                                             onFieldChange('ruc', val);
                                         }}
                                         disabled={isSearching}
-                                        placeholder="20123456789"
-                                        className={`${secondaryInputClass(!!errors.ruc)} pr-32`}
+                                        placeholder={
+                                            data.type === 'nacional'
+                                                ? '20123456789'
+                                                : 'US-EIN-12345'
+                                        }
+                                        className={`${secondaryInputClass(
+                                            !!errors.ruc,
+                                        )} ${data.type === 'nacional' ? 'pr-32' : ''}`}
                                     />
 
-                                    {/* Botón Integrado */}
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={handleSunatSearch}
-                                        disabled={
-                                            !data.ruc ||
-                                            data.ruc.length < 11 ||
-                                            isSearching
-                                        }
-                                        className="absolute right-0 bottom-1 h-8 text-xs font-medium text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/30"
-                                    >
-                                        {isSearching ? (
-                                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
-                                        ) : (
-                                            <Search className="mr-2 h-3 w-3" />
-                                        )}
-                                        Buscar SUNAT
-                                    </Button>
+                                    {/* Botón Integrado SOLO PARA NACIONALES */}
+                                    {data.type === 'nacional' && (
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={handleSunatSearch}
+                                            disabled={
+                                                !data.ruc ||
+                                                data.ruc.length < 11 ||
+                                                isSearching
+                                            }
+                                            className="absolute right-0 bottom-1 h-8 text-xs font-medium text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/30"
+                                        >
+                                            {isSearching ? (
+                                                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                            ) : (
+                                                <Search className="mr-2 h-3 w-3" />
+                                            )}
+                                            Buscar SUNAT
+                                        </Button>
+                                    )}
                                 </div>
                                 <FloatingAlert message={errors.ruc} />
                             </div>
@@ -388,25 +446,40 @@ export default function CreateSupplier() {
                                 />
                             </div>
 
-                            {/* NOTA MEJORADA */}
-                            <div className="mt-8 flex gap-4 rounded-lg border border-blue-100 bg-blue-50/50 p-6 text-sm text-blue-900 dark:border-blue-900/30 dark:bg-blue-950/20 dark:text-blue-200">
-                                <Search className="mt-1 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
-                                <div className="space-y-1">
-                                    <p className="font-semibold">
-                                        Búsqueda Rápida SUNAT
-                                    </p>
-                                    <p className="leading-relaxed opacity-90">
-                                        Para agilizar el registro, ingresa el
-                                        RUC y presiona
-                                        <span className="mx-1 inline-flex items-center rounded bg-blue-100 px-1.5 py-0.5 text-xs font-bold text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                                            Buscar SUNAT
-                                        </span>
-                                        . Si el servicio no responde o el
-                                        proveedor no tiene condición de habido,
-                                        puedes completar los datos manualmente.
-                                    </p>
+                            {/* NOTA DINÁMICA SEGÚN TIPO */}
+                            {data.type === 'nacional' ? (
+                                <div className="mt-8 flex gap-4 rounded-lg border border-blue-100 bg-blue-50/50 p-6 text-sm text-blue-900 dark:border-blue-900/30 dark:bg-blue-950/20 dark:text-blue-200">
+                                    <Search className="mt-1 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
+                                    <div className="space-y-1">
+                                        <p className="font-semibold">
+                                            Búsqueda Rápida SUNAT
+                                        </p>
+                                        <p className="leading-relaxed opacity-90">
+                                            Para agilizar el registro, ingresa
+                                            el RUC y presiona
+                                            <span className="mx-1 inline-flex items-center rounded bg-blue-100 px-1.5 py-0.5 text-xs font-bold text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                                                Buscar SUNAT
+                                            </span>
+                                            .
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="mt-8 flex gap-4 rounded-lg border border-neutral-100 bg-neutral-50/50 p-6 text-sm text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900/50 dark:text-neutral-200">
+                                    <Globe className="mt-1 h-5 w-5 shrink-0 text-neutral-500" />
+                                    <div className="space-y-1">
+                                        <p className="font-semibold">
+                                            Proveedor Internacional
+                                        </p>
+                                        <p className="leading-relaxed opacity-90">
+                                            Ingresa el identificador fiscal
+                                            (EIN, VAT, Tax ID) de la empresa
+                                            extranjera. No se realizará
+                                            validación con SUNAT.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -52,7 +52,7 @@ export default function SupplierReport({
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         router.get(
-            '/receipts/reports/suppliers',
+            '/recibos/reportes/proveedores', // Asegúrate que esta ruta sea correcta o usa tu helper
             {
                 from: formData.get('from'),
                 to: formData.get('to'),
@@ -79,8 +79,11 @@ export default function SupplierReport({
                             <h1 className="text-lg font-bold tracking-tight">
                                 Gestión de Proveedores
                             </h1>
-                            <p className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                            <p className="flex items-center gap-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
                                 Ranking de Inversión y Frecuencia
+                                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                    EN SOLES (PEN)
+                                </span>
                             </p>
                         </div>
                     </div>
@@ -135,10 +138,10 @@ export default function SupplierReport({
                             />
                             <StatCard
                                 title="Inversión Total"
-                                value={`S/ ${totalInvestment.toLocaleString()}`}
+                                value={`S/ ${totalInvestment.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
                                 icon={<TrendingUp className="h-4 w-4" />}
                                 colorClass="text-orange-500"
-                                subtext="Suma de comprobantes"
+                                subtext="Suma total (Normalizada a Soles)"
                             />
                         </div>
 
@@ -185,20 +188,19 @@ export default function SupplierReport({
                                                 <ChartTooltip
                                                     wrapperStyle={{
                                                         zIndex: 100,
-                                                    }} // Asegura que esté al frente
+                                                    }}
                                                     contentStyle={{
                                                         backgroundColor: '#000',
                                                         border: 'none',
                                                         borderRadius: '12px',
                                                         color: '#fff',
-                                                        fontSize: '14px', // Tamaño aumentado
+                                                        fontSize: '12px',
                                                         fontWeight: '600',
                                                         padding: '12px',
                                                     }}
                                                     itemStyle={{
                                                         color: '#60a5fa',
-                                                    }} // Color celeste para el valor
-                                                    // Formatea el valor para que se vea como moneda
+                                                    }}
                                                     formatter={(
                                                         value: number,
                                                     ) => [
@@ -278,7 +280,12 @@ export default function SupplierReport({
                                                         <TableCell className="text-right">
                                                             <p className="text-xs font-black tabular-nums">
                                                                 S/{' '}
-                                                                {item.total.toLocaleString()}
+                                                                {item.total.toLocaleString(
+                                                                    'es-PE',
+                                                                    {
+                                                                        minimumFractionDigits: 2,
+                                                                    },
+                                                                )}
                                                             </p>
                                                             <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted">
                                                                 <div

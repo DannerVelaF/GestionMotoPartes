@@ -20,6 +20,7 @@ import {
     TrendingDown,
     TrendingUp,
 } from 'lucide-react';
+import { useState } from 'react'; // Importar useState
 import {
     CartesianGrid,
     Tooltip as ChartTooltip,
@@ -36,15 +37,25 @@ export default function CostVariationReport({
     productsList,
     filters,
 }: any) {
+    // Estado local para controlar el select
+    const [selectedProduct, setSelectedProduct] = useState(
+        filters.id_product || '',
+    );
+
     const handleFilterChange = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
+
+        // Aseguramos que si selectedProduct es vacío, se envíe vacío
+        const productId = selectedProduct || '';
+
         router.get(
-            '/receipts/reports/variation',
+            // Usa tu helper de rutas o la cadena directa
+            '/recibos/reportes/variacionCosto',
             {
                 from: formData.get('from'),
                 to: formData.get('to'),
-                id_product: formData.get('id_product'),
+                id_product: productId, // Usamos el estado local
             },
             { preserveState: true },
         );
@@ -68,8 +79,11 @@ export default function CostVariationReport({
                             <h1 className="text-lg font-bold tracking-tight">
                                 Variación de Costos
                             </h1>
-                            <p className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                            <p className="flex items-center gap-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
                                 Trazabilidad inflacionaria de insumos
+                                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                    EN SOLES (PEN)
+                                </span>
                             </p>
                         </div>
                     </div>
@@ -80,11 +94,17 @@ export default function CostVariationReport({
                     >
                         <div className="w-64">
                             <SearchableSelect
-                                name="id_product"
                                 options={productsList}
-                                value={filters.id_product}
+                                value={selectedProduct}
                                 placeholder="Todos los productos"
-                                onChange={() => {}} // Se maneja por el submit del form
+                                onChange={(val) => setSelectedProduct(val)}
+                                onClear={() => setSelectedProduct('')}
+                                className="text-sm"
+                            />
+                            <input
+                                type="hidden"
+                                name="id_product"
+                                value={selectedProduct}
                             />
                         </div>
                         <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-1 dark:border-neutral-800">
@@ -113,6 +133,7 @@ export default function CostVariationReport({
                     </form>
                 </div>
 
+                {/* ... (Resto del contenido igual: Gráficos y Tablas) ... */}
                 <div className="flex-1 overflow-auto bg-muted/5 p-8 dark:bg-neutral-950/20">
                     <div className="mx-auto max-w-7xl space-y-6">
                         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
@@ -121,7 +142,7 @@ export default function CostVariationReport({
                                 <CardHeader className="border-b bg-muted/30 dark:border-neutral-800">
                                     <CardTitle className="flex items-center gap-2 text-[10px] font-black tracking-widest uppercase">
                                         <Activity className="h-4 w-4 text-blue-400" />{' '}
-                                        Curva de Precios
+                                        Curva de Precios (Normalizada)
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="pt-8">
@@ -170,29 +191,35 @@ export default function CostVariationReport({
                                                         border: 'none',
                                                         borderRadius: '12px',
                                                         color: '#fff',
-                                                        fontSize: '14px', // Aumentado a 14px
+                                                        fontSize: '14px',
                                                         fontWeight: '600',
                                                         padding: '12px',
                                                     }}
                                                     itemStyle={{
                                                         color: '#60a5fa',
-                                                    }} // Color celeste para el texto interno
+                                                    }}
                                                     labelStyle={{
                                                         color: '#999',
                                                         marginBottom: '4px',
                                                         fontSize: '12px',
                                                     }}
+                                                    formatter={(
+                                                        value: number,
+                                                    ) => [
+                                                        `S/ ${value.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
+                                                        'Costo Promedio',
+                                                    ]}
                                                 />
                                                 <Line
                                                     type="monotone"
                                                     dataKey="price"
-                                                    name="Precio" // Traducido a "Precio"
-                                                    stroke="#3b82f6" // Azul más vibrante y visible
-                                                    strokeWidth={4} // Línea un poco más gruesa
+                                                    name="Precio"
+                                                    stroke="#3b82f6"
+                                                    strokeWidth={4}
                                                     dot={{
                                                         r: 5,
                                                         fill: '#3b82f6',
-                                                        stroke: '#fff', // Borde blanco para resaltar el punto
+                                                        stroke: '#fff',
                                                         strokeWidth: 2,
                                                     }}
                                                     activeDot={{
@@ -231,7 +258,12 @@ export default function CostVariationReport({
                                                         className="transition-colors hover:bg-muted/50 dark:border-neutral-800"
                                                     >
                                                         <TableCell className="py-3">
-                                                            <p className="text-[11px] leading-tight font-black uppercase">
+                                                            <p
+                                                                className="max-w-[180px] truncate text-[11px] leading-tight font-black uppercase"
+                                                                title={
+                                                                    item.name
+                                                                }
+                                                            >
                                                                 {item.name}
                                                             </p>
                                                             <span className="font-mono text-[10.5px] text-muted-foreground">

@@ -21,6 +21,7 @@ import {
     Filter,
     Percent,
     PieChart as PieIcon,
+    RefreshCw,
 } from 'lucide-react';
 import {
     Bar,
@@ -61,26 +62,27 @@ export default function TaxReport({ reportData, filters }: Props) {
         factura: 'Facturas',
         boleta: 'Boletas',
         nota_credito: 'Notas de Crédito',
+        recibo_honorarios: 'Recibos por Honorarios',
     };
 
     const handleFilterChange = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         router.get(
-            tax().url, // Asegúrate de que esta ruta apunte a ReceiptController@taxReport
+            tax().url,
             { from: formData.get('from'), to: formData.get('to') },
             { preserveState: true, preserveScroll: true },
         );
     };
+
     const handleExportExcel = () => {
-        // Construimos la URL con los filtros actuales
-        const url = taxExcel().url({
+        const baseUrl = taxExcel().url;
+        const params = new URLSearchParams({
             from: filters.from,
             to: filters.to,
-        });
+        }).toString();
 
-        // Redirigimos para descargar
-        window.location.href = url;
+        window.location.href = `${baseUrl}?${params}`;
     };
 
     return (
@@ -101,8 +103,11 @@ export default function TaxReport({ reportData, filters }: Props) {
                             <h1 className="text-lg font-bold tracking-tight text-foreground">
                                 Libro de Compras (IGV)
                             </h1>
-                            <p className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                            <p className="flex items-center gap-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
                                 Auditoría Contable de Gastos
+                                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                    EN SOLES (PEN)
+                                </span>
                             </p>
                         </div>
                     </div>
@@ -137,10 +142,12 @@ export default function TaxReport({ reportData, filters }: Props) {
                         <Button
                             variant="outline"
                             size="sm"
+                            type="button"
+                            onClick={handleExportExcel}
                             className="dark:border-neutral-800 dark:hover:bg-neutral-900"
                         >
                             <Download className="mr-2 h-3.5 w-3.5" /> Exportar
-                            CSV
+                            Excel
                         </Button>
                     </form>
                 </div>
@@ -154,19 +161,19 @@ export default function TaxReport({ reportData, filters }: Props) {
                                 value={`S/ ${totals.igv.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
                                 icon={<Percent className="h-4 w-4" />}
                                 colorClass="text-emerald-600 dark:text-emerald-400"
-                                description="Impuesto recuperable"
+                                description="Impuesto recuperable acumulado"
                             />
                             <TaxStatCard
-                                title="Base Imponible"
+                                title="Base Imponible Total"
                                 value={`S/ ${totals.base.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
                                 icon={<Calculator className="h-4 w-4" />}
                                 colorClass="text-blue-600 dark:text-blue-400"
-                                description="Total neto de compras"
+                                description="Valor neto de compras y servicios"
                             />
                             <Card className="rounded-3xl border-none bg-neutral-900 text-white shadow-xl dark:bg-white dark:text-black">
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                                     <CardTitle className="text-[10px] font-black tracking-widest uppercase opacity-70">
-                                        Total Egresos
+                                        Total Egresos (PEN)
                                     </CardTitle>
                                     <FileText className="h-4 w-4 opacity-70" />
                                 </CardHeader>
@@ -177,8 +184,9 @@ export default function TaxReport({ reportData, filters }: Props) {
                                             minimumFractionDigits: 2,
                                         })}
                                     </div>
-                                    <p className="mt-1 text-[12px] font-medium opacity-60">
-                                        Gasto total documentado
+                                    <p className="mt-1 flex items-center gap-1 text-[12px] font-medium opacity-60">
+                                        <RefreshCw className="h-3 w-3" />
+                                        Incluye conversión T.C.
                                     </p>
                                 </CardContent>
                             </Card>
@@ -191,7 +199,7 @@ export default function TaxReport({ reportData, filters }: Props) {
                                 <CardHeader className="border-b bg-muted/30 dark:border-neutral-800">
                                     <CardTitle className="flex items-center gap-2 text-xs font-black tracking-widest uppercase">
                                         <PieIcon className="h-4 w-4 text-blue-600" />{' '}
-                                        Composición del Gasto
+                                        Distribución por Tipo
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="pt-8">
@@ -271,7 +279,7 @@ export default function TaxReport({ reportData, filters }: Props) {
                             {/* Detalle Contable */}
                             <div className="flex flex-col rounded-3xl border border-neutral-200 bg-card p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900/20">
                                 <h3 className="mb-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
-                                    Desglose por Documento
+                                    Resumen Contable
                                 </h3>
                                 <div className="flex-1 overflow-hidden rounded-2xl border dark:border-neutral-800">
                                     <Table>
@@ -287,7 +295,7 @@ export default function TaxReport({ reportData, filters }: Props) {
                                                     IGV
                                                 </TableHead>
                                                 <TableHead className="text-right font-bold">
-                                                    Total
+                                                    Total (S/)
                                                 </TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -329,7 +337,9 @@ export default function TaxReport({ reportData, filters }: Props) {
                                                         colSpan={4}
                                                         className="h-24 text-center text-muted-foreground"
                                                     >
-                                                        No hay datos contables.
+                                                        No se encontraron datos
+                                                        para el periodo
+                                                        seleccionado.
                                                     </TableCell>
                                                 </TableRow>
                                             )}
@@ -338,10 +348,11 @@ export default function TaxReport({ reportData, filters }: Props) {
                                 </div>
                                 <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-3 dark:border-blue-900/30 dark:bg-blue-900/10">
                                     <p className="text-[10px] leading-relaxed font-medium text-blue-700 dark:text-blue-300">
-                                        * Libro auxiliar de compras. Estos
-                                        montos representan crédito fiscal
-                                        disponible para deducción de impuestos
-                                        mensuales.
+                                        <span className="font-bold">Nota:</span>{' '}
+                                        Los montos en dólares han sido
+                                        convertidos a soles utilizando el Tipo
+                                        de Cambio registrado en la fecha de
+                                        emisión del documento.
                                     </p>
                                 </div>
                             </div>

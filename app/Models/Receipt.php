@@ -21,6 +21,8 @@ class Receipt extends Model
         'receipt_path',
         "receipt_code",
         "id_parent",
+        "currency",
+        "exchange_rate"
     ];
 
     protected function casts(): array
@@ -51,8 +53,8 @@ class Receipt extends Model
 
     public function products()
     {
-        return $this->belongsToMany(Products::class, 'receipt_details')
-            ->withPivot('quantity', 'unit_price', 'subtotal');
+        return $this->belongsToMany(Products::class, 'receipt_details', 'id_receipt', 'id_product')
+            ->withPivot('quantity', 'unit_price', 'description');
     }
 
     public function parent()

@@ -9,11 +9,11 @@ class Supplier extends Model
     protected $primaryKey = 'id_supplier';
     protected $table = 'suppliers';
     protected $fillable = [
+        'type',
         'company_name',
         'ruc',
         'supplier_name',
         'supplier_email',
         'supplier_phone',
     ];
-
 }

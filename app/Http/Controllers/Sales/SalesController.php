@@ -10,6 +10,7 @@ use App\Http\Services\Sales\SalesService;
 use App\Models\BusinessConfig;
 use App\Models\MethodPayment;
 use App\Models\Products;
+use App\Models\Receipt;
 use App\Models\Sales;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -179,89 +180,111 @@ class SalesController extends Controller
 
     private function getDateRange(Request $request)
     {
-        return [
-            $request->input('from', Carbon::now()->subDays(30)->format('Y-m-d')) . ' 00:00:00',
-            $request->input('to', Carbon::now()->format('Y-m-d')) . ' 23:59:59'
-        ];
+        $from = $request->input('from')
+            ? Carbon::parse($request->input('from'))->startOfDay()
+            : Carbon::now()->subDays(30)->startOfDay();
+
+        $to = $request->input('to')
+            ? Carbon::parse($request->input('to'))->endOfDay()
+            : Carbon::now()->endOfDay();
+
+        return [$from, $to];
     }
 
     public function reportDaily(Request $request)
     {
-        $range = $this->getDateRange($request);
+        [$from, $to] = $this->getDateRange($request);
         $period = $request->input('period', 'daily');
 
         // 1. Definir formato de fecha SQL
         switch ($period) {
             case 'weekly':
-                $sql = 'STR_TO_DATE(CONCAT(YEARWEEK(date_sales, 1), " Monday"), "%x%v %W")';
+                $sqlSales = 'STR_TO_DATE(CONCAT(YEARWEEK(date_sales, 1), " Monday"), "%x%v %W")';
+                $sqlReceipts = 'STR_TO_DATE(CONCAT(YEARWEEK(issue_date, 1), " Monday"), "%x%v %W")';
                 break;
             case 'monthly':
-                $sql = 'DATE_FORMAT(date_sales, "%Y-%m-01")';
+                $sqlSales = 'DATE_FORMAT(date_sales, "%Y-%m-01")';
+                $sqlReceipts = 'DATE_FORMAT(issue_date, "%Y-%m-01")';
                 break;
             case 'yearly':
-                $sql = 'DATE_FORMAT(date_sales, "%Y-01-01")';
+                $sqlSales = 'DATE_FORMAT(date_sales, "%Y-01-01")';
+                $sqlReceipts = 'DATE_FORMAT(issue_date, "%Y-01-01")';
                 break;
             case 'daily':
             default:
-                $sql = 'DATE(date_sales)';
+                $sqlSales = 'DATE(date_sales)';
+                $sqlReceipts = 'DATE(issue_date)';
                 break;
         }
 
-        // 2. Consulta agrupada por FECHA y MÉTODO DE PAGO
-        // Usamos leftJoin para no perder ventas sin método (aunque no debería haber)
-        $rawQuery = Sales::query()
-            ->join('sale_details', 'sales.id_sales', '=', 'sale_details.id_sales')
+        // 2. Obtener VENTAS (Ingresos) desglosadas por MÉTODO
+        $salesQuery = Sales::query()
             ->leftJoin('method_payments', 'sales.id_method_payment', '=', 'method_payments.id_method_payment')
-
-            ->selectRaw("{$sql} as date_group")
-            // Si es null, le ponemos 'Otros'
+            ->select(DB::raw("$sqlSales as date_group"))
             ->selectRaw("COALESCE(method_payments.name_method_payment, 'Otros') as method_name")
-
-            // Métricas
-            ->selectRaw('SUM(sale_details.subtotal) as revenue')
-            ->selectRaw('SUM(sale_details.quantity * sale_details.cost) as cost')
-            ->selectRaw('COUNT(DISTINCT sales.id_sales) as tx_count')
-
-            ->whereBetween('sales.date_sales', $range)
-            ->groupByRaw("date_group, method_name")
-            ->orderBy('date_group', 'ASC')
+            ->selectRaw('SUM(total) as income')
+            ->selectRaw('COUNT(id_sales) as tx_count')
+            ->whereBetween('date_sales', [$from, $to])
+            ->groupBy('date_group', 'method_name') // Agrupamos por fecha Y método
             ->get();
 
-        // 3. Procesamiento con Colecciones (Agrupar por Fecha para el Frontend)
-        $reportData = $rawQuery->groupBy('date_group')->map(function ($dayGroup) {
+        // Agrupamos la colección por fecha para facilitar el merge
+        $salesByDate = $salesQuery->groupBy('date_group');
 
-            // Totales del día
-            $totalRevenue = $dayGroup->sum('revenue');
-            $totalCost    = $dayGroup->sum('cost');
-            $profit       = $totalRevenue - $totalCost;
-            $margin       = $totalRevenue > 0 ? ($profit / $totalRevenue) * 100 : 0;
-            $transactions = $dayGroup->sum('tx_count');
+        // 3. Obtener COMPRAS (Egresos) totales por fecha
+        $expensesQuery = Receipt::query()
+            ->select(DB::raw("$sqlReceipts as date_group"))
+            ->selectRaw('SUM(
+                CASE 
+                    WHEN currency = "USD" THEN total_amount * exchange_rate 
+                    ELSE total_amount 
+                END
+            ) as expense')
+            ->whereBetween('issue_date', [$from, $to])
+            ->groupBy('date_group')
+            ->get()
+            ->keyBy('date_group');
 
-            // Desglose por método dentro de este día
-            $methods = $dayGroup->map(function ($row) {
+        // 4. Fusionar fechas
+        $allDates = $salesByDate->keys()->merge($expensesQuery->keys())->unique()->sort();
+
+        // 5. Mapear datos finales
+        $reportData = $allDates->map(function ($date) use ($salesByDate, $expensesQuery) {
+
+            // Obtener todas las filas de ventas de este día (una por método)
+            $daySales = $salesByDate->get($date, collect());
+
+            // Calcular totales del día
+            $totalIncome = $daySales->sum('income');
+            $txCount = $daySales->sum('tx_count');
+
+            // Obtener gasto del día
+            $expense = (float) ($expensesQuery[$date]->expense ?? 0);
+
+            // Preparar el desglose de métodos para el frontend
+            $methods = $daySales->map(function ($row) {
                 return [
-                    'name'  => $row->method_name,
-                    'total' => (float) $row->revenue,
+                    'name' => $row->method_name,
+                    'total' => (float) $row->income,
                     'count' => (int) $row->tx_count,
                 ];
             })->values();
 
             return [
-                'date'         => $dayGroup->first()->date_group,
-                'total'        => $totalRevenue,
-                'cost'         => $totalCost,
-                'profit'       => $profit,
-                'margin'       => round($margin, 2),
-                'transactions' => $transactions,
-                'methods'      => $methods
+                'date' => $date,
+                'income' => round($totalIncome, 2),
+                'expense' => round($expense, 2),
+                'balance' => round($totalIncome - $expense, 2),
+                'transactions' => $txCount,
+                'methods' => $methods // <--- Aquí va el desglose
             ];
         })->values();
 
         return Inertia::render('Sales/Reports/DailySummary', [
             'reportData' => $reportData,
             'filters' => [
-                'from' => $request->input('from', Carbon::now()->subDays(30)->format('Y-m-d')),
-                'to'   => $request->input('to', Carbon::now()->format('Y-m-d')),
+                'from' => Carbon::parse($from)->toDateString(),
+                'to'   => Carbon::parse($to)->toDateString(),
                 'period' => $period
             ]
         ]);

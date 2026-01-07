@@ -31,11 +31,10 @@ Route::middleware("auth")->group(function () {
             ->name('receipts.return');
         Route::get('/recibos/reportes/impuestos',  'taxReport')->name('reports-receipts.tax');
         Route::get('/recibos/reportes/impuestosExcel',  'exportTaxExcel')->name('reports-receipts.taxExcel');
-
+        Route::get('/recibos/reportes/distribucion', [ReceiptController::class, 'expenseDistributionReport'])->name('receipts.reports.distribution');
         Route::get('/recibos/reportes/margen',  'marginReport')->name('reports-receipts.margin');
         Route::get('/recibos/reportes/proveedores',  'supplierReport')->name('reports-receipts.suppliers');
         Route::get('/recibos/reportes/variacionCosto',  'variationReport')->name('reports-receipts.variation');
     });
     Route::get('/api/consultar-documento/{documento}', [CustomerSearchController::class, 'searchCustomer']);
-
 });

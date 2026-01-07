@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id("id_supplier");
             $table->string("company_name", 200)->unique();
             $table->string("ruc", 25)->unique();
+            $table->enum('type', ['nacional', 'extranjero'])->default('nacional');
             $table->string("supplier_name", 200)->nullable();
             $table->string("supplier_email", 200)->unique()->nullable();;
             $table->string("supplier_phone", 15)->nullable();;
