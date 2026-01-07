@@ -32,7 +32,6 @@ import {
 } from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
-import productcRoutes from '@/routes/products';
 import receiptsRoute from '@/routes/receipts';
 import suppliersRoute from '@/routes/suppliers';
 import { Head, router, useForm } from '@inertiajs/react';
@@ -352,7 +351,7 @@ export default function CreateReceipt({
             },
         });
     };
-
+    const isService = row.type === 'service';
     return (
         <AppLayout
             breadcrumbs={[
@@ -845,227 +844,152 @@ export default function CreateReceipt({
                                 <Table>
                                     <TableHeader className="bg-muted/30 dark:bg-neutral-900">
                                         <TableRow className="dark:border-neutral-800">
-                                            <TableHead className="w-[50px] text-center text-[10px] font-bold uppercase">
+                                            <TableHead className="w-[50px] text-center text-[10px] font-bold text-muted-foreground uppercase">
                                                 Tipo
                                             </TableHead>
-                                            <TableHead className="w-[35%] text-[10px] font-bold uppercase">
+                                            <TableHead className="w-[30%] text-center text-[10px] font-bold text-muted-foreground uppercase">
                                                 Descripción / Producto
                                             </TableHead>
-                                            <TableHead className="w-[10%] text-right text-[10px] font-bold uppercase">
+                                            <TableHead className="w-[8%] text-center text-[10px] font-bold text-muted-foreground uppercase">
                                                 Cant.
                                             </TableHead>
-                                            <TableHead className="w-[15%] text-right text-[10px] font-bold uppercase">
-                                                Costo Unit. ({symbol})
+                                            <TableHead className="w-[12%] text-center text-[10px] font-bold text-muted-foreground uppercase">
+                                                Costo ({symbol})
                                             </TableHead>
-                                            <TableHead className="w-[15%] text-right text-[10px] font-bold uppercase">
-                                                P. Venta Ref. (S/)
+                                            <TableHead className="w-[12%] text-center text-[10px] font-bold text-muted-foreground uppercase">
+                                                P. Venta (S/)
                                             </TableHead>
-                                            <TableHead className="w-[10%] text-center text-[10px] font-bold uppercase">
+                                            {/* Cabecera condicional o siempre visible pero centrada */}
+                                            <TableHead className="w-[12%] text-center text-[10px] font-bold text-blue-600 uppercase dark:text-blue-400">
+                                                {data.currency === 'USD'
+                                                    ? 'Conversión (S/)'
+                                                    : ''}
+                                            </TableHead>
+                                            <TableHead className="w-[8%] text-center text-[10px] font-bold text-muted-foreground uppercase">
                                                 Margen
                                             </TableHead>
-                                            <TableHead className="w-[15%] text-right text-[10px] font-bold uppercase">
+                                            <TableHead className="w-[12%] text-center text-[10px] font-bold text-muted-foreground uppercase">
                                                 Subtotal ({symbol})
                                             </TableHead>
-                                            <TableHead className="w-[50px]"></TableHead>
+                                            <TableHead className="w-[40px]"></TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {rows.map((row, index) => (
-                                            <TableRow
-                                                key={row.id}
-                                                className="hover:bg-muted/20 dark:border-neutral-800"
-                                            >
-                                                {/* 1. TIPO TOGGLE */}
-                                                <TableCell className="p-2 text-center">
-                                                    <TooltipProvider>
-                                                        <Tooltip>
-                                                            <TooltipTrigger
-                                                                asChild
-                                                            >
-                                                                <Button
-                                                                    type="button"
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    className={cn(
-                                                                        'h-8 w-8 rounded-full',
-                                                                        row.type ===
-                                                                            'service'
-                                                                            ? 'bg-purple-100 text-purple-600 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300'
-                                                                            : 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300',
-                                                                    )}
-                                                                    onClick={() =>
-                                                                        toggleRowType(
-                                                                            row.id,
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    {row.type ===
-                                                                    'product' ? (
-                                                                        <Box className="h-4 w-4" />
-                                                                    ) : (
-                                                                        <Briefcase className="h-4 w-4" />
-                                                                    )}
-                                                                </Button>
-                                                            </TooltipTrigger>
-                                                            <TooltipContent>
-                                                                <p>
-                                                                    {row.type ===
-                                                                    'product'
-                                                                        ? 'Producto de Inventario'
-                                                                        : 'Servicio / Gasto'}
-                                                                </p>
-                                                            </TooltipContent>
-                                                        </Tooltip>
-                                                    </TooltipProvider>
-                                                </TableCell>
+                                        {rows.map((row, index) => {
+                                            const isService =
+                                                row.type === 'service';
+                                            const exchangeRate =
+                                                Number(data.exchange_rate) || 1;
 
-                                                {/* 2. SELECTOR O INPUT DESCRIPCIÓN */}
-                                                <TableCell className="p-2">
-                                                    {row.type === 'product' ? (
-                                                        <SearchableSelect
-                                                            options={productOptions.filter(
-                                                                (o) =>
-                                                                    !selectedProductIds.includes(
-                                                                        o.value,
-                                                                    ) ||
-                                                                    o.value ===
-                                                                        row.id_product,
+                                            return (
+                                                <TableRow
+                                                    key={row.id}
+                                                    className="hover:bg-muted/20 dark:border-neutral-800"
+                                                >
+                                                    {/* 1. TIPO */}
+                                                    <TableCell className="p-2 text-center">
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className={cn(
+                                                                'h-8 w-8 rounded-full',
+                                                                isService
+                                                                    ? 'bg-purple-100 text-purple-600 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300'
+                                                                    : 'bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300',
                                                             )}
-                                                            value={
-                                                                row.id_product ||
-                                                                ''
-                                                            }
-                                                            onChange={(val) => {
-                                                                const opt =
-                                                                    productOptions.find(
-                                                                        (o) =>
-                                                                            o.value ===
-                                                                            val,
-                                                                    );
-                                                                updateRow(
+                                                            onClick={() =>
+                                                                toggleRowType(
                                                                     row.id,
-                                                                    'id_product',
+                                                                )
+                                                            }
+                                                        >
+                                                            {isService ? (
+                                                                <Briefcase className="h-4 w-4" />
+                                                            ) : (
+                                                                <Box className="h-4 w-4" />
+                                                            )}
+                                                        </Button>
+                                                    </TableCell>
+
+                                                    {/* 2. PRODUCTO / DESCRIPCIÓN */}
+                                                    <TableCell className="p-2">
+                                                        {row.type ===
+                                                        'product' ? (
+                                                            <SearchableSelect
+                                                                options={productOptions.filter(
+                                                                    (o) =>
+                                                                        !selectedProductIds.includes(
+                                                                            o.value,
+                                                                        ) ||
+                                                                        o.value ===
+                                                                            row.id_product,
+                                                                )}
+                                                                value={
+                                                                    row.id_product ||
+                                                                    ''
+                                                                }
+                                                                onChange={(
                                                                     val,
-                                                                );
-                                                                updateRow(
-                                                                    row.id,
-                                                                    'sale_price',
-                                                                    opt?.salePrice ||
-                                                                        0,
-                                                                );
-                                                            }}
-                                                            onCreate={() =>
-                                                                router.visit(
-                                                                    productcRoutes.create()
-                                                                        .url,
-                                                                )
-                                                            }
-                                                            placeholder="Buscar Producto..."
-                                                            className={cn(
-                                                                cleanInputClass,
-                                                                errors[
-                                                                    `details.${index}.id_product`
-                                                                ] &&
-                                                                    'border-b-red-500',
-                                                            )}
-                                                        />
-                                                    ) : (
-                                                        <Input
-                                                            placeholder="Ej. Hosting Anual, Servicio de Luz..."
-                                                            value={
-                                                                row.description
-                                                            }
-                                                            onChange={(e) =>
-                                                                updateRow(
-                                                                    row.id,
-                                                                    'description',
-                                                                    e.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            className={cn(
-                                                                cleanInputClass,
-                                                                errors[
-                                                                    `details.${index}.description`
-                                                                ] &&
-                                                                    'border-b-red-500',
-                                                            )}
-                                                            autoFocus
-                                                        />
-                                                    )}
-                                                </TableCell>
-
-                                                {/* 3. CANTIDAD */}
-                                                <TableCell className="p-2">
-                                                    <Input
-                                                        type="number"
-                                                        className={cn(
-                                                            tableInputClass,
-                                                            errors[
-                                                                `details.${index}.quantity`
-                                                            ] &&
-                                                                'ring-1 ring-red-500',
+                                                                ) => {
+                                                                    const opt =
+                                                                        productOptions.find(
+                                                                            (
+                                                                                o,
+                                                                            ) =>
+                                                                                o.value ===
+                                                                                val,
+                                                                        );
+                                                                    updateRow(
+                                                                        row.id,
+                                                                        'id_product',
+                                                                        val,
+                                                                    );
+                                                                    updateRow(
+                                                                        row.id,
+                                                                        'sale_price',
+                                                                        opt?.salePrice ||
+                                                                            0,
+                                                                    );
+                                                                }}
+                                                                placeholder="Buscar..."
+                                                                className={
+                                                                    cleanInputClass
+                                                                }
+                                                            />
+                                                        ) : (
+                                                            <Input
+                                                                value={
+                                                                    row.description
+                                                                }
+                                                                onChange={(e) =>
+                                                                    updateRow(
+                                                                        row.id,
+                                                                        'description',
+                                                                        e.target
+                                                                            .value,
+                                                                    )
+                                                                }
+                                                                placeholder="Descripción del servicio..."
+                                                                className={
+                                                                    cleanInputClass
+                                                                }
+                                                            />
                                                         )}
-                                                        value={row.quantity}
-                                                        onChange={(e) =>
-                                                            updateRow(
-                                                                row.id,
-                                                                'quantity',
-                                                                parseFloat(
-                                                                    e.target
-                                                                        .value,
-                                                                ) || 0,
-                                                            )
-                                                        }
-                                                    />
-                                                </TableCell>
+                                                    </TableCell>
 
-                                                {/* 4. COSTO UNIT (Moneda seleccionada) */}
-                                                <TableCell className="p-2">
-                                                    <Input
-                                                        type="number"
-                                                        step="0.01"
-                                                        className={cn(
-                                                            tableInputClass,
-                                                            errors[
-                                                                `details.${index}.unit_price`
-                                                            ] &&
-                                                                'ring-1 ring-red-500',
-                                                        )}
-                                                        value={row.unit_price}
-                                                        onChange={(e) =>
-                                                            updateRow(
-                                                                row.id,
-                                                                'unit_price',
-                                                                parseFloat(
-                                                                    e.target
-                                                                        .value,
-                                                                ) || 0,
-                                                            )
-                                                        }
-                                                    />
-                                                </TableCell>
-
-                                                {/* 5. PRECIO VENTA (Siempre Soles) */}
-                                                <TableCell className="p-2">
-                                                    <div className="relative">
-                                                        <span className="absolute top-1.5 left-0 text-[10px] font-bold text-muted-foreground">
-                                                            S/
-                                                        </span>
+                                                    {/* 3. CANTIDAD */}
+                                                    <TableCell className="p-2">
                                                         <Input
                                                             type="number"
-                                                            step="0.01"
-                                                            className={cn(
-                                                                tableInputClass,
-                                                                'pl-4',
-                                                            )}
-                                                            value={
-                                                                row.sale_price
+                                                            className={
+                                                                tableInputClass
                                                             }
+                                                            value={row.quantity}
                                                             onChange={(e) =>
                                                                 updateRow(
                                                                     row.id,
-                                                                    'sale_price',
+                                                                    'quantity',
                                                                     parseFloat(
                                                                         e.target
                                                                             .value,
@@ -1073,64 +997,152 @@ export default function CreateReceipt({
                                                                 )
                                                             }
                                                         />
-                                                    </div>
-                                                </TableCell>
+                                                    </TableCell>
 
-                                                {/* 6. INDICADOR MARGEN */}
-                                                <TableCell className="p-2 text-center">
-                                                    {row.type === 'product' ? (
-                                                        <MarginIndicator
-                                                            cost={
+                                                    {/* 4. COSTO UNITARIO */}
+                                                    <TableCell className="p-2">
+                                                        <Input
+                                                            type="number"
+                                                            step="0.01"
+                                                            className={
+                                                                tableInputClass
+                                                            }
+                                                            value={
                                                                 row.unit_price
                                                             }
-                                                            salePrice={
-                                                                row.sale_price
+                                                            onChange={(e) =>
+                                                                updateRow(
+                                                                    row.id,
+                                                                    'unit_price',
+                                                                    parseFloat(
+                                                                        e.target
+                                                                            .value,
+                                                                    ) || 0,
+                                                                )
                                                             }
-                                                            currency={
-                                                                data.currency
-                                                            }
-                                                            exchangeRate={Number(
-                                                                data.exchange_rate,
-                                                            )}
                                                         />
-                                                    ) : (
-                                                        <span className="text-xs text-muted-foreground">
-                                                            -
-                                                        </span>
-                                                    )}
-                                                </TableCell>
+                                                    </TableCell>
 
-                                                {/* 7. SUBTOTAL */}
-                                                <TableCell className="p-2 text-right font-bold text-foreground tabular-nums">
-                                                    {symbol}{' '}
-                                                    {(
-                                                        row.quantity *
-                                                        row.unit_price
-                                                    ).toFixed(2)}
-                                                </TableCell>
+                                                    {/* 5. PRECIO VENTA (S/) */}
+                                                    <TableCell className="p-2">
+                                                        {!isService ? (
+                                                            <div className="relative">
+                                                                <span className="absolute top-1.5 left-0 text-[10px] font-bold text-muted-foreground">
+                                                                    S/
+                                                                </span>
+                                                                <Input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    className={cn(
+                                                                        tableInputClass,
+                                                                        'pl-4',
+                                                                    )}
+                                                                    value={
+                                                                        row.sale_price
+                                                                    }
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) =>
+                                                                        updateRow(
+                                                                            row.id,
+                                                                            'sale_price',
+                                                                            parseFloat(
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            ) ||
+                                                                                0,
+                                                                        )
+                                                                    }
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-center text-muted-foreground">
+                                                                -
+                                                            </div>
+                                                        )}
+                                                    </TableCell>
 
-                                                <TableCell className="p-2 text-center">
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-7 w-7 text-muted-foreground hover:text-red-600"
-                                                        onClick={() =>
-                                                            rows.length > 1 &&
-                                                            setRows(
-                                                                rows.filter(
-                                                                    (r) =>
-                                                                        r.id !==
-                                                                        row.id,
-                                                                ),
-                                                            )
-                                                        }
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
+                                                    {/* 6. CONVERSIÓN EN LÍNEA (Solo si es USD y no es servicio) */}
+                                                    <TableCell className="p-2 text-center">
+                                                        {data.currency ===
+                                                            'USD' &&
+                                                        !isService ? (
+                                                            <div className="flex animate-in flex-col items-center duration-200 zoom-in-95 fade-in">
+                                                                <span className="font-mono text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                                                                    S/{' '}
+                                                                    {(
+                                                                        row.unit_price *
+                                                                        exchangeRate
+                                                                    ).toFixed(
+                                                                        2,
+                                                                    )}
+                                                                </span>
+                                                                <span className="text-[8px] leading-none text-muted-foreground uppercase">
+                                                                    Costo Ref.
+                                                                </span>
+                                                            </div>
+                                                        ) : null}
+                                                    </TableCell>
+
+                                                    {/* 7. MARGEN */}
+                                                    <TableCell className="p-2 text-center">
+                                                        {!isService ? (
+                                                            <MarginIndicator
+                                                                cost={
+                                                                    row.unit_price
+                                                                }
+                                                                salePrice={
+                                                                    row.sale_price
+                                                                }
+                                                                currency={
+                                                                    data.currency
+                                                                }
+                                                                exchangeRate={
+                                                                    exchangeRate
+                                                                }
+                                                            />
+                                                        ) : (
+                                                            <span className="text-muted-foreground">
+                                                                -
+                                                            </span>
+                                                        )}
+                                                    </TableCell>
+
+                                                    {/* 8. SUBTOTAL */}
+                                                    <TableCell className="p-2 text-right font-bold text-foreground tabular-nums">
+                                                        {symbol}{' '}
+                                                        {(
+                                                            row.quantity *
+                                                            row.unit_price
+                                                        ).toFixed(2)}
+                                                    </TableCell>
+
+                                                    {/* 9. ACCIONES */}
+                                                    <TableCell className="p-2 text-center">
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-7 w-7 text-muted-foreground hover:text-red-600"
+                                                            onClick={() =>
+                                                                rows.length >
+                                                                    1 &&
+                                                                setRows(
+                                                                    rows.filter(
+                                                                        (r) =>
+                                                                            r.id !==
+                                                                            row.id,
+                                                                    ),
+                                                                )
+                                                            }
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
                                     </TableBody>
                                 </Table>
                             </div>

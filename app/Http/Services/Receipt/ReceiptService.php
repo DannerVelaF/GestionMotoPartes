@@ -180,12 +180,16 @@ class ReceiptService extends BaseService
     {
         return DB::transaction(function () use ($data, $originalReceiptId) {
             $originalReceipt = $this->repo->find($originalReceiptId);
+
+            // Calcular total
             $totalReturnAmount = collect($data)->sum(fn($i) => (float)$i['return_quantity'] * (float)$i['unit_price']);
 
             $ncSeries = 'NC-' . $originalReceipt->series;
             $ncNumber = $this->calculateNextReceiptNumber($ncSeries);
-            $now = Carbon::now(); // Fecha para la Nota de Crédito
+            $now = Carbon::now();
 
+            // --- CORRECCIÓN AQUÍ ---
+            // Heredar moneda y tipo de cambio del padre
             $creditNote = $this->repo->create([
                 'id_supplier'   => $originalReceipt->id_supplier,
                 'document_type' => DocumentType::CREDIT_NOTE,
@@ -193,14 +197,16 @@ class ReceiptService extends BaseService
                 'series'        => $ncSeries,
                 'number'        => $ncNumber,
                 'issue_date'    => $now,
-                'total_amount'  => -$totalReturnAmount,
+                'currency'      => $originalReceipt->currency,      // <--- AGREGADO
+                'exchange_rate' => $originalReceipt->exchange_rate, // <--- AGREGADO
+                'total_amount'  => -$totalReturnAmount, // Guardamos en negativo
+                'receipt_path'  => null // Opcional: podrías querer copiar el archivo o dejarlo null
             ]);
 
             foreach ($data as $item) {
                 if ((float)$item['return_quantity'] > 0) {
                     $qty = (float)$item['return_quantity'];
                     $price = (float)$item['unit_price'];
-
                     $isService = empty($item['id_product']);
 
                     $creditNote->details()->create([
@@ -212,11 +218,16 @@ class ReceiptService extends BaseService
                     ]);
 
                     if (!$isService) {
+                        // Mover Kardex: Usar el precio convertido si es USD
+                        $isUSD = $originalReceipt->currency === 'USD';
+                        $exchangeRate = $originalReceipt->exchange_rate;
+                        $kardexPrice = $isUSD ? ($price * $exchangeRate) : $price;
+
                         $this->inventoryService->registerMovement(
                             $item['id_product'],
                             -$qty, // Salida de stock
                             'purchase_return',
-                            $price,
+                            $kardexPrice, // <--- PRECIO EN SOLES
                             $creditNote,
                             "Devolución parcial de Compra {$originalReceipt->series}-{$originalReceipt->number}",
                             Carbon::now()

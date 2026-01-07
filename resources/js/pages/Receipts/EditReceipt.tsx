@@ -49,12 +49,6 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
 import receipts from '@/routes/receipts';
@@ -106,8 +100,8 @@ interface Receipt {
     receipt_code: string;
     id_supplier: number;
     document_type: string;
-    currency: string; // Nuevo
-    exchange_rate: number; // Nuevo
+    currency: string;
+    exchange_rate: number;
     series: string;
     number: string;
     issue_date: string;
@@ -115,7 +109,7 @@ interface Receipt {
     details: Detail[];
     supplier?: { company_name: string; ruc: string };
     children?: Receipt[];
-    id_parent?: number; // Para saber si es hija
+    id_parent?: number;
 }
 
 interface ProductOption {
@@ -172,16 +166,6 @@ function FloatingAlert({
     );
 }
 
-// --- HELPER ERROR ---
-const InputError = ({ message }: { message?: string }) => {
-    if (!message) return null;
-    return (
-        <p className="mt-1 animate-pulse text-[10px] font-medium text-red-500 dark:text-red-400">
-            {message}
-        </p>
-    );
-};
-
 export default function EditReceipt({
     receipt,
     suppliers,
@@ -194,16 +178,13 @@ export default function EditReceipt({
     const [isReturnDialogOpen, setIsReturnDialogOpen] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
 
-    // --- PREPARACIÓN DE DATOS (CORRECCIÓN DE LÓGICA HÍBRIDA) ---
+    // --- PREPARACIÓN DE DATOS ---
     const initialRows = receipt.details.map((d) => ({
         id: d.id_receipt_detail || Math.random(),
-        // Si no tiene id_product, es un servicio
         type: d.id_product ? 'product' : 'service',
         id_product: d.id_product ? String(d.id_product) : '',
         description: d.description || '',
-        // Nombre para SearchableSelect si es producto
         product_name: d.product ? d.product.product_name : '',
-
         quantity: Number(d.quantity),
         unit_price: Number(d.unit_price),
         sale_price: Number(d.product?.sale_price || 0),
@@ -248,28 +229,13 @@ export default function EditReceipt({
         setData((prev) => ({
             ...prev,
             currency: val,
-            // Resetear o sugerir tipo de cambio al cambiar moneda
             exchange_rate: val === 'PEN' ? '1.000' : '3.800',
         }));
     };
 
+    // (Función deshabilitada visualmente pero mantenida por compatibilidad)
     const toggleRowType = (id: number) => {
-        setRows((prev) =>
-            prev.map((row) => {
-                if (row.id === id) {
-                    const isNowService = row.type === 'product';
-                    return {
-                        ...row,
-                        type: isNowService ? 'service' : 'product',
-                        id_product: '',
-                        description: '',
-                        product_name: '',
-                        sale_price: 0,
-                    };
-                }
-                return row;
-            }),
-        );
+        // Lógica deshabilitada
     };
 
     const updateRow = (id: number, field: string, value: any) => {
@@ -299,22 +265,22 @@ export default function EditReceipt({
     // --- LÓGICA DEVOLUCIÓN ---
     const returnForm = useForm({
         id_receipt: receipt.id_receipt,
-        return_items: receipt.details.map((d) => ({
-            id_product: d.id_product,
-            description: d.description,
-            // Nombre visual
-            display_name: d.product
-                ? d.product.product_name
-                : d.description || 'Servicio',
-            purchased_quantity: Number(d.quantity),
-            // Si es servicio, stock es "infinito" para validación
-            current_stock: d.id_product
-                ? Number(d.product?.stock || 0)
-                : Number(d.quantity),
-            unit_price: Number(d.unit_price),
-            return_quantity: 0,
-            is_service: !d.id_product,
-        })),
+        return_items: receipt.details
+            .filter((d) => d.id_product)
+            .map((d) => ({
+                id_product: d.id_product,
+                description: d.description,
+                display_name: d.product
+                    ? d.product.product_name
+                    : d.description || 'Servicio',
+                purchased_quantity: Number(d.quantity),
+                current_stock: d.id_product
+                    ? Number(d.product?.stock || 0)
+                    : Number(d.quantity),
+                unit_price: Number(d.unit_price),
+                return_quantity: 0,
+                is_service: !d.id_product,
+            })),
     });
 
     const handleReturnQuantityChange = (index: number, val: string) => {
@@ -336,10 +302,16 @@ export default function EditReceipt({
     const hasItemsToReturn = returnForm.data.return_items.some(
         (item) => item.return_quantity > 0,
     );
+
     const totalRefund = returnForm.data.return_items.reduce(
         (acc, item) => acc + item.return_quantity * item.unit_price,
         0,
     );
+
+    const totalRefundInSoles =
+        receipt.currency === 'USD'
+            ? totalRefund * receipt.exchange_rate
+            : totalRefund;
 
     const submitReturn: FormEventHandler = (e) => {
         e.preventDefault();
@@ -370,6 +342,7 @@ export default function EditReceipt({
             ...data,
             issue_date: format(data.issue_date, 'yyyy-MM-dd HH:mm:ss'),
             exchange_rate: parseFloat(data.exchange_rate),
+            // Se envían los detalles, pero como no se pueden editar, son los mismos
             details: rows.map((r) => ({
                 id_product: r.type === 'product' ? r.id_product : null,
                 description: r.type === 'service' ? r.description : null,
@@ -397,21 +370,6 @@ export default function EditReceipt({
         });
     };
 
-    // --- OPCIONES ---
-    const supplierOptions = suppliers.map((s) => ({
-        value: String(s.id_supplier),
-        label: s.company_name,
-    }));
-    const productOptions = products.map((p) => ({
-        value: String(p.id_product),
-        label: p.product_code
-            ? `[${p.product_code}] ${p.product_name}`
-            : p.product_name,
-        salePrice: p.sale_price,
-    }));
-    const selectedProductIds = rows
-        .map((r) => r.id_product)
-        .filter((id) => id !== '');
     const parentId = receipt.id_parent || null;
     const errorMessage = formError || serverErrors.error || serverErrors[0];
 
@@ -425,6 +383,7 @@ export default function EditReceipt({
     const isOnlyServices = receipt.details.every(
         (detail) => !detail.id_product,
     );
+
     return (
         <AppLayout
             breadcrumbs={[
@@ -548,29 +507,47 @@ export default function EditReceipt({
                         </Table>
                     </div>
                     <DialogFooter className="mt-0 items-center border-t bg-muted/10 p-6 dark:border-neutral-800 dark:bg-neutral-900/50">
-                        <div className="flex-1 text-left">
-                            <p className="text-xs font-bold text-muted-foreground uppercase">
-                                Total Reembolso
-                            </p>
-                            <span className="text-2xl font-black text-red-600 dark:text-red-400">
-                                {symbol} {totalRefund.toFixed(2)}
-                            </span>
+                        <div className="flex flex-1 flex-col text-left">
+                            <div>
+                                <p className="text-xs font-bold text-muted-foreground uppercase">
+                                    Total Reembolso ({receipt.currency})
+                                </p>
+                                <span className="text-2xl font-black text-red-600 dark:text-red-400">
+                                    {receipt.currency === 'USD' ? '$' : 'S/'}{' '}
+                                    {totalRefund.toFixed(2)}
+                                </span>
+                            </div>
+
+                            {receipt.currency === 'USD' && (
+                                <div className="mt-1 border-t border-dashed border-neutral-300 pt-1 dark:border-neutral-700">
+                                    <p className="flex items-center gap-2 text-[10px] font-semibold text-muted-foreground uppercase">
+                                        Ref. en Soles (T.C.{' '}
+                                        {receipt.exchange_rate})
+                                    </p>
+                                    <span className="text-sm font-bold text-neutral-600 dark:text-neutral-400">
+                                        S/ {totalRefundInSoles.toFixed(2)}
+                                    </span>
+                                </div>
+                            )}
                         </div>
-                        <Button
-                            variant="outline"
-                            onClick={() => setIsReturnDialogOpen(false)}
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            className="bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
-                            onClick={submitReturn}
-                            disabled={
-                                returnForm.processing || !hasItemsToReturn
-                            }
-                        >
-                            Confirmar Devolución
-                        </Button>
+
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsReturnDialogOpen(false)}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                className="bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800"
+                                onClick={submitReturn}
+                                disabled={
+                                    returnForm.processing || !hasItemsToReturn
+                                }
+                            >
+                                Confirmar Devolución
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -748,29 +725,15 @@ export default function EditReceipt({
                                                 <Label className="text-[10px] font-bold text-muted-foreground uppercase">
                                                     Moneda
                                                 </Label>
-                                                <Select
+
+                                                <Input
                                                     value={data.currency}
-                                                    onValueChange={
-                                                        handleCurrencyChange
-                                                    }
-                                                    disabled={isCreditNote}
-                                                >
-                                                    <SelectTrigger
-                                                        className={
-                                                            cleanInputClass
-                                                        }
-                                                    >
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="PEN">
-                                                            S/ Soles
-                                                        </SelectItem>
-                                                        <SelectItem value="USD">
-                                                            $ Dólares
-                                                        </SelectItem>
-                                                    </SelectContent>
-                                                </Select>
+                                                    disabled={true}
+                                                    className={cn(
+                                                        disabledInputClass,
+                                                        'pl-6 font-mono',
+                                                    )}
+                                                />
                                             </div>
                                             <div className="space-y-2">
                                                 <Label className="text-[10px] font-bold text-muted-foreground uppercase">
@@ -790,11 +753,7 @@ export default function EditReceipt({
                                                                 e.target.value,
                                                             )
                                                         }
-                                                        disabled={
-                                                            data.currency ===
-                                                                'PEN' ||
-                                                            isCreditNote
-                                                        }
+                                                        disabled={true} // BLOQUEADO
                                                         className={cn(
                                                             cleanInputClass,
                                                             'pl-6 font-mono',
@@ -818,7 +777,7 @@ export default function EditReceipt({
                                                             e.target.value.toUpperCase(),
                                                         )
                                                     }
-                                                    disabled={isCreditNote}
+                                                    disabled={true} // BLOQUEADO
                                                     className={cn(
                                                         cleanInputClass,
                                                         'text-center uppercase',
@@ -837,7 +796,7 @@ export default function EditReceipt({
                                                             e.target.value,
                                                         )
                                                     }
-                                                    disabled={isCreditNote}
+                                                    disabled={true} // BLOQUEADO
                                                     className={cleanInputClass}
                                                 />
                                             </div>
@@ -865,7 +824,7 @@ export default function EditReceipt({
                                                             val,
                                                         )
                                                     }
-                                                    disabled={true}
+                                                    disabled={false} // HABILITADO
                                                 >
                                                     <SelectTrigger
                                                         className={
@@ -988,22 +947,22 @@ export default function EditReceipt({
                                             </div>
                                         </div>
 
-                                        {/* Carga de Archivo */}
-                                        <div className="space-y-2">
+                                        {/* Carga de Archivo - BLOQUEADO */}
+                                        <div className="space-y-2 opacity-60">
                                             <Label className="text-[10px] font-bold text-muted-foreground uppercase">
                                                 Adjuntar Nuevo Archivo
+                                                (Bloqueado)
                                             </Label>
 
-                                            {/* CORRECCIÓN: Se agregó 'relative', 'cursor-pointer' y efectos hover */}
                                             <div
                                                 className={cn(
                                                     'relative flex items-center gap-2 border-b border-muted py-2 transition-all',
-                                                    'cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 dark:border-neutral-700 dark:hover:bg-blue-900/20',
+                                                    'cursor-not-allowed border-dashed',
                                                     data.file &&
-                                                        'rounded-t-sm border-emerald-500/50 bg-emerald-50/30 px-2 hover:bg-emerald-100/30 dark:bg-emerald-900/20',
+                                                        'rounded-t-sm border-emerald-500/50 bg-emerald-50/30 px-2 dark:bg-emerald-900/20',
                                                 )}
                                             >
-                                                <Paperclip className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                                <Paperclip className="h-4 w-4 text-muted-foreground" />
 
                                                 <span className="flex-1 truncate text-xs font-medium">
                                                     {data.file ? (
@@ -1012,17 +971,17 @@ export default function EditReceipt({
                                                         </span>
                                                     ) : (
                                                         <span className="text-muted-foreground">
-                                                            Clic para subir
-                                                            (PDF/JPG)
+                                                            No se puede
+                                                            modificar
                                                         </span>
                                                     )}
                                                 </span>
 
-                                                {/* Input invisible: Se agregó z-10 */}
                                                 <Input
                                                     type="file"
                                                     accept=".pdf,.jpg,.jpeg,.png"
-                                                    className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                                                    className="absolute inset-0 z-10 h-full w-full cursor-not-allowed opacity-0"
+                                                    disabled={true} // BLOQUEADO
                                                     onChange={(e) =>
                                                         onFieldChange(
                                                             'file',
@@ -1033,24 +992,20 @@ export default function EditReceipt({
                                                     }
                                                 />
 
-                                                {/* Botón Eliminar: Se agregó relative y z-20 para estar encima del input */}
+                                                {/* Botón Eliminar - BLOQUEADO/OCULTO */}
+                                                {/*
                                                 {data.file && (
                                                     <Button
                                                         type="button"
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="relative z-20 h-5 w-5 hover:bg-red-100 hover:text-red-600"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onFieldChange(
-                                                                'file',
-                                                                null,
-                                                            );
-                                                        }}
+                                                        disabled={true}
+                                                        className="relative z-20 h-5 w-5 opacity-50"
                                                     >
                                                         <Trash2 className="h-3 w-3 text-red-500" />
                                                     </Button>
                                                 )}
+                                                 */}
                                             </div>
                                         </div>
                                     </div>
@@ -1107,47 +1062,31 @@ export default function EditReceipt({
                                                 >
                                                     {/* 1. TIPO */}
                                                     <TableCell className="p-2 text-center">
-                                                        <TooltipProvider>
-                                                            <Tooltip>
-                                                                <TooltipTrigger
-                                                                    asChild
-                                                                >
-                                                                    <Button
-                                                                        disabled
-                                                                        type="button"
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        className={cn(
-                                                                            'h-8 w-8 rounded-full',
-                                                                            row.type ===
-                                                                                'service'
-                                                                                ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
-                                                                                : 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-                                                                        )}
-                                                                        onClick={() =>
-                                                                            toggleRowType(
-                                                                                row.id,
-                                                                            )
-                                                                        }
-                                                                    >
-                                                                        {row.type ===
-                                                                        'product' ? (
-                                                                            <Box className="h-4 w-4" />
-                                                                        ) : (
-                                                                            <Briefcase className="h-4 w-4" />
-                                                                        )}
-                                                                    </Button>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent>
-                                                                    <p>
-                                                                        {row.type ===
-                                                                        'product'
-                                                                            ? 'Producto'
-                                                                            : 'Servicio'}
-                                                                    </p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
-                                                        </TooltipProvider>
+                                                        <Button
+                                                            disabled={true} // BLOQUEADO
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className={cn(
+                                                                'h-8 w-8 cursor-default rounded-full opacity-70',
+                                                                row.type ===
+                                                                    'service'
+                                                                    ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
+                                                                    : 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
+                                                            )}
+                                                            onClick={() =>
+                                                                toggleRowType(
+                                                                    row.id,
+                                                                )
+                                                            }
+                                                        >
+                                                            {row.type ===
+                                                            'product' ? (
+                                                                <Box className="h-4 w-4" />
+                                                            ) : (
+                                                                <Briefcase className="h-4 w-4" />
+                                                            )}
+                                                        </Button>
                                                     </TableCell>
 
                                                     {/* 2. PRODUCTO / DESCRIPCIÓN */}
@@ -1155,21 +1094,18 @@ export default function EditReceipt({
                                                         {row.type ===
                                                         'product' ? (
                                                             <Input
-                                                                disabled
+                                                                disabled={true} // BLOQUEADO
                                                                 value={
                                                                     row.product_name
                                                                 }
                                                                 className={cn(
                                                                     cleanInputClass,
-                                                                    errors[
-                                                                        `details.${index}.description`
-                                                                    ] &&
-                                                                        'border-b-red-500',
+                                                                    'cursor-not-allowed text-muted-foreground',
                                                                 )}
                                                             />
                                                         ) : (
                                                             <Input
-                                                                disabled
+                                                                disabled={true} // BLOQUEADO
                                                                 placeholder="Ej. Hosting Anual..."
                                                                 value={
                                                                     row.description
@@ -1184,10 +1120,7 @@ export default function EditReceipt({
                                                                 }
                                                                 className={cn(
                                                                     cleanInputClass,
-                                                                    errors[
-                                                                        `details.${index}.description`
-                                                                    ] &&
-                                                                        'border-b-red-500',
+                                                                    'cursor-not-allowed text-muted-foreground',
                                                                 )}
                                                             />
                                                         )}
@@ -1196,11 +1129,12 @@ export default function EditReceipt({
                                                     {/* 3. CANTIDAD */}
                                                     <TableCell className="p-2">
                                                         <Input
-                                                            disabled
+                                                            disabled={true} // BLOQUEADO
                                                             type="number"
-                                                            className={
-                                                                tableInputClass
-                                                            }
+                                                            className={cn(
+                                                                tableInputClass,
+                                                                'cursor-not-allowed opacity-70',
+                                                            )}
                                                             value={row.quantity}
                                                             onChange={(e) =>
                                                                 updateRow(
@@ -1218,12 +1152,13 @@ export default function EditReceipt({
                                                     {/* 4. COSTO */}
                                                     <TableCell className="p-2">
                                                         <Input
-                                                            disabled
+                                                            disabled={true} // BLOQUEADO
                                                             type="number"
                                                             step="0.01"
-                                                            className={
-                                                                tableInputClass
-                                                            }
+                                                            className={cn(
+                                                                tableInputClass,
+                                                                'cursor-not-allowed opacity-70',
+                                                            )}
                                                             value={
                                                                 row.unit_price
                                                             }
@@ -1281,14 +1216,20 @@ export default function EditReceipt({
                                             </span>
                                         </div>
                                         {data.currency === 'USD' && (
-                                            <div className="flex justify-between border-t border-dashed border-neutral-300 pt-2 text-xs text-muted-foreground dark:border-neutral-700">
-                                                <span>
-                                                    Valor en Soles (Ref. T.C.{' '}
-                                                    {data.exchange_rate})
-                                                </span>
-                                                <span className="font-bold">
-                                                    S/ {totalInSoles.toFixed(2)}
-                                                </span>
+                                            <div className="mt-2 rounded-md bg-emerald-50 p-2 dark:bg-emerald-900/20">
+                                                <div className="flex justify-between text-xs text-emerald-700 dark:text-emerald-400">
+                                                    <span className="font-medium">
+                                                        Valor estimado en Soles
+                                                        (T.C.{' '}
+                                                        {data.exchange_rate})
+                                                    </span>
+                                                    <span className="text-lg font-black">
+                                                        S/{' '}
+                                                        {totalInSoles.toFixed(
+                                                            2,
+                                                        )}
+                                                    </span>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
