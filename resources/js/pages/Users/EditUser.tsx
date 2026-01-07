@@ -144,11 +144,43 @@ export default function EditUser({
         );
     };
 
-    const copyPassword = () => {
-        if (generated_password) {
-            navigator.clipboard.writeText(generated_password);
+    const copyPassword = async () => {
+        if (!generated_password) return;
+
+        try {
+            // Intento 1: API Moderna (Funciona en HTTPS y Localhost)
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(generated_password);
+            } else {
+                // Intento 2: Método Fallback (Funciona en HTTP / Sitios no seguros)
+                const textArea = document.createElement('textarea');
+                textArea.value = generated_password;
+
+                // Estilos para que el elemento no estorbe visualmente
+                textArea.style.position = 'fixed';
+                textArea.style.left = '-9999px';
+                textArea.style.top = '0';
+
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+
+                if (!successful) {
+                    throw new Error('El navegador bloqueó la acción de copiar');
+                }
+            }
+
+            // Feedback visual de éxito
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error('Error al copiar contraseña:', err);
+            alert(
+                'No se pudo copiar la contraseña automáticamente. Por favor, cópiala manualmente.',
+            );
         }
     };
 
