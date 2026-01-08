@@ -98,7 +98,6 @@ function FloatingAlert({
     );
 }
 
-// --- COMPONENTE PRINCIPAL ---
 export default function EditMethodPayment({
     methodPayment,
 }: {
@@ -116,7 +115,6 @@ export default function EditMethodPayment({
         }
     }, [flash?.success]);
 
-    // 3. Formulario Inertia
     const {
         data,
         setData,
@@ -127,9 +125,6 @@ export default function EditMethodPayment({
         clearErrors,
         isDirty,
     } = useForm({
-        // CORRECCIÓN CRÍTICA:
-        // El input del form se llama 'name_method_payment'
-        // El valor inicial viene de la BD como 'methodPayment.name_method_payment'
         name_method_payment: methodPayment.name_method_payment || '',
         status: methodPayment.status || 'active',
     });
@@ -143,7 +138,7 @@ export default function EditMethodPayment({
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        put(paymentMethods.update(methodPayment.id).url, {
+        put(paymentMethods.update({ methodPayment: methodPayment.id }).url, {
             onSuccess: () => setShowSuccess(true),
         });
     };
