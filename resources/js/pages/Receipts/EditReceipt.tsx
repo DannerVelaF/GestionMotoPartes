@@ -76,6 +76,7 @@ import {
     Trash2,
     Truck,
     Undo2,
+    X,
 } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
 
@@ -947,22 +948,29 @@ export default function EditReceipt({
                                             </div>
                                         </div>
 
-                                        {/* Carga de Archivo - BLOQUEADO */}
-                                        <div className="space-y-2 opacity-60">
+                                        <div className="space-y-2">
                                             <Label className="text-[10px] font-bold text-muted-foreground uppercase">
-                                                Adjuntar Nuevo Archivo
-                                                (Bloqueado)
+                                                {data.file
+                                                    ? 'Archivo seleccionado'
+                                                    : 'Adjuntar Nuevo Archivo'}
                                             </Label>
 
                                             <div
                                                 className={cn(
                                                     'relative flex items-center gap-2 border-b border-muted py-2 transition-all',
-                                                    'cursor-not-allowed border-dashed',
+                                                    'hover:border-blue-400 hover:bg-blue-50/50 dark:border-neutral-700 dark:hover:bg-blue-900/20',
                                                     data.file &&
                                                         'rounded-t-sm border-emerald-500/50 bg-emerald-50/30 px-2 dark:bg-emerald-900/20',
                                                 )}
                                             >
-                                                <Paperclip className="h-4 w-4 text-muted-foreground" />
+                                                <Paperclip
+                                                    className={cn(
+                                                        'h-4 w-4',
+                                                        data.file
+                                                            ? 'text-emerald-600'
+                                                            : 'text-blue-600',
+                                                    )}
+                                                />
 
                                                 <span className="flex-1 truncate text-xs font-medium">
                                                     {data.file ? (
@@ -971,17 +979,18 @@ export default function EditReceipt({
                                                         </span>
                                                     ) : (
                                                         <span className="text-muted-foreground">
-                                                            No se puede
-                                                            modificar
+                                                            Clic para
+                                                            seleccionar
+                                                            (PDF/JPG)
                                                         </span>
                                                     )}
                                                 </span>
 
-                                                <Input
+                                                {/* Input invisible: Habilitado */}
+                                                <input
                                                     type="file"
                                                     accept=".pdf,.jpg,.jpeg,.png"
-                                                    className="absolute inset-0 z-10 h-full w-full cursor-not-allowed opacity-0"
-                                                    disabled={true} // BLOQUEADO
+                                                    className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
                                                     onChange={(e) =>
                                                         onFieldChange(
                                                             'file',
@@ -992,21 +1001,31 @@ export default function EditReceipt({
                                                     }
                                                 />
 
-                                                {/* Botón Eliminar - BLOQUEADO/OCULTO */}
-                                                {/*
+                                                {/* Botón Eliminar: Ahora funcional */}
                                                 {data.file && (
                                                     <Button
                                                         type="button"
                                                         variant="ghost"
                                                         size="icon"
-                                                        disabled={true}
-                                                        className="relative z-20 h-5 w-5 opacity-50"
+                                                        className="relative z-20 h-6 w-6 text-red-500 hover:bg-red-100 hover:text-red-700 dark:hover:bg-red-900/50"
+                                                        onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            onFieldChange(
+                                                                'file',
+                                                                null,
+                                                            );
+                                                        }}
                                                     >
-                                                        <Trash2 className="h-3 w-3 text-red-500" />
+                                                        <X className="h-4 w-4" />
                                                     </Button>
                                                 )}
-                                                 */}
                                             </div>
+                                            {errors.file && (
+                                                <p className="text-[10px] font-bold text-red-500">
+                                                    {errors.file}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
