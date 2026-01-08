@@ -22,6 +22,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
+import receipts from '@/routes/receipts';
 import suppliersRoute from '@/routes/suppliers';
 import type { BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
@@ -43,7 +44,6 @@ import {
 import { KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'use-debounce';
 import { Columns, Supplier } from './Columns';
-import receipts from '@/routes/receipts';
 
 // --- MODIFICACIÓN 1: FLOATING ALERT SIEMPRE FIJO (EN LA ESQUINA) ---
 function FloatingAlert({
@@ -127,7 +127,7 @@ export default function ListSuppliers({ suppliers, filters }: Props) {
     const [importError, setImportError] = useState<string | undefined>(
         undefined,
     );
-
+    const { errors: serverErrors } = usePage().props;
     // Limpiar error automáticamente
     useEffect(() => {
         if (importError) {
@@ -148,7 +148,11 @@ export default function ListSuppliers({ suppliers, filters }: Props) {
             perPageInputRef.current.focus();
         }
     }, [isEditingPerPage]);
-
+    useEffect(() => {
+        if (serverErrors.error) {
+            setImportError(serverErrors.error as string);
+        }
+    }, [serverErrors]);
     const updateParams = (newParams: any) => {
         router.get(
             suppliersRoute.index().url,

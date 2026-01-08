@@ -126,52 +126,56 @@ class SupplierController extends Controller
         $supplier = Supplier::findOrFail($id);
 
         $request->merge([
-            'company_name' => Str::upper($request->company_name),
-            'supplier_email' => Str::lower($request->supplier_email),
+            'company_name'   => Str::upper($request->company_name),
+            'supplier_email' => $request->supplier_email ? Str::lower($request->supplier_email) : null,
+            'supplier_phone' => $request->supplier_phone ?: null,
+            'supplier_name'  => $request->supplier_name ?: null,
         ]);
 
         $rules = [
             'type' => 'required|in:nacional,extranjero',
             'company_name' => 'required|string|max:255',
-            'supplier_name' => 'nullable|string|max:255',
-            'supplier_phone' => 'nullable|string|max:20',
+            'ruc' => [
+                'required',
+                'string',
+                Rule::unique('suppliers', 'ruc')->ignore($supplier->id_supplier, 'id_supplier'),
+                Rule::when($request->type === 'nacional', ['digits:11', 'numeric']),
+                Rule::when($request->type === 'extranjero', ['max:25']),
+            ],
             'supplier_email' => [
                 'nullable',
                 'email',
                 'max:255',
                 Rule::unique('suppliers', 'supplier_email')->ignore($supplier->id_supplier, 'id_supplier')
             ],
-            'ruc' => [
-                'required',
-                'string',
-                Rule::unique('suppliers', 'ruc')->ignore($supplier->id_supplier, 'id_supplier'),
-                // Misma lógica condicional
-                Rule::when($request->type === 'nacional', ['digits:11', 'numeric']),
-                Rule::when($request->type === 'extranjero', ['max:25']),
-            ],
         ];
 
-        $messages = [
-            'company_name.required' => 'La razón social es obligatoria.',
-            'ruc.required'          => 'El RUC es obligatorio.',
-            'ruc.digits'            => 'El RUC debe tener exactamente 11 dígitos.',
-            'ruc.unique'            => 'Este RUC ya pertenece a otro proveedor.',
-            'supplier_email.email'  => 'El formato del correo electrónico no es válido.',
-            'supplier_email.unique' => 'Este correo electrónico ya pertenece a otro proveedor.',
-        ];
-
-        $validatedData = $request->validate($rules, $messages);
+        $validatedData = $request->validate($rules);
 
         try {
             DB::transaction(function () use ($supplier, $validatedData) {
-                // CORRECCIÓN: Usamos $supplier->update(), no $this->update()
-                // Si tu lógica compleja está en el servicio, usa:
                 $supplier->update($validatedData);
             });
 
             return back()->with('success', 'Proveedor actualizado correctamente.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Error 1062: Entrada duplicada (RUC o Email)
+            if (isset($e->errorInfo[1]) && $e->errorInfo[1] === 1062) {
+                return back()->withErrors([
+                    'error' => 'No se pudo guardar: El RUC o el Email ya están registrados con otro proveedor.'
+                ]);
+            }
+
+            // Error 1451: Restricción de llave foránea (Si el RUC es padre de facturas)
+            if ($e->getCode() === '23000') {
+                return back()->withErrors([
+                    'error' => 'No se puede modificar la identificación porque el proveedor tiene comprobantes asociados.'
+                ]);
+            }
+
+            return back()->withErrors(['error' => 'Error de base de datos: ' . $e->getMessage()]);
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'Error al actualizar: ' . $e->getMessage()]);
+            return back()->withErrors(['error' => 'Error inesperado: ' . $e->getMessage()]);
         }
     }
 
@@ -184,8 +188,17 @@ class SupplierController extends Controller
 
             return to_route('suppliers.index')
                 ->with('success', 'Proveedor eliminado correctamente.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Capturamos el error de llave foránea (Integrity constraint violation)
+            if ($e->getCode() === '23000') {
+                return back()->withErrors([
+                    'error' => 'No se puede eliminar el proveedor porque tiene compras registradas asociadas. Elimine primero los comprobantes vinculados.'
+                ]);
+            }
+
+            return back()->withErrors(['error' => 'Error de base de datos al intentar eliminar.']);
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'No se pudo eliminar el proveedor. Verifique que no tenga compras asociadas.']);
+            return back()->withErrors(['error' => 'No se pudo eliminar el proveedor: ' . $e->getMessage()]);
         }
     }
 
@@ -195,9 +208,20 @@ class SupplierController extends Controller
             'ids' => 'required|array',
             'ids.*' => 'exists:suppliers,id_supplier'
         ]);
-        $this->service->deleteSuppliers($data['ids']);
 
-        return back()->with('success', 'Registros seleccionados eliminados.');
+        try {
+            $this->service->deleteSuppliers($data['ids']);
+            return back()->with('success', 'Registros seleccionados eliminados.');
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() === '23000') {
+                return back()->withErrors([
+                    'error' => 'Uno o más proveedores seleccionados no pueden eliminarse porque tienen comprobantes asociados.'
+                ]);
+            }
+            return back()->withErrors(['error' => 'Error al eliminar múltiples registros.']);
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'Ocurrió un error inesperado.']);
+        }
     }
 
     public function template()

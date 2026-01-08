@@ -3,11 +3,11 @@
 namespace App\Imports;
 
 use App\Models\Supplier;
-use App\Http\Services\Receipt\SupplierService; // Importamos el servicio
-use Illuminate\Support\Facades\Http;
+use App\Http\Services\Receipt\SupplierService;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
+use Illuminate\Support\Str;
 use Exception;
 
 class SuppliersImport implements ToModel, WithHeadingRow, WithValidation
@@ -17,31 +17,21 @@ class SuppliersImport implements ToModel, WithHeadingRow, WithValidation
 
     public function __construct()
     {
-        // Inyectamos el servicio manualmente usando el helper app()
         $this->service = app(SupplierService::class);
     }
 
     public function model(array $row)
     {
-        $ruc = trim($row['ruc']);
+        $type = Str::lower(trim($row['tipo'] ?? 'nacional'));
+        $ruc = trim($row['ruc_tax_id'] ?? '');
 
-        // Verificamos si la razón social viene en el excel (admite columnas 'razon_social' o 'empresa')
-        $razonSocial = isset($row['razon_social']) ? trim($row['razon_social']) : (isset($row['empresa']) ? trim($row['empresa']) : null);
-
-        // Lógica de Auto-completado con SUNAT
-        if (empty($razonSocial) && !empty($ruc)) {
-            // Llamamos al servicio real
-            $razonSocial = $this->service->getRazonSocialFromSunat($ruc);
-
-            if (!$razonSocial) {
-                // Si la API no lo encuentra y el Excel no lo tiene, lanzamos error
-                throw new Exception("El RUC {$ruc} no tiene Razón Social en el Excel y no se pudo obtener de SUNAT.");
-            }
-        }
+        // Usamos razon_social_final que fue procesada en prepareForValidation
+        $razonSocial = $row['razon_social_final'];
 
         $this->rows++;
 
         return new Supplier([
+            'type'           => $type,
             'company_name'   => strtoupper($razonSocial),
             'ruc'            => $ruc,
             'supplier_name'  => $row['nombre_contacto'] ?? $row['contacto'] ?? null,
@@ -53,20 +43,50 @@ class SuppliersImport implements ToModel, WithHeadingRow, WithValidation
     public function rules(): array
     {
         return [
-            'razon_social' => 'nullable|string',
-            'ruc'          => 'required|digits:11|unique:suppliers,ruc',
-            'email'        => 'nullable|email',
+            'tipo' => 'required|in:nacional,extranjero',
+            // VALIDACIÓN DE NOMBRE DUPLICADO:
+            'razon_social_final' => 'required|string|max:255|unique:suppliers,company_name',
+            'ruc_tax_id' => [
+                'required',
+                'unique:suppliers,ruc',
+            ],
+            'email' => 'nullable|email',
         ];
+    }
+
+    public function prepareForValidation($data, $index)
+    {
+        if (isset($data['tipo'])) {
+            $data['tipo'] = Str::lower(trim($data['tipo']));
+        }
+
+        $rucValue = $data['ruc'] ?? $data['ruc_tax_id'] ?? $data['identificacion'] ?? null;
+        $data['ruc_tax_id'] = $rucValue;
+
+        // Lógica para determinar la razón social antes de validar
+        $razonSocial = isset($data['razon_social']) ? trim($data['razon_social']) : (isset($data['empresa']) ? trim($data['empresa']) : null);
+
+        // Si es nacional y no hay nombre, lo buscamos en SUNAT para poder validar la unicidad del nombre que vendrá
+        if (Str::lower($data['tipo'] ?? '') === 'nacional' && empty($razonSocial) && !empty($rucValue)) {
+            $razonSocial = $this->service->getRazonSocialFromSunat($rucValue);
+        }
+
+        // Guardamos el nombre final en una llave que validaremos en rules()
+        $data['razon_social_final'] = $razonSocial;
+
+        return $data;
     }
 
     public function customValidationMessages()
     {
         return [
-            'ruc.required'        => 'El campo RUC es obligatorio.',
-            'ruc.digits'          => 'El RUC :input debe tener 11 dígitos.',
-            'ruc.unique'          => 'El RUC :input ya existe en el sistema.',
-            'razon_social.string' => 'La Razón Social debe ser texto.',
-            'email.email'         => 'El correo :input no es válido.',
+            'tipo.required' => 'La columna "Tipo" es obligatoria.',
+            'tipo.in' => 'El tipo debe ser "nacional" o "extranjero".',
+            'ruc_tax_id.required' => 'El RUC o Tax ID es obligatorio.',
+            'ruc_tax_id.unique' => 'El RUC/ID :input ya existe.',
+            'razon_social_final.required' => 'La Razón Social es obligatoria.',
+            'razon_social_final.unique' => 'La empresa ":input" ya está registrada.', // Mensaje amigable
+            'email.email' => 'El correo :input no es válido.',
         ];
     }
 }

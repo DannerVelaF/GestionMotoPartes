@@ -202,11 +202,9 @@ export default function ListReceipts({ receipts, filters }: Props) {
             let key = 'Otros';
 
             if (groupBy === 'document_type') {
-                // CORRECCIÓN AQUÍ: Las llaves deben coincidir con lo que hay en la BD ('factura', 'boleta')
                 const mapNames: Record<string, string> = {
                     factura: 'Facturas',
                     boleta: 'Boletas de Venta',
-                    // Por si acaso tienes datos viejos en inglés, puedes dejar estos:
                     invoice: 'Facturas',
                     receipt: 'Boletas de Venta',
                     nota_credito: 'Notas de Crédito',
