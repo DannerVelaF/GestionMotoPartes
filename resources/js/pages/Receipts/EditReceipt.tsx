@@ -817,40 +817,64 @@ export default function EditReceipt({
                                                 <Label className="text-[10px] font-bold text-muted-foreground uppercase">
                                                     Tipo Doc
                                                 </Label>
-                                                <Select
-                                                    value={data.document_type}
-                                                    onValueChange={(val) =>
-                                                        onFieldChange(
-                                                            'document_type',
-                                                            val,
-                                                        )
-                                                    }
-                                                    disabled={false} // HABILITADO
-                                                >
-                                                    <SelectTrigger
-                                                        className={
-                                                            cleanInputClass
+
+                                                {data.document_type ===
+                                                'nota_credito' ? (
+                                                    /* Caso: Nota de Crédito - Solo lectura */
+                                                    <div className="relative">
+                                                        <Input
+                                                            value="Nota de Crédito"
+                                                            disabled
+                                                            className={
+                                                                disabledInputClass
+                                                            }
+                                                        />
+                                                        <Lock className="absolute top-2.5 right-2 h-4 w-4 text-muted-foreground/30" />
+                                                    </div>
+                                                ) : (
+                                                    /* Caso: Otros - Selector habilitado */
+                                                    <Select
+                                                        value={
+                                                            data.document_type
+                                                        }
+                                                        onValueChange={(val) =>
+                                                            onFieldChange(
+                                                                'document_type',
+                                                                val,
+                                                            )
                                                         }
                                                     >
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {documentTypes.map(
-                                                            (dt) => (
-                                                                <SelectItem
-                                                                    key={
-                                                                        dt.value
-                                                                    }
-                                                                    value={
-                                                                        dt.value
-                                                                    }
-                                                                >
-                                                                    {dt.label}
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
+                                                        <SelectTrigger
+                                                            className={
+                                                                cleanInputClass
+                                                            }
+                                                        >
+                                                            <SelectValue placeholder="Seleccionar..." />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {documentTypes
+                                                                .filter(
+                                                                    (dt) =>
+                                                                        dt.value !==
+                                                                        'nota_credito',
+                                                                ) // Opcional: filtrar para que no la elijan manualmente si no quieres
+                                                                .map((dt) => (
+                                                                    <SelectItem
+                                                                        key={
+                                                                            dt.value
+                                                                        }
+                                                                        value={
+                                                                            dt.value
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            dt.label
+                                                                        }
+                                                                    </SelectItem>
+                                                                ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                )}
                                             </div>
                                             <div className="space-y-2">
                                                 <Label className="text-[10px] font-bold text-muted-foreground uppercase">

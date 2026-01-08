@@ -8,7 +8,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DataTable } from '@/components/ui/data-table';
@@ -43,10 +42,15 @@ import {
     Trash2,
     X,
 } from 'lucide-react';
-import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+    KeyboardEvent,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 import { useDebounce } from 'use-debounce';
 import { Columns, Receipt } from './Columns';
-import React from 'react';
 interface PaginatedReceipts {
     data: Receipt[];
     current_page: number;
@@ -189,7 +193,6 @@ export default function ListReceipts({ receipts, filters }: Props) {
     };
 
     // --- AGRUPACIÓN DE DATOS ---
-    // --- AGRUPACIÓN DE DATOS ---
     const groupedData = useMemo(() => {
         if (groupBy === 'none') return null;
 
@@ -206,6 +209,7 @@ export default function ListReceipts({ receipts, filters }: Props) {
                     // Por si acaso tienes datos viejos en inglés, puedes dejar estos:
                     invoice: 'Facturas',
                     receipt: 'Boletas de Venta',
+                    nota_credito: 'Notas de Crédito',
                 };
                 // Normalizamos a minúsculas por si acaso
                 key = mapNames[receipt.document_type.toLowerCase()] || 'Otros';
