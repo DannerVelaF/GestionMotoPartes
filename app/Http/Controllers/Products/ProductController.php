@@ -3,8 +3,10 @@
 namespace App\Http\Controllers\Products;
 
 use App\Enums\GenericStatus;
+use App\Exports\ProductTemplateExport;
 use App\Http\Controllers\Controller;
 use App\Http\Services\Products\ProductService;
+use App\Imports\ProductsImport;
 use App\Models\Brand;
 use App\Models\ProductCategory;
 use App\Models\Products;
@@ -15,6 +17,7 @@ use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ProductController extends Controller
 {
@@ -340,5 +343,48 @@ class ProductController extends Controller
         $this->service->deleteProducts($data['ids']);
 
         return back()->with('success', 'Productos seleccionados eliminados correctamente.');
+    }
+
+    public function template()
+    {
+        // Este método descargará la plantilla Excel
+        return Excel::download(new ProductTemplateExport, 'plantilla_productos.xlsx');
+    }
+
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|mimes:xlsx,xls,csv|max:2048',
+        ]);
+
+        try {
+            $import = new ProductsImport;
+            Excel::import($import, $request->file('file'));
+
+            if ($import->rows === 0) {
+                return back()->withErrors(['error' => 'El archivo está vacío.']);
+            }
+
+            return back()->with('success', "Se importaron {$import->rows} productos correctamente.");
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $failures = $e->failures();
+            $errorMessages = [];
+
+            foreach ($failures as $failure) {
+                $row = $failure->row();
+                $errors = $failure->errors();
+                $errorMessages[] = "Fila {$row}: " . implode(', ', $errors);
+            }
+
+            // Mostramos solo los primeros 3 errores para no romper la UI
+            $displayErrors = array_slice($errorMessages, 0, 3);
+            if (count($errorMessages) > 3) {
+                $displayErrors[] = '... y ' . (count($errorMessages) - 3) . ' errores más.';
+            }
+
+            return back()->withErrors(['error' => implode("\n", $displayErrors)]);
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'Error en la importación: ' . $e->getMessage()]);
+        }
     }
 }

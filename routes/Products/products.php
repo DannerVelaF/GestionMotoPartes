@@ -5,7 +5,9 @@ use App\Http\Controllers\Products\ProductCategoryController;
 use App\Http\Controllers\Products\ProductController;
 use App\Http\Controllers\Products\ProductTypeController;
 
-Route::middleware("auth")->group(function (){
+Route::middleware("auth")->group(function () {
+    Route::get('/productos/template', [ProductController::class, 'template'])->name('products.template');
+    Route::post('/productos/import', [ProductController::class, 'import'])->name('products.import');
     Route::get("/productos", [ProductController::class, "index"])->name("products.index");
     Route::get("/productos/nuevoProducto", [ProductController::class, "create"])->name("products.create");
     Route::post('/productos/nuevoProducto', [ProductController::class, 'store'])
@@ -44,6 +46,4 @@ Route::middleware("auth")->group(function (){
         Route::delete("/tipoProducto/bulk-delete", 'bulkDestroy')->name('product-types.bulk-destroy');
         Route::delete('/tipoProducto/{type}', 'destroy')->name('product-types.destroy');
     });
-
 });
-

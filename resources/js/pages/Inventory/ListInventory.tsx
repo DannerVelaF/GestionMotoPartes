@@ -13,6 +13,7 @@ import {
     ChevronRight,
     FileDown,
     Package,
+    Plus,
     Search,
     X,
 } from 'lucide-react';
@@ -150,6 +151,16 @@ export default function ListInventory({ inventory, filters }: Props) {
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
+
+                        {/* ✅ NUEVO BOTÓN: Ajuste Manual */}
+                        <Button
+                            variant="default"
+                            className="h-9 bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600"
+                            onClick={() => router.visit('/inventario/ajuste')}
+                        >
+                            <Plus className="mr-2 h-4 w-4" />
+                            Ajuste Manual
+                        </Button>
 
                         <Button
                             variant={selectedCount > 0 ? 'default' : 'outline'}

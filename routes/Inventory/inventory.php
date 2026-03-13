@@ -13,6 +13,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/inventario/kardex-exportar', 'exportKardex')->name('inventory.kardex.export');
 
         Route::get('/inventario/kardex/{product}', 'kardexByProduct')->name('inventory.kardex.product');
+        Route::get('/inventario/ajuste', 'createAdjustment')->name('inventory.adjustment.create');
         Route::post('/inventario/ajuste', 'storeAdjustment')->name('inventory.adjustment.store');
     });
 });

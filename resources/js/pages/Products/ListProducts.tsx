@@ -1,3 +1,4 @@
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -11,7 +12,24 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -26,21 +44,29 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
+import { cn } from '@/lib/utils';
 import productsRoute from '@/routes/products';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import {
+    AlertCircle,
+    CheckCircle2,
     ChevronLeft,
     ChevronRight,
+    Download,
+    FileSpreadsheet,
     Image as ImageIcon,
     Layers,
+    Loader2,
     Plus,
     Search,
+    Settings,
     Trash2,
+    Upload,
     X,
 } from 'lucide-react';
 import { KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { useDebounce } from 'use-debounce';
-import { cn } from '@/lib/utils';
+
 interface Product {
     id_product: number;
     product_name: string;
@@ -73,11 +99,49 @@ interface Props {
 
 const breadcrumbs = [{ title: 'Productos', href: productsRoute.index().url }];
 
+function FloatingAlert({
+    message,
+    type = 'error',
+}: {
+    message?: string;
+    type?: 'error' | 'success';
+}) {
+    if (!message) return null;
+    const isSuccess = type === 'success';
+
+    return (
+        <div className="fixed top-6 right-6 z-[100] w-auto max-w-md animate-in fade-in slide-in-from-top-2">
+            <Alert
+                variant={isSuccess ? 'default' : 'destructive'}
+                className={`border-2 shadow-xl ${
+                    isSuccess
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/90 dark:text-emerald-100'
+                        : 'border-red-500 bg-white text-red-900 dark:border-red-800 dark:bg-red-950/90 dark:text-red-100'
+                }`}
+            >
+                {isSuccess ? (
+                    <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                    <AlertCircle className="h-4 w-4" />
+                )}
+                <AlertTitle className="ml-2 font-bold">
+                    {isSuccess ? '¡Éxito!' : 'Atención'}
+                </AlertTitle>
+                <AlertDescription className="ml-2 whitespace-pre-wrap">
+                    {message}
+                </AlertDescription>
+            </Alert>
+        </div>
+    );
+}
+
 export default function ListProducts({ products, filters }: Props) {
+    const { props } = usePage();
+    const flash = (props as any).flash;
+    const serverErrors: any = props.errors;
+
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [debouncedSearch] = useDebounce(searchTerm, 300);
-
-    // CORRECCIÓN: Asegurar valor por defecto válido 'none' si viene null/undefined
     const [groupBy, setGroupBy] = useState<string>(filters.group_by || 'none');
 
     const [perPage, setPerPage] = useState<string | number>(products.per_page);
@@ -87,14 +151,53 @@ export default function ListProducts({ products, filters }: Props) {
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
 
+    const [isImportOpen, setIsImportOpen] = useState(false);
+    const [importFile, setImportFile] = useState<File | null>(null);
+    const [isImporting, setIsImporting] = useState(false);
+
+    // Estados locales para las alertas
+    const [localSuccess, setLocalSuccess] = useState<string | null>(
+        flash?.success || null,
+    );
+    const [localError, setLocalError] = useState<string | null>(
+        serverErrors?.error || null,
+    );
+
+    // Sincronizar props del backend con el estado local
+    useEffect(() => {
+        if (flash?.success) setLocalSuccess(flash.success);
+    }, [flash?.success]);
+
+    useEffect(() => {
+        if (serverErrors?.error) setLocalError(serverErrors.error);
+    }, [serverErrors?.error]);
+
+    // Temporizador para limpiar la alerta de éxito
+    useEffect(() => {
+        if (localSuccess) {
+            const timer = setTimeout(() => {
+                setLocalSuccess(null);
+            }, 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [localSuccess]);
+
+    // Temporizador para limpiar la alerta de error
+    useEffect(() => {
+        if (localError) {
+            const timer = setTimeout(() => {
+                setLocalError(null);
+            }, 8000);
+            return () => clearTimeout(timer);
+        }
+    }, [localError]);
+
     useEffect(() => {
         if (debouncedSearch !== (filters.search || '')) {
             updateParams({ search: debouncedSearch, page: 1 });
         }
     }, [debouncedSearch]);
 
-    // Efecto para actualizar cuando cambia el agrupamiento
-    // Usamos useEffect para evitar ciclos infinitos o actualizaciones rápidas
     useEffect(() => {
         const currentFilterGroup = filters.group_by || 'none';
         if (groupBy !== currentFilterGroup) {
@@ -169,10 +272,48 @@ export default function ListProducts({ products, filters }: Props) {
         });
     };
 
+    const handleDownloadTemplate = () => {
+        window.location.href = productsRoute.template().url;
+    };
+
+    useEffect(() => {
+        if (!isImportOpen) {
+            setLocalError(null);
+            setImportFile(null);
+        }
+    }, [isImportOpen]);
+
+    const handleImportSubmit = () => {
+        if (!importFile) return;
+        setIsImporting(true);
+        setLocalError(null);
+        setLocalSuccess(null);
+
+        router.post(
+            productsRoute.import().url,
+            { file: importFile },
+            {
+                forceFormData: true,
+                onSuccess: () => {
+                    setIsImportOpen(false);
+                    setIsImporting(false);
+                },
+                onError: (errors) => {
+                    setIsImporting(false);
+                    if (errors.error) {
+                        setLocalError(errors.error);
+                    } else {
+                        const firstKey = Object.keys(errors)[0];
+                        if (firstKey) setLocalError(errors[firstKey]);
+                    }
+                },
+            },
+        );
+    };
+
     const hidePaginationControls =
         products.total <= products.per_page || products.total === 0;
 
-    // --- Helper para renderizar una tarjeta ---
     const renderProductCard = (product: Product) => {
         const isSelected = selectedIds.includes(product.id_product);
         const isActive = product.status === 'active';
@@ -191,7 +332,6 @@ export default function ListProducts({ products, filters }: Props) {
                     !isActive && 'opacity-70 grayscale-[0.8]',
                 )}
             >
-                {/* Checkbox Overlay */}
                 <div
                     className={cn(
                         'absolute top-3 left-3 z-30 transition-opacity duration-300',
@@ -210,7 +350,6 @@ export default function ListProducts({ products, filters }: Props) {
                     />
                 </div>
 
-                {/* Badge de Estado / Stock en la imagen */}
                 <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-1">
                     {!isActive && (
                         <span className="rounded bg-zinc-800 px-2 py-0.5 text-[9px] font-black tracking-tighter text-white uppercase shadow-sm">
@@ -230,7 +369,6 @@ export default function ListProducts({ products, filters }: Props) {
                     )}
                 </div>
 
-                {/* Contenedor de Imagen con fondo sutil */}
                 <div className="relative flex h-40 w-full items-center justify-center overflow-hidden bg-muted/30 transition-colors group-hover:bg-muted/10">
                     {product.url_image ? (
                         <img
@@ -248,7 +386,6 @@ export default function ListProducts({ products, filters }: Props) {
                     )}
                 </div>
 
-                {/* Cuerpo de la tarjeta */}
                 <div className="flex flex-1 flex-col p-4">
                     <div className="mb-auto flex flex-col">
                         <div className="mb-1 flex items-center gap-2">
@@ -274,7 +411,6 @@ export default function ListProducts({ products, filters }: Props) {
                         </Tooltip>
                     </div>
 
-                    {/* Footer de la tarjeta: Precio y Stock */}
                     <div className="mt-4 flex items-center justify-between border-t border-muted/60 pt-3">
                         <div className="flex flex-col">
                             <span className="mb-1 text-[10px] leading-none font-bold text-muted-foreground uppercase">
@@ -319,7 +455,6 @@ export default function ListProducts({ products, filters }: Props) {
         );
     };
 
-    // --- RENDERIZADO POR GRUPOS ---
     const renderGroupedContent = () => {
         if (products.data.length === 0) {
             return (
@@ -383,6 +518,12 @@ export default function ListProducts({ products, filters }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Productos" />
 
+            {/* ALERTAS FLOTANTES USANDO ESTADO LOCAL */}
+            {localSuccess && (
+                <FloatingAlert message={localSuccess} type="success" />
+            )}
+            {localError && <FloatingAlert message={localError} type="error" />}
+
             <AlertDialog
                 open={isDeleteAlertOpen}
                 onOpenChange={setIsDeleteAlertOpen}
@@ -412,7 +553,6 @@ export default function ListProducts({ products, filters }: Props) {
 
             <TooltipProvider>
                 <div className="flex h-full flex-1 flex-col overflow-hidden bg-muted/10 dark:bg-zinc-950/50">
-                    {/* BARRA SUPERIOR */}
                     <div
                         className={`flex items-center justify-between border-b px-6 py-3 transition-colors duration-300 ${selectedIds.length > 0 ? 'bg-blue-50 dark:bg-blue-950/30' : 'bg-background'}`}
                     >
@@ -463,10 +603,47 @@ export default function ListProducts({ products, filters }: Props) {
                                     <h1 className="hidden text-lg font-semibold text-foreground md:block">
                                         Productos
                                     </h1>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-9 w-9 text-muted-foreground"
+                                            >
+                                                <Settings className="h-5 w-5" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent
+                                            align="start"
+                                            className="w-48"
+                                        >
+                                            <DropdownMenuLabel>
+                                                Acciones de Productos
+                                            </DropdownMenuLabel>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem
+                                                onClick={() =>
+                                                    setIsImportOpen(true)
+                                                }
+                                            >
+                                                <Download className="mr-2 h-4 w-4" />
+                                                <span>Importar</span>
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onClick={() =>
+                                                    console.log(
+                                                        'Lógica de exportar',
+                                                    )
+                                                }
+                                            >
+                                                <Layers className="mr-2 h-4 w-4" />
+                                                <span>Exportar catálogo</span>
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
 
                                 <div className="flex flex-1 items-center justify-end gap-4">
-                                    {/* SELECTOR AGRUPAR POR */}
                                     <div className="w-40">
                                         <Select
                                             value={groupBy}
@@ -510,7 +687,6 @@ export default function ListProducts({ products, filters }: Props) {
                                         />
                                     </div>
 
-                                    {/* Paginación */}
                                     <div className="flex items-center gap-2 border-l pl-4 text-sm whitespace-nowrap text-muted-foreground tabular-nums">
                                         <span className="flex items-center gap-1">
                                             <span>{products.from || 0}</span>
@@ -597,6 +773,88 @@ export default function ListProducts({ products, filters }: Props) {
                     </div>
                 </div>
             </TooltipProvider>
+
+            <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <FileSpreadsheet className="h-5 w-5 text-green-600" />
+                            Importar Productos
+                        </DialogTitle>
+                        <DialogDescription>
+                            Sube un archivo Excel (.xlsx) con los datos de los
+                            productos.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-6 py-4">
+                        <div className="flex items-center justify-between rounded-md border bg-muted/30 p-3">
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
+                                    <FileSpreadsheet className="h-5 w-5 text-green-700 dark:text-green-400" />
+                                </div>
+                                <div className="space-y-0.5">
+                                    <p className="text-sm font-medium">
+                                        Plantilla de Productos
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Formato .xlsx
+                                    </p>
+                                </div>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleDownloadTemplate}
+                                className="border-dashed"
+                            >
+                                <Download className="mr-2 h-3 w-3" /> Descargar
+                            </Button>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="file">Seleccionar Archivo</Label>
+                            <Input
+                                id="file"
+                                type="file"
+                                accept=".xlsx, .xls, .csv"
+                                onChange={(e) =>
+                                    setImportFile(e.target.files?.[0] || null)
+                                }
+                                className="cursor-pointer"
+                            />
+                        </div>
+                    </div>
+
+                    <DialogFooter className="mt-4 gap-2 sm:justify-between">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => setIsImportOpen(false)}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={handleImportSubmit}
+                            disabled={!importFile || isImporting}
+                            className="bg-green-600 text-white hover:bg-green-700"
+                        >
+                            {isImporting ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Importando...
+                                </>
+                            ) : (
+                                <>
+                                    <Upload className="mr-2 h-4 w-4" />
+                                    Subir Archivo
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }

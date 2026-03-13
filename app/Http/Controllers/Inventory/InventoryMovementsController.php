@@ -6,9 +6,13 @@ use App\Exports\InventoryExport;
 use App\Exports\KardexExport;
 use App\Http\Controllers\Controller;
 use App\Models\BusinessConfig;
+use App\Models\InventoryAdjustment;
+use App\Models\InventoryLog;
 use App\Models\InventoryMovements;
 use App\Models\Products;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -152,5 +156,138 @@ class InventoryMovementsController extends Controller
         $companyName = $config ? $config->company_name : 'Empresa';
 
         return Excel::download(new KardexExport($movements, $companyName), "kardex_" . now()->format('Ymd') . ".xlsx");
+    }
+
+
+    public function createAdjustment()
+    {
+        $products = Products::where('status', 'active')
+            ->select('id_product', 'product_name', 'product_code', 'stock', 'sale_price')
+            ->orderBy('product_name')
+            ->get();
+
+        return Inertia::render('Inventory/ManualAdjustment', [
+            'products' => $products
+        ]);
+    }
+
+    public function storeAdjustment(Request $request)
+    {
+        // 1. Validaciones actualizadas
+        $request->validate([
+            'operation_type'  => 'required|string|max:255',
+            'kardex_date'     => 'required|date',
+            'reason'          => 'required|string|max:255',
+            'location'        => 'required|string|max:255',
+            'contact_name'    => 'nullable|string|max:255',
+            'document_type'   => 'nullable|string|max:255',
+            'document_number' => 'nullable|string|max:255',
+            'exchange_rate'   => 'nullable|numeric|min:0.0001',
+            'status'          => 'required|in:draft,done',
+            'internal_note'   => 'nullable|string', // Aceptamos la nota del chatter
+
+            // Los items SOLO son obligatorios si vamos a VALIDAR (done) el documento
+            'items'              => 'required_if:status,done|array',
+            'items.*.id_product' => 'required_with:items|exists:products,id_product',
+            'items.*.old_stock'  => 'required_with:items|numeric',
+            'items.*.new_stock'  => 'required_with:items|numeric|min:0',
+            'items.*.unit_cost'  => 'nullable|numeric|min:0',
+        ]);
+
+        try {
+            DB::transaction(function () use ($request) {
+                $userId = Auth::id() ?? 1;
+                $isDone = $request->status === 'done';
+
+                $lastAdjustment = InventoryAdjustment::orderBy('id_adjustment', 'desc')->first();
+                $nextId = $lastAdjustment ? $lastAdjustment->id_adjustment + 1 : 1;
+                $referenceCode = 'AJU-' . str_pad($nextId, 6, '0', STR_PAD_LEFT);
+
+                $adjustment = InventoryAdjustment::create([
+                    'reference_code'  => $referenceCode,
+                    'operation_type'  => $request->operation_type,
+                    'kardex_date'     => $request->kardex_date,
+                    'reason'          => $request->reason,
+                    'location'        => $request->location,
+                    'contact_name'    => $request->contact_name,
+                    'document_type'   => $request->document_type,
+                    'document_number' => $request->document_number,
+                    'exchange_rate'   => $request->exchange_rate ?? 1.0000,
+                    'status'          => $request->status,
+                    'id_user'         => $userId,
+                ]);
+
+                // LOG 1: Creación de documento
+                InventoryLog::create([
+                    'id_adjustment' => $adjustment->id_adjustment,
+                    'id_user'       => $userId,
+                    'action'        => 'Documento Creado',
+                    'field_changed' => 'Estado',
+                    'new_value'     => $request->status,
+                ]);
+
+                // LOG 2: NOTA INTERNA (Si el usuario escribió algo en el chatter)
+                if ($request->filled('internal_note')) {
+                    InventoryLog::create([
+                        'id_adjustment' => $adjustment->id_adjustment,
+                        'id_user'       => $userId,
+                        'action'        => 'Nota',
+                        'notes'         => $request->internal_note
+                    ]);
+                }
+
+                // 4. PROCESAMOS LOS PRODUCTOS (Solo si enviaron alguno)
+                if ($request->has('items') && is_array($request->items)) {
+                    foreach ($request->items as $item) {
+                        $product = Products::where('id_product', $item['id_product'])->lockForUpdate()->first();
+
+                        $oldStock = (float) $product->stock;
+                        $newStock = (float) $item['new_stock'];
+                        $difference = $newStock - $oldStock;
+
+                        if ($difference == 0) continue;
+
+                        InventoryLog::create([
+                            'id_adjustment' => $adjustment->id_adjustment,
+                            'id_user'       => $userId,
+                            'action'        => 'Modificación',
+                            'field_changed' => 'Stock: ' . $product->product_name,
+                            'old_value'     => $oldStock,
+                            'new_value'     => $newStock,
+                        ]);
+
+                        if ($isDone) {
+                            $quantity = abs($difference);
+                            $unitCost = $difference > 0 ? ($item['unit_cost'] ?? $product->sale_price ?? 0) : ($product->sale_price ?? 0);
+                            $totalCost = $quantity * $unitCost;
+
+                            $product->update(['stock' => $newStock]);
+
+                            InventoryMovements::create([
+                                'id_product'     => $product->id_product,
+                                'id_user'        => $userId,
+                                'type'           => substr($request->operation_type, 0, 2),
+                                'kardex_date'    => $request->kardex_date,
+                                'quantity'       => $difference,
+                                'unit_cost'      => $unitCost,
+                                'total_cost'     => $totalCost,
+                                'balance'        => $newStock,
+                                'reference_type' => InventoryAdjustment::class,
+                                'reference_id'   => $adjustment->id_adjustment,
+                                'notes'          => "Ref: {$referenceCode} | " . $request->reason
+                            ]);
+                        }
+                    }
+                }
+            });
+
+            $mensaje = $request->status === 'done'
+                ? 'Ajuste de inventario VALIDADO y Kardex actualizado con éxito.'
+                : 'Borrador / Nota guardados correctamente.';
+
+            return redirect()->route('inventory.index')->with('success', $mensaje);
+        } catch (\Exception $e) {
+            return back()->withErrors(['error' => 'Error al guardar: ' . $e->getMessage()]);
+        }
     }
 }
