@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Purchase\PurchaseOrdersController;
 use App\Http\Controllers\Sales\CustomerSearchController;
 use App\Http\Controllers\Receipt\ReceiptController;
 use App\Http\Controllers\Receipt\SupplierController;
@@ -37,4 +38,15 @@ Route::middleware("auth")->group(function () {
         Route::get('/recibos/reportes/variacionCosto',  'variationReport')->name('reports-receipts.variation');
     });
     Route::get('/api/consultar-documento/{documento}', [CustomerSearchController::class, 'searchCustomer']);
+
+    Route::controller(PurchaseOrdersController::class)->group(function () {
+        Route::get('/compras/ordenes', 'index')->name('purchase-orders.index');
+        Route::get('/compras/ordenes/crear', 'create')->name('purchase-orders.create');
+        Route::post('/compras/ordenes', 'store')->name('purchase-orders.store');
+        Route::get('/compras/ordenes/{purchaseOrder}', 'show')->name('purchase-orders.show');
+        Route::put('/compras/ordenes/{purchaseOrder}', 'update')->name('purchase-orders.update');
+        Route::delete('/compras/ordenes/{purchaseOrder}', 'destroy')->name('purchase-orders.destroy');
+        Route::post('/compras/ordenes/{purchaseOrder}/nota', 'addNote')->name('purchase-orders.note');
+        Route::post('/compras/ordenes/{purchaseOrder}/aprobar', 'approve')->name('purchase-orders.approve');
+    });
 });

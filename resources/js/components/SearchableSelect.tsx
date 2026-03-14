@@ -29,6 +29,7 @@ interface SearchableSelectProps {
     onCreate?: () => void;
     error?: string;
     className?: string;
+    isDisabled?: boolean;
 }
 
 export function SearchableSelect({
@@ -39,6 +40,7 @@ export function SearchableSelect({
     onCreate,
     error,
     className,
+    isDisabled = false,
 }: SearchableSelectProps) {
     const [open, setOpen] = useState(false);
 
@@ -52,6 +54,7 @@ export function SearchableSelect({
                         variant="outline"
                         role="combobox"
                         aria-expanded={open}
+                        disabled={isDisabled}
                         className={cn(
                             // Base styles
                             'w-full justify-between rounded-none border-0 border-b bg-transparent px-0 text-lg font-normal capitalize shadow-none focus:ring-0',

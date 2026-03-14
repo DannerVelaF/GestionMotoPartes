@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
 import inventory from '@/routes/inventory';
-import receipts from '@/routes/receipts';
+import purchaseOrders from '@/routes/purchase-orders';
 import sales from '@/routes/sales';
 import users from '@/routes/users';
 import { type NavItem } from '@/types';
@@ -38,8 +38,8 @@ const mainNavItems: NavItem[] = [
         icon: ShoppingCart,
     },
     {
-        title: 'Comprobantes',
-        href: receipts.index.url(),
+        title: 'Compras',
+        href: purchaseOrders.index.url(),
         icon: BookText,
     },
     {
