@@ -601,10 +601,13 @@ export default function EditPurchaseOrder({
                                                             value={
                                                                 receiptData.document_type
                                                             }
-                                                            onValueChange={(v) =>
+                                                            onValueChange={(
+                                                                v,
+                                                            ) =>
                                                                 setReceiptData({
                                                                     ...receiptData,
-                                                                    document_type: v,
+                                                                    document_type:
+                                                                        v,
                                                                 })
                                                             }
                                                         >
@@ -1279,7 +1282,9 @@ export default function EditPurchaseOrder({
                                                             row.unit_cost
                                                         ).toFixed(2)}
                                                     </td>
-                                                    {!(isDone || isApproved) && (
+                                                    {!(
+                                                        isDone || isApproved
+                                                    ) && (
                                                         <td className="px-2 py-3 text-center align-middle">
                                                             <Button
                                                                 type="button"
