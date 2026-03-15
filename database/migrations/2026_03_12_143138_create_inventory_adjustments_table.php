@@ -24,7 +24,6 @@ return new class extends Migration
             $table->unsignedBigInteger('id_location_destination')->nullable(); // Destino (Ej: Stock)
 
             // --- DATOS DE LA OPERACIÓN ---
-            $table->string('operation_type_sunat')->nullable(); // El código SUNAT (02-Compra, etc)
             $table->date('kardex_date');
             $table->string('reason')->nullable(); // Notas o motivo
 

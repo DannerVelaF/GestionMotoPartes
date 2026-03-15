@@ -33,16 +33,13 @@ class InventoryMovementsController extends Controller
             });
 
         // 2. Lógica de Paginación Dinámica Inicial
-        // Si el usuario no ha movido el selector de 'per_page', calculamos el default
         if (!$request->has('per_page')) {
             $totalCount = (clone $query)->count();
-            // Si hay más de 20, ponemos 20. Si hay menos, ponemos el total para que no salga paginado.
             $perPage = ($totalCount > 20) ? 20 : max($totalCount, 1);
         } else {
             $perPage = $request->input('per_page');
         }
 
-        // Validación de seguridad para perPage
         if (!is_numeric($perPage) || $perPage < 1) {
             $perPage = 20;
         }
@@ -62,28 +59,24 @@ class InventoryMovementsController extends Controller
 
     public function export(Request $request)
     {
-        $all = $request->boolean('all'); // Recibe el flag de selección total
+        $all = $request->boolean('all');
         $ids = $request->input('ids');
         $search = $request->input('search');
 
         $query = Products::query()->where('status', 'active');
 
-        // Lógica de filtrado
         if ($all) {
-            // Si es "Todo", aplicamos el filtro de búsqueda que tenía el usuario
             $query->when($search, function ($q, $search) {
                 $q->where('product_name', 'like', "%{$search}%")
                     ->orWhere('product_code', 'like', "%{$search}%");
             });
         } else {
-            // Si no es todo, filtramos solo por los IDs seleccionados
             if (!$ids) return back();
             $query->whereIn('id_product', $ids);
         }
 
         $products = $query->get();
 
-        // Configuración de BusinessConfig
         $config = BusinessConfig::first();
         $companyName = $config ? $config->company_name : 'Empresa';
         $safeName = str_replace(' ', '_', strtolower($companyName));
@@ -109,7 +102,6 @@ class InventoryMovementsController extends Controller
                 $q->where('type', $type);
             });
 
-        // Lógica dinámica inicial de paginación
         if (!$request->has('per_page')) {
             $totalCount = (clone $query)->count();
             $perPage = ($totalCount > 25) ? 25 : max($totalCount, 1);
@@ -141,13 +133,12 @@ class InventoryMovementsController extends Controller
 
     public function adjustments(Request $request)
     {
-        $search = $request->input('search'); // Aquí vendrá el código de la OC
+        $search = $request->input('search');
         $perPage = $request->input('per_page', 25);
 
         $query = \App\Models\InventoryAdjustment::query()
             ->with(['user:id,name'])
             ->when($search, function ($q, $search) {
-                // Buscamos en la referencia (IN/OC-XXX) o en el motivo
                 $q->where('reference_code', 'like', "%{$search}%")
                     ->orWhere('contact_name', 'like', "%{$search}%")
                     ->orWhere('reason', 'like', "%{$search}%");
@@ -156,7 +147,6 @@ class InventoryMovementsController extends Controller
 
         $adjustments = $query->paginate((int)$perPage)->withQueryString();
 
-        // Reutilizamos el render para la lista de ajustes
         return Inertia::render('Inventory/Adjustments/AdjustmentsList', [
             'adjustments' => $adjustments,
             'filters' => [
@@ -188,7 +178,6 @@ class InventoryMovementsController extends Controller
         return Excel::download(new KardexExport($movements, $companyName), "kardex_" . now()->format('Ymd') . ".xlsx");
     }
 
-
     public function createAdjustment()
     {
         $products = Products::where('status', 'active')
@@ -203,7 +192,6 @@ class InventoryMovementsController extends Controller
 
     public function storeAdjustment(Request $request)
     {
-        // 1. Validaciones actualizadas
         $request->validate([
             'operation_type'  => 'required|string|max:255',
             'kardex_date'     => 'required|date',
@@ -214,9 +202,7 @@ class InventoryMovementsController extends Controller
             'document_number' => 'nullable|string|max:255',
             'exchange_rate'   => 'nullable|numeric|min:0.0001',
             'status'          => 'required|in:draft,done',
-            'internal_note'   => 'nullable|string', // Aceptamos la nota del chatter
-
-            // Los items SOLO son obligatorios si vamos a VALIDAR (done) el documento
+            'internal_note'   => 'nullable|string',
             'items'              => 'required_if:status,done|array',
             'items.*.id_product' => 'required_with:items|exists:products,id_product',
             'items.*.old_stock'  => 'required_with:items|numeric',
@@ -247,7 +233,6 @@ class InventoryMovementsController extends Controller
                     'id_user'         => $userId,
                 ]);
 
-                // LOG 1: Creación de documento
                 InventoryLog::create([
                     'id_adjustment' => $adjustment->id_adjustment,
                     'id_user'       => $userId,
@@ -256,7 +241,6 @@ class InventoryMovementsController extends Controller
                     'new_value'     => $request->status,
                 ]);
 
-                // LOG 2: NOTA INTERNA (Si el usuario escribió algo en el chatter)
                 if ($request->filled('internal_note')) {
                     InventoryLog::create([
                         'id_adjustment' => $adjustment->id_adjustment,
@@ -266,7 +250,6 @@ class InventoryMovementsController extends Controller
                     ]);
                 }
 
-                // 4. PROCESAMOS LOS PRODUCTOS (Solo si enviaron alguno)
                 if ($request->has('items') && is_array($request->items)) {
                     foreach ($request->items as $item) {
                         $product = Products::where('id_product', $item['id_product'])->lockForUpdate()->first();
@@ -323,79 +306,110 @@ class InventoryMovementsController extends Controller
 
     public function editAdjustment($id)
     {
-        // Cargamos el ajuste con sus movimientos y los datos del producto
-        $adjustment = InventoryAdjustment::with(['movements.product'])->findOrFail($id);
-        $categories = ProductCategory::where('status', 'active')->orderBy('name_product_category')->get();
+        $adjustment = InventoryAdjustment::with([
+            'operationType',
+            'locationSource',
+            'locationDestination',
+            'details.product',
+            'logs.user' // <--- ESTO FALTABA PARA QUE REACT RECIBA LOS LOGS
+        ])->findOrFail($id);
 
         return Inertia::render('Inventory/InventoryAdjustmentForm', [
-            'adjustment' => $adjustment,
-            'products'   => Products::where('status', 'active')->get(),
-            'categories' => $categories,
+            'adjustment'     => $adjustment,
+            'products'       => \App\Models\Products::where('status', 'active')->select('id_product', 'product_name', 'product_code', 'id_category', 'stock')->get(),
+            'categories'     => \App\Models\ProductCategory::where('status', 'active')->orderBy('name_product_category')->get(),
+            'operationTypes' => \App\Models\InventoryOperationType::all(),
+            'locations'      => \App\Models\InventoryLocation::all(),
         ]);
+    }
+
+    public function checkAdjustment(Request $request, $id)
+    {
+        return DB::transaction(function () use ($request, $id) {
+            $adjustment = InventoryAdjustment::findOrFail($id);
+
+            if ($adjustment->status !== 'draft') {
+                return back()->withErrors(['error' => 'El documento ya no está en estado Borrador.']);
+            }
+
+            $items = $request->input('items', []);
+            $totalQty = collect($items)->sum(fn($item) => (float) ($item['quantity'] ?? 0));
+
+            if ($totalQty <= 0) {
+                return back()->withErrors(['error' => 'Debe ingresar la cantidad a procesar en al menos un producto.']);
+            }
+
+            // Guardar detalles
+            $this->syncAdjustmentDetails($adjustment, $items);
+
+            // Actualizamos cabecera (incluyendo la Fecha Kardex digitada)
+            $adjustment->update([
+                'status'          => 'ready',
+                'kardex_date'     => $request->input('kardex_date', $adjustment->kardex_date),
+                'document_type'   => $request->input('document_type'),
+                'document_number' => $request->input('document_number'),
+            ]);
+
+            InventoryLog::create([
+                'id_adjustment' => $adjustment->id_adjustment,
+                'id_user'       => Auth::id(),
+                'action'        => 'Comprobación',
+                'field_changed' => 'Estado',
+                'old_value'     => 'Borrador',
+                'new_value'     => 'Listo',
+                'notes'         => 'Cantidades comprobadas. Listo para validar.'
+            ]);
+
+            return back()->with('success', 'Cantidades comprobadas correctamente.');
+        });
     }
 
     public function validateAdjustment(Request $request, $id)
     {
         return DB::transaction(function () use ($request, $id) {
-            $adjustment = InventoryAdjustment::with('movements')->findOrFail($id);
+            $adjustment = InventoryAdjustment::with('details')->findOrFail($id);
             $userId = Auth::id();
 
-            if ($adjustment->status === 'done') {
-                throw new \Exception("Este movimiento ya ha sido validado.");
-            }
+            if ($adjustment->status === 'done') throw new \Exception("Este movimiento ya ha sido validado.");
+            if ($adjustment->status === 'draft') throw new \Exception("Primero debe 'Comprobar' el documento.");
 
             $items = $request->input('items', []);
-            $po = null;
-            if ($adjustment->origin_code) {
-                $po = PurchaseOrder::where('po_code', $adjustment->origin_code)->first();
-            }
+            $totalQty = collect($items)->sum(fn($item) => (float) ($item['quantity'] ?? 0));
+
+            if ($totalQty <= 0) throw new \Exception("No hay cantidades válidas.");
+
+            $this->syncAdjustmentDetails($adjustment, $items);
+
+            // IMPORTANTE: Tomamos la Fecha Kardex final
+            $kardexDate = $request->input('kardex_date', now()->format('Y-m-d'));
 
             foreach ($items as $item) {
                 $qtyDone = (float) ($item['quantity'] ?? 0);
-                if ($qtyDone <= 0) {
-                    continue;
-                }
+                if ($qtyDone <= 0) continue;
 
                 $product = Products::findOrFail($item['id_product']);
-
-                // Incrementa el stock del producto con la cantidad recibida.
                 $product->increment('stock', $qtyDone);
 
-                $movement = $adjustment->movements()
-                    ->where('id_product', $item['id_product'])
-                    ->first();
-
-                if ($movement) {
-                    // El producto ya estaba en el albarán, actualizamos la cantidad final recibida.
-                    $movement->update(['quantity' => $qtyDone]);
-                } else {
-                    // El producto se añadió manualmente, creamos un nuevo movimiento.
-                    InventoryMovements::create([
-                        'id_product'     => $product->id_product,
-                        'id_user'        => $userId,
-                        'type'           => 'IN', // Entrada
-                        'kardex_date'    => $adjustment->kardex_date,
-                        'quantity'       => $qtyDone,
-                        'unit_cost'      => $product->sale_price,
-                        'total_cost'     => $qtyDone * $product->sale_price,
-                        'balance'        => $product->stock, // El stock ya está incrementado
-                        'reference_type' => get_class($adjustment),
-                        'reference_id'   => $adjustment->id_adjustment,
-                        'notes'          => "Añadido en ajuste: {$adjustment->reference_code}"
-                    ]);
-                }
-
-                if ($po) {
-                    $poDetail = $po->details()->where('id_product', $item['id_product'])->first();
-                    if ($poDetail) {
-                        $poDetail->increment('received_quantity', $qtyDone);
-                    }
-                }
+                // Insertamos en el Kardex usando la $kardexDate
+                InventoryMovements::create([
+                    'id_product'     => $product->id_product,
+                    'id_user'        => $userId,
+                    'type'           => 'IN',
+                    'kardex_date'    => $kardexDate, // <-- LA FECHA CONTABLE
+                    'quantity'       => $qtyDone,
+                    'unit_cost'      => $item['unit_cost'] ?? 0,
+                    'total_cost'     => $qtyDone * ($item['unit_cost'] ?? 0),
+                    'balance'        => $product->stock,
+                    'reference_type' => get_class($adjustment),
+                    'reference_id'   => $adjustment->id_adjustment,
+                    'notes'          => "Validado en: {$adjustment->reference_code}"
+                ]);
             }
 
             $adjustment->update([
-                'status' => 'done',
-                'kardex_date' => $request->input('kardex_date', now()),
+                'status'          => 'done',
+                'kardex_date'     => $kardexDate,
+                'document_type'   => $request->input('document_type'),
                 'document_number' => $request->input('document_number'),
             ]);
 
@@ -404,19 +418,116 @@ class InventoryMovementsController extends Controller
                 'id_user'       => $userId,
                 'action'        => 'Documento Validado',
                 'field_changed' => 'Estado',
-                'old_value'     => 'draft',
-                'new_value'     => 'done',
+                'old_value'     => 'Listo',
+                'new_value'     => 'Realizado',
             ]);
-
-            if ($po) {
-                $po->load('details');
-                if ($po->isFullyReceived()) {
-                    $po->update(['status' => 'received']);
-                    // Log para la PO
-                }
-            }
 
             return redirect()->back()->with('success', 'Movimiento validado y stock actualizado.');
         });
+    }
+
+    // Asegúrate de tener este método para guardar las notas del chatter
+    public function addNote(Request $request, $id)
+    {
+        $request->validate(['internal_note' => 'required|string']);
+
+        InventoryLog::create([
+            'id_adjustment' => $id,
+            'id_user'       => Auth::id(),
+            'action'        => 'Nota',
+            'notes'         => $request->internal_note
+        ]);
+
+        return back()->with('success', 'Nota agregada.');
+    }
+
+    /**
+     * Función auxiliar para guardar las filas de la tabla
+     */
+    private function syncAdjustmentDetails(InventoryAdjustment $adjustment, array $items)
+    {
+        $incomingIds = collect($items)->pluck('id_product')->filter(fn($id) => $id !== 0)->toArray();
+
+        // 1. Eliminar los productos quitados
+        $adjustment->details()->whereNotIn('id_product', $incomingIds)->delete();
+
+        // 2. Actualizar o crear productos
+        foreach ($items as $item) {
+            if (empty($item['id_product']) || $item['id_product'] === 0) continue;
+
+            $adjustment->details()->updateOrCreate(
+                ['id_product' => $item['id_product']],
+                [
+                    'demand'    => $item['demand'] ?? 0,
+                    'quantity'  => $item['quantity'] ?? 0,
+                    'unit_cost' => $item['unit_cost'] ?? 0,
+                ]
+            );
+        }
+    }
+
+    public function updateAdjustment(Request $request, $id)
+    {
+        $adjustment = InventoryAdjustment::findOrFail($id);
+
+        // Solo procesamos actualizaciones administrativas si ya está validado (done)
+        if ($adjustment->status === 'done') {
+            $request->validate([
+                'kardex_date'     => 'required|date',
+                'contact_name'    => 'nullable|string|max:255',
+                'document_type'   => 'nullable|string|max:255',
+                'document_number' => 'nullable|string|max:255',
+            ]);
+
+            // 1. Usamos fill() en lugar de update() para cargar los datos en memoria SIN guardarlos aún
+            $adjustment->fill([
+                'contact_name'    => $request->contact_name,
+                'kardex_date'     => $request->kardex_date,
+                'document_type'   => $request->document_type,
+                'document_number' => $request->document_number,
+            ]);
+
+            // 2. Detectamos qué campos cambiaron realmente
+            $changes = $adjustment->getDirty();
+            $original = $adjustment->getOriginal();
+
+            if (!empty($changes)) {
+                // Diccionario para que en el log se lea bonito (en español)
+                $fieldNames = [
+                    'kardex_date'     => 'Fecha Kardex',
+                    'contact_name'    => 'Contacto',
+                    'document_type'   => 'Tipo de Documento',
+                    'document_number' => 'N° Documento'
+                ];
+
+                // 3. Creamos un log por cada campo modificado
+                foreach ($changes as $field => $newValue) {
+                    if (array_key_exists($field, $fieldNames)) {
+                        InventoryLog::create([
+                            'id_adjustment' => $adjustment->id_adjustment,
+                            'id_user'       => Auth::id(),
+                            'action'        => 'Actualización',
+                            'field_changed' => $fieldNames[$field],
+                            'old_value'     => $original[$field] ?? 'Vacío', // Si estaba nulo, pone 'Vacío'
+                            'new_value'     => $newValue ?? 'Vacío',
+                        ]);
+                    }
+                }
+
+                // 4. Ahora sí, guardamos los cambios en la base de datos
+                $adjustment->save();
+
+                // 5. ¡MUY IMPORTANTE! Si cambiaron la fecha Kardex, se actualiza en el registro contable
+                if (array_key_exists('kardex_date', $changes)) {
+                    InventoryMovements::where('reference_type', get_class($adjustment))
+                        ->where('reference_id', $adjustment->id_adjustment)
+                        ->update(['kardex_date' => $request->kardex_date]);
+                }
+            }
+
+            return back()->with('success', 'Documento actualizado correctamente.');
+        }
+
+        return back()->withErrors(['error' => 'Solo se pueden hacer actualizaciones administrativas en documentos realizados.']);
     }
 }

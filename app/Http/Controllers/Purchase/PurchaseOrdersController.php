@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Purchase;
 use App\Http\Controllers\Controller;
 use App\Http\Services\PurchaseOrder\PurchaseOrderService; // Corregido el namespace según tu estructura
 use App\Models\InventoryAdjustment;
+use App\Models\InventoryOperationType;
 use App\Models\Products;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
@@ -220,23 +221,58 @@ class PurchaseOrdersController extends Controller
 
     public function prepareReception($id)
     {
-        // 1. Buscamos la OC
-        $order = PurchaseOrder::with('details.product')->findOrFail($id);
+        $order = PurchaseOrder::with(['details.product', 'supplier'])->findOrFail($id);
+        $operationType = \App\Models\InventoryOperationType::where('code', 'IN')->first();
 
-        // 2. Creamos elInventoryAdjustment en estado 'borrador'
-        $reception = InventoryAdjustment::create([
-            'reference_code'  => 'IN/' . $order->po_code . '/' . now()->format('is'),
-            'operation_type'  => 'RECEPCIÓN',
-            'contact_name'    => $order->supplier->company_name,
-            'kardex_date'     => now()->format('Y-m-d'), // <-- ESTA LÍNEA ES LA QUE FALTA
-            'id_user'         => Auth::id(),
-            'status'          => 'ready',
-            'reason'          => 'Recepción de mercadería de ' . $order->po_code,
-            'location'        => 'Almacén Principal',
-            'exchange_rate'   => $order->exchange_rate,
-        ]);
+        if (!$operationType) {
+            return back()->withErrors(['error' => 'No se encontró un Tipo de Operación con código IN configurado en el sistema.']);
+        }
 
-        // 3. Redirigimos a la pantalla de edición del movimiento de inventario
-        return redirect()->route('inventory.adjustment.edit', $reception->id_adjustment);
+        return DB::transaction(function () use ($order, $operationType) {
+
+            $reception = InventoryAdjustment::create([
+                'reference_code'          => $operationType->sequence_prefix . $order->po_code . '/' . now()->format('is'),
+                'id_operation_type'       => $operationType->id_operation_type,
+                'id_location_source'      => $operationType->default_location_source_id,
+                'id_location_destination' => $operationType->default_location_destination_id,
+                'contact_name'            => $order->supplier->company_name,
+                'kardex_date'             => now()->format('Y-m-d'),
+                'id_user'                 => Auth::id(),
+                'status'                  => 'draft',
+                'reason'                  => 'Recepción de mercadería de ' . $order->po_code,
+                'document_type'           => 'Orden de Compra',
+                'document_number'         => $order->po_code,
+                'exchange_rate'           => $order->exchange_rate,
+            ]);
+
+            // LOG: Registrar la creación del borrador
+            \App\Models\InventoryLog::create([
+                'id_adjustment' => $reception->id_adjustment,
+                'id_user'       => Auth::id(),
+                'action'        => 'Documento Creado',
+                'field_changed' => 'Estado',
+                'new_value'     => 'Borrador',
+                'notes'         => 'Borrador creado a partir de la Orden de Compra: ' . $order->po_code,
+            ]);
+
+            // Guardamos en la NUEVA TABLA de detalles (demand = pendiente, quantity = 0)
+            foreach ($order->details as $detail) {
+                if (!$detail->id_product || $detail->is_service) continue;
+
+                $pendingQty = $detail->quantity - $detail->received_quantity;
+
+                if ($pendingQty > 0) {
+                    $reception->details()->create([
+                        'id_product' => $detail->id_product,
+                        'demand'     => $pendingQty,
+                        'quantity'   => 0, // Inicia en 0 para que el usuario lo llene
+                        'unit_cost'  => $detail->unit_cost,
+                    ]);
+                }
+            }
+
+            return redirect()->route('inventory.adjustment.edit', $reception->id_adjustment)
+                ->with('success', 'Documento generado con los productos de la Orden de Compra.');
+        });
     }
 }

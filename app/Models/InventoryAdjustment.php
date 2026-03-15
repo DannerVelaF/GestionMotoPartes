@@ -72,4 +72,10 @@ class InventoryAdjustment extends Model
     {
         return $this->morphTo('source_document');
     }
+
+    // Borra la relación vieja movements() y pon esta:
+    public function details()
+    {
+        return $this->hasMany(InventoryAdjustmentDetail::class, 'id_adjustment', 'id_adjustment');
+    }
 }

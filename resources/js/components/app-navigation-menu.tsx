@@ -24,6 +24,7 @@ import {
     Percent,
     PieChart,
     PieChartIcon,
+    Settings2,
     Shield,
     Tag,
     TrendingUp,
@@ -107,7 +108,6 @@ export function AppNavigationMenu() {
                         </MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>
-
                 <MenubarMenu>
                     <MenubarTrigger className="cursor-pointer font-medium hover:bg-muted/50 data-[state=open]:bg-muted">
                         Proveedores
@@ -122,16 +122,33 @@ export function AppNavigationMenu() {
                         </MenubarItem>
                     </MenubarContent>
                 </MenubarMenu>
-
-                {/* Módulo: INVENTARIO */}
                 {isInventoryModule && (
                     <MenubarMenu>
                         <MenubarTrigger className="cursor-pointer font-bold text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30">
-                            Analítica de Almacén
+                            Logística e Inventario
                         </MenubarTrigger>
-                        <MenubarContent className="min-w-[200px]">
+                        <MenubarContent className="min-w-[220px]">
+                            {/* --- SECCIÓN: OPERACIONES --- */}
                             <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                                Trazabilidad
+                                Ejecución
+                            </div>
+                            <MenubarItem
+                                className={itemClass}
+                                onClick={() =>
+                                    router.visit(
+                                        '/inventario/ajuste/movimientos',
+                                    )
+                                }
+                            >
+                                <ArrowLeftRight className="h-4 w-4 text-emerald-600" />
+                                Operaciones de Almacén
+                            </MenubarItem>
+
+                            <MenubarSeparator className="my-1 h-px bg-muted" />
+
+                            {/* --- SECCIÓN: ANÁLISIS --- */}
+                            <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                                Informes y Trazabilidad
                             </div>
                             <MenubarItem
                                 className={itemClass}
@@ -139,20 +156,35 @@ export function AppNavigationMenu() {
                                     router.visit('/inventario/movimientos')
                                 }
                             >
-                                <ArrowLeftRight className="h-4 w-4 text-emerald-600" />{' '}
-                                Movimientos Globales
+                                <Activity className="h-4 w-4 text-orange-600" />
+                                Kardex de Movimientos
                             </MenubarItem>
                             <MenubarItem
                                 className={itemClass}
                                 onClick={openKardexModal}
                             >
-                                <Calculator className="h-4 w-4 text-blue-600" />{' '}
-                                Kardex Valorizado
+                                <Calculator className="h-4 w-4 text-blue-600" />
+                                Valorización de Stock
+                            </MenubarItem>
+
+                            <MenubarSeparator className="my-1 h-px bg-muted" />
+
+                            {/* --- SECCIÓN: CONFIGURACIÓN --- */}
+                            <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                                Maestros
+                            </div>
+                            <MenubarItem
+                                className={itemClass}
+                                onClick={() =>
+                                    router.visit('/inventario/configuracion')
+                                }
+                            >
+                                <Settings2 className="h-4 w-4 text-slate-600" />
+                                Tipos de Operación y Ubicaciones
                             </MenubarItem>
                         </MenubarContent>
                     </MenubarMenu>
                 )}
-
                 {/* Módulo: VENTAS */}
                 {isSalesModule && (
                     <>
@@ -234,7 +266,6 @@ export function AppNavigationMenu() {
                         </MenubarMenu>
                     </>
                 )}
-
                 {/* Módulo: COMPRAS (RECIBOS) */}
                 {isReceiptsModule && (
                     <MenubarMenu>
@@ -305,7 +336,6 @@ export function AppNavigationMenu() {
                         </MenubarContent>
                     </MenubarMenu>
                 )}
-
                 {isUsersModule && (
                     <MenubarMenu>
                         <MenubarTrigger className="cursor-pointer font-bold text-slate-700 hover:bg-slate-50 dark:text-slate-400 dark:hover:bg-slate-900/30">
