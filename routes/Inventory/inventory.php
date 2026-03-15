@@ -15,5 +15,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/inventario/kardex/{product}', 'kardexByProduct')->name('inventory.kardex.product');
         Route::get('/inventario/ajuste', 'createAdjustment')->name('inventory.adjustment.create');
         Route::post('/inventario/ajuste', 'storeAdjustment')->name('inventory.adjustment.store');
+
+        Route::get('/inventario/ajuste/{id}/edit', 'editAdjustment')->name('inventory.adjustment.edit');
+        Route::post('/inventario/ajuste/{id}/validate', 'validateAdjustment')->name('inventory.adjustment.validate');
+        Route::get('/inventario/ajuste/movimientos', 'adjustments')->name('inventory.adjustments.index');
     });
 });

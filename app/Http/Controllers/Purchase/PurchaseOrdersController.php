@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Purchase;
 
 use App\Http\Controllers\Controller;
 use App\Http\Services\PurchaseOrder\PurchaseOrderService; // Corregido el namespace según tu estructura
+use App\Models\InventoryAdjustment;
 use App\Models\Products;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
@@ -99,8 +102,12 @@ class PurchaseOrdersController extends Controller
             'approver:id,name'
         ])->findOrFail($id);
 
+        $receptionsCount = InventoryAdjustment::where('reference_code', 'like', "%{$order->po_code}%")
+            ->count();
+
         return Inertia::render('Purchases/EditPurchaseOrder', [
             'order' => $order,
+            'receptionsCount' => $receptionsCount, // <-- Pasamos el conteo
             'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')->orderBy('company_name')->get(),
             'products' => Products::where('status', 'active')
                 ->select('id_product', 'product_name', 'product_code', 'sale_price')
@@ -161,5 +168,75 @@ class PurchaseOrdersController extends Controller
             Log::error('Error approving PO: ' . $e->getMessage());
             return back()->withErrors(['error' => $e->getMessage()]);
         }
+    }
+
+    public function receive($id)
+    {
+        $order = PurchaseOrder::with('supplier', 'details.product')->findOrFail($id);
+
+        // 1. Buscar si ya existe una recepción pendiente (draft o ready) para esta OC
+        $existingAdjustment = InventoryAdjustment::where('reference_code', 'like', "%{$order->po_code}%")
+            ->whereIn('status', ['draft', 'ready'])
+            ->first();
+
+        // 2. Si ya existe un borrador, vamos a ese directamente
+        if ($existingAdjustment) {
+            return redirect()->route('inventory.adjustment.edit', $existingAdjustment->id_adjustment);
+        }
+
+        return DB::transaction(function () use ($order) {
+            $adjustment = InventoryAdjustment::create([
+                'reference_code' => 'IN/' . $order->po_code . '/' . now()->format('is'),
+                'operation_type' => 'RECEPCIÓN',
+                'contact_name'   => $order->supplier->company_name,
+                'kardex_date'    => now()->format('Y-m-d'),
+                'id_user'        => Auth::id(),
+                'status'         => 'draft',
+                'reason'         => 'Recepción de mercadería de ' . $order->po_code,
+                'location'       => 'Almacén Principal',
+                'exchange_rate'  => $order->exchange_rate,
+            ]);
+
+            foreach ($order->details as $detail) {
+                if (!$detail->id_product) continue;
+
+                $pendingQty = $detail->quantity - $detail->received_quantity;
+                if ($pendingQty > 0) {
+                    $adjustment->movements()->create([
+                        'id_product'     => $detail->id_product,
+                        'type'           => 'IN',
+                        'id_user'        => Auth::id(),
+                        'quantity'       => $pendingQty,
+                        'unit_cost'      => $detail->unit_cost,
+                        'reference_id'   => $adjustment->id_adjustment,
+                        'reference_type' => InventoryAdjustment::class,
+                    ]);
+                }
+            }
+
+            return redirect()->route('inventory.adjustment.edit', $adjustment->id_adjustment);
+        });
+    }
+
+    public function prepareReception($id)
+    {
+        // 1. Buscamos la OC
+        $order = PurchaseOrder::with('details.product')->findOrFail($id);
+
+        // 2. Creamos elInventoryAdjustment en estado 'borrador'
+        $reception = InventoryAdjustment::create([
+            'reference_code'  => 'IN/' . $order->po_code . '/' . now()->format('is'),
+            'operation_type'  => 'RECEPCIÓN',
+            'contact_name'    => $order->supplier->company_name,
+            'kardex_date'     => now()->format('Y-m-d'), // <-- ESTA LÍNEA ES LA QUE FALTA
+            'id_user'         => Auth::id(),
+            'status'          => 'ready',
+            'reason'          => 'Recepción de mercadería de ' . $order->po_code,
+            'location'        => 'Almacén Principal',
+            'exchange_rate'   => $order->exchange_rate,
+        ]);
+
+        // 3. Redirigimos a la pantalla de edición del movimiento de inventario
+        return redirect()->route('inventory.adjustment.edit', $reception->id_adjustment);
     }
 }

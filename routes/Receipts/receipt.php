@@ -48,5 +48,6 @@ Route::middleware("auth")->group(function () {
         Route::delete('/compras/ordenes/{purchaseOrder}', 'destroy')->name('purchase-orders.destroy');
         Route::post('/compras/ordenes/{purchaseOrder}/nota', 'addNote')->name('purchase-orders.note');
         Route::post('/compras/ordenes/{purchaseOrder}/aprobar', 'approve')->name('purchase-orders.approve');
+        Route::get('/compras/ordenes/{id}/recepcion', 'prepareReception')->name('purchase-orders.reception');
     });
 });

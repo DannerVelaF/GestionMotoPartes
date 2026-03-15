@@ -9,7 +9,9 @@ use App\Models\BusinessConfig;
 use App\Models\InventoryAdjustment;
 use App\Models\InventoryLog;
 use App\Models\InventoryMovements;
+use App\Models\ProductCategory;
 use App\Models\Products;
+use App\Models\PurchaseOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -136,6 +138,34 @@ class InventoryMovementsController extends Controller
             ]
         ]);
     }
+
+    public function adjustments(Request $request)
+    {
+        $search = $request->input('search'); // Aquí vendrá el código de la OC
+        $perPage = $request->input('per_page', 25);
+
+        $query = \App\Models\InventoryAdjustment::query()
+            ->with(['user:id,name'])
+            ->when($search, function ($q, $search) {
+                // Buscamos en la referencia (IN/OC-XXX) o en el motivo
+                $q->where('reference_code', 'like', "%{$search}%")
+                    ->orWhere('contact_name', 'like', "%{$search}%")
+                    ->orWhere('reason', 'like', "%{$search}%");
+            })
+            ->orderBy('created_at', 'desc');
+
+        $adjustments = $query->paginate((int)$perPage)->withQueryString();
+
+        // Reutilizamos el render para la lista de ajustes
+        return Inertia::render('Inventory/Adjustments/AdjustmentsList', [
+            'adjustments' => $adjustments,
+            'filters' => [
+                'search' => $search,
+                'per_page' => (int)$perPage,
+            ]
+        ]);
+    }
+
     public function exportKardex(Request $request)
     {
         $all = $request->boolean('all');
@@ -289,5 +319,104 @@ class InventoryMovementsController extends Controller
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'Error al guardar: ' . $e->getMessage()]);
         }
+    }
+
+    public function editAdjustment($id)
+    {
+        // Cargamos el ajuste con sus movimientos y los datos del producto
+        $adjustment = InventoryAdjustment::with(['movements.product'])->findOrFail($id);
+        $categories = ProductCategory::where('status', 'active')->orderBy('name_product_category')->get();
+
+        return Inertia::render('Inventory/InventoryAdjustmentForm', [
+            'adjustment' => $adjustment,
+            'products'   => Products::where('status', 'active')->get(),
+            'categories' => $categories,
+        ]);
+    }
+
+    public function validateAdjustment(Request $request, $id)
+    {
+        return DB::transaction(function () use ($request, $id) {
+            $adjustment = InventoryAdjustment::with('movements')->findOrFail($id);
+            $userId = Auth::id();
+
+            if ($adjustment->status === 'done') {
+                throw new \Exception("Este movimiento ya ha sido validado.");
+            }
+
+            $items = $request->input('items', []);
+            $po = null;
+            if ($adjustment->origin_code) {
+                $po = PurchaseOrder::where('po_code', $adjustment->origin_code)->first();
+            }
+
+            foreach ($items as $item) {
+                $qtyDone = (float) ($item['quantity'] ?? 0);
+                if ($qtyDone <= 0) {
+                    continue;
+                }
+
+                $product = Products::findOrFail($item['id_product']);
+
+                // Incrementa el stock del producto con la cantidad recibida.
+                $product->increment('stock', $qtyDone);
+
+                $movement = $adjustment->movements()
+                    ->where('id_product', $item['id_product'])
+                    ->first();
+
+                if ($movement) {
+                    // El producto ya estaba en el albarán, actualizamos la cantidad final recibida.
+                    $movement->update(['quantity' => $qtyDone]);
+                } else {
+                    // El producto se añadió manualmente, creamos un nuevo movimiento.
+                    InventoryMovements::create([
+                        'id_product'     => $product->id_product,
+                        'id_user'        => $userId,
+                        'type'           => 'IN', // Entrada
+                        'kardex_date'    => $adjustment->kardex_date,
+                        'quantity'       => $qtyDone,
+                        'unit_cost'      => $product->sale_price,
+                        'total_cost'     => $qtyDone * $product->sale_price,
+                        'balance'        => $product->stock, // El stock ya está incrementado
+                        'reference_type' => get_class($adjustment),
+                        'reference_id'   => $adjustment->id_adjustment,
+                        'notes'          => "Añadido en ajuste: {$adjustment->reference_code}"
+                    ]);
+                }
+
+                if ($po) {
+                    $poDetail = $po->details()->where('id_product', $item['id_product'])->first();
+                    if ($poDetail) {
+                        $poDetail->increment('received_quantity', $qtyDone);
+                    }
+                }
+            }
+
+            $adjustment->update([
+                'status' => 'done',
+                'kardex_date' => $request->input('kardex_date', now()),
+                'document_number' => $request->input('document_number'),
+            ]);
+
+            InventoryLog::create([
+                'id_adjustment' => $adjustment->id_adjustment,
+                'id_user'       => $userId,
+                'action'        => 'Documento Validado',
+                'field_changed' => 'Estado',
+                'old_value'     => 'draft',
+                'new_value'     => 'done',
+            ]);
+
+            if ($po) {
+                $po->load('details');
+                if ($po->isFullyReceived()) {
+                    $po->update(['status' => 'received']);
+                    // Log para la PO
+                }
+            }
+
+            return redirect()->back()->with('success', 'Movimiento validado y stock actualizado.');
+        });
     }
 }

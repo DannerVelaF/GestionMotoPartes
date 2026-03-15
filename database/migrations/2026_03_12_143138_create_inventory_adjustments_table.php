@@ -13,26 +13,41 @@ return new class extends Migration
     {
         Schema::create('inventory_adjustments', function (Blueprint $table) {
             $table->id('id_adjustment');
-            $table->string('reference_code')->unique(); // Ej: AJU-20260312-001
+            $table->string('reference_code')->unique(); // Ej: WH/IN/0001 (Generado por tipo de operación)
 
-            $table->string('operation_type'); // SUNAT: 13-Merma, 02-Compra, etc.
+            // --- CONFIGURACIÓN DE FLUJO (Estilo Odoo) ---
+            // Relación con tabla de tipos (Recepción, Entrega, Ajuste)
+            $table->unsignedBigInteger('id_operation_type')->nullable();
+
+            // El "DE" y el "PARA" (Ubicaciones reales)
+            $table->unsignedBigInteger('id_location_source')->nullable(); // Origen (Ej: Proveedor)
+            $table->unsignedBigInteger('id_location_destination')->nullable(); // Destino (Ej: Stock)
+
+            // --- DATOS DE LA OPERACIÓN ---
+            $table->string('operation_type_sunat')->nullable(); // El código SUNAT (02-Compra, etc)
             $table->date('kardex_date');
-            $table->string('reason');
-            $table->string('location')->default('Almacén Principal');
+            $table->string('reason')->nullable(); // Notas o motivo
 
             // --- NUEVOS CAMPOS ERP (KARDEX OFICIAL) ---
-            $table->string('contact_name')->nullable(); // Cliente / Proveedor / Empleado
-            $table->string('document_type')->nullable(); // Factura, Boleta, Guía, Ticket
-            $table->string('document_number')->nullable(); // F001-000234
-            $table->decimal('exchange_rate', 10, 4)->default(1.0000); // TC: 3.7500
+            $table->string('contact_name')->nullable();
+            $table->string('document_type')->nullable();
+            $table->string('document_number')->nullable();
+            $table->decimal('exchange_rate', 10, 4)->default(1.0000);
 
-            // ESTADO DEL FLUJO (Borrador -> Realizado)
-            $table->string('status')->default('draft'); // draft, waiting, done, cancelled
+            // --- TRAZABILIDAD (Link a la Orden de Compra) ---
+            // Esto permite que el movimiento sepa que viene de la OC #15
+            $table->nullableMorphs('source_document', 'inv_adj_source_idx');
+            // ESTADO DEL FLUJO
+            $table->string('status')->default('draft'); // draft, ready, done, cancelled
 
             $table->unsignedBigInteger('id_user');
             $table->timestamps();
 
+            // --- LLAVES FORÁNEAS ---
             $table->foreign('id_user')->references('id')->on('users');
+            $table->foreign('id_location_source')->references('id_location')->on('inventory_locations');
+            $table->foreign('id_location_destination')->references('id_location')->on('inventory_locations');
+            $table->foreign('id_operation_type')->references('id_operation_type')->on('inventory_operation_types');
         });
     }
 

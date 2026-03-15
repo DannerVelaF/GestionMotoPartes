@@ -1,17 +1,7 @@
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -165,6 +155,7 @@ interface Props {
     order: any;
     suppliers: any[];
     products: any[];
+    receptionsCount: number;
     documentTypes: { value: string; label: string }[];
 }
 
@@ -183,6 +174,7 @@ interface DetailRow {
 export default function EditPurchaseOrder({
     order,
     suppliers,
+    receptionsCount,
     products,
     documentTypes,
 }: Props) {
@@ -571,147 +563,17 @@ export default function EditPurchaseOrder({
                             {order.status === 'approved' && (
                                 <>
                                     {!isServiceOrder && (
-                                        <Dialog
-                                            open={isReceiveModalOpen}
-                                            onOpenChange={setIsReceiveModalOpen}
+                                        <Button
+                                            onClick={() =>
+                                                router.get(
+                                                    `/compras/ordenes/${order.id_purchase_order}/recepcion`,
+                                                )
+                                            }
+                                            className="h-8 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700"
                                         >
-                                            <DialogTrigger asChild>
-                                                <Button className="h-8 rounded-sm bg-emerald-600 px-4 text-white shadow-sm hover:bg-emerald-700">
-                                                    <PackageOpen className="mr-2 h-4 w-4" />{' '}
-                                                    Recibir Productos
-                                                </Button>
-                                            </DialogTrigger>
-                                            <DialogContent>
-                                                <DialogHeader>
-                                                    <DialogTitle>
-                                                        Recibir Mercadería
-                                                    </DialogTitle>
-                                                    <DialogDescription>
-                                                        Se registrará el ingreso
-                                                        al Kardex y se creará el
-                                                        comprobante financiero.
-                                                    </DialogDescription>
-                                                </DialogHeader>
-                                                <div className="grid gap-4 py-4">
-                                                    <div className="grid grid-cols-4 items-center gap-4">
-                                                        <Label className="text-right">
-                                                            Tipo Doc.
-                                                        </Label>
-                                                        <Select
-                                                            value={
-                                                                receiptData.document_type
-                                                            }
-                                                            onValueChange={(
-                                                                v,
-                                                            ) =>
-                                                                setReceiptData({
-                                                                    ...receiptData,
-                                                                    document_type:
-                                                                        v,
-                                                                })
-                                                            }
-                                                        >
-                                                            <SelectTrigger className="col-span-3">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {documentTypes.map(
-                                                                    (dt) => (
-                                                                        <SelectItem
-                                                                            key={
-                                                                                dt.value
-                                                                            }
-                                                                            value={
-                                                                                dt.value
-                                                                            }
-                                                                        >
-                                                                            {
-                                                                                dt.label
-                                                                            }
-                                                                        </SelectItem>
-                                                                    ),
-                                                                )}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                    <div className="grid grid-cols-4 items-center gap-4">
-                                                        <Label className="text-right">
-                                                            Serie
-                                                        </Label>
-                                                        <Input
-                                                            className="col-span-3"
-                                                            value={
-                                                                receiptData.series
-                                                            }
-                                                            onChange={(e) =>
-                                                                setReceiptData({
-                                                                    ...receiptData,
-                                                                    series: e.target.value.toUpperCase(),
-                                                                })
-                                                            }
-                                                            placeholder="F001"
-                                                        />
-                                                    </div>
-                                                    <div className="grid grid-cols-4 items-center gap-4">
-                                                        <Label className="text-right">
-                                                            Número
-                                                        </Label>
-                                                        <Input
-                                                            className="col-span-3"
-                                                            value={
-                                                                receiptData.number
-                                                            }
-                                                            onChange={(e) =>
-                                                                setReceiptData({
-                                                                    ...receiptData,
-                                                                    number: e
-                                                                        .target
-                                                                        .value,
-                                                                })
-                                                            }
-                                                            placeholder="000123"
-                                                        />
-                                                    </div>
-                                                    <div className="grid grid-cols-4 items-center gap-4">
-                                                        <Label className="text-right">
-                                                            Fecha Recepción
-                                                        </Label>
-                                                        <Input
-                                                            type="date"
-                                                            className="col-span-3"
-                                                            value={
-                                                                receiptData.issue_date
-                                                            }
-                                                            onChange={(e) =>
-                                                                setReceiptData({
-                                                                    ...receiptData,
-                                                                    issue_date:
-                                                                        e.target
-                                                                            .value,
-                                                                })
-                                                            }
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <DialogFooter>
-                                                    <Button
-                                                        onClick={
-                                                            handleReceiveOrder
-                                                        }
-                                                        disabled={
-                                                            isReceiving ||
-                                                            !receiptData.series ||
-                                                            !receiptData.number
-                                                        }
-                                                        className="bg-emerald-600 hover:bg-emerald-700"
-                                                    >
-                                                        {isReceiving
-                                                            ? 'Procesando...'
-                                                            : 'Confirmar Recepción'}
-                                                    </Button>
-                                                </DialogFooter>
-                                            </DialogContent>
-                                        </Dialog>
+                                            <PackageOpen className="mr-2 h-4 w-4" />
+                                            Recibir Productos
+                                        </Button>
                                     )}
                                     <Button
                                         variant="outline"
@@ -737,46 +599,88 @@ export default function EditPurchaseOrder({
                         </div>
 
                         {/* StatusBar Visual */}
-                        <div className="flex h-8 items-center overflow-hidden rounded-sm border border-border bg-muted/30 text-xs font-bold tracking-wider uppercase">
-                            <div
-                                className={cn(
-                                    'relative flex h-full items-center justify-center border-r border-border px-4',
-                                    isDraft
-                                        ? 'bg-emerald-600/10 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                        : 'text-muted-foreground opacity-50',
-                                )}
-                            >
-                                Cotización
-                            </div>
-                            <div
-                                className={cn(
-                                    'flex h-full items-center justify-center border-r border-border px-4',
-                                    order.status === 'sent'
-                                        ? 'bg-blue-600/10 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-                                        : 'text-muted-foreground opacity-50',
-                                )}
-                            >
-                                Orden Confirmada
-                            </div>
-                            <div
-                                className={cn(
-                                    'flex h-full items-center justify-center border-r border-border px-4',
-                                    order.status === 'approved'
-                                        ? 'bg-yellow-600/10 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                        : 'text-muted-foreground opacity-50',
-                                )}
-                            >
-                                Aprobada
-                            </div>
-                            <div
-                                className={cn(
-                                    'flex h-full items-center justify-center px-4',
-                                    order.status === 'received'
-                                        ? 'bg-emerald-600/10 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                        : 'text-muted-foreground opacity-50',
-                                )}
-                            >
-                                Completada
+                        <div className="flex items-center gap-4">
+                            {receptionsCount > 0 && (
+                                <button
+                                    onClick={() => {
+                                        if (receptionsCount === 1) {
+                                            // Si solo hay uno, vamos directo al documento (necesitarás pasar el ID desde el controlador)
+                                            // O podemos simplemente filtrar la lista, pero para ser pro:
+                                            router.get(
+                                                `/inventario/ajuste/movimientos?search=${order.po_code}`,
+                                            );
+                                        } else {
+                                            // Si hay varios, vamos al listado filtrado
+                                            router.get(
+                                                `/inventario/ajuste/movimientos?search=${order.po_code}`,
+                                            );
+                                        }
+                                    }}
+                                    className="flex h-full items-center gap-1.5 border-r border-border px-3 text-emerald-600 transition-all hover:bg-muted/50 dark:text-emerald-400"
+                                >
+                                    <PackageOpen className="h-3.5 w-3.5" />
+                                    <span className="text-[10px] font-semibold uppercase">
+                                        Recepciones
+                                    </span>
+                                    <span className="text-xs font-black">
+                                        ({receptionsCount})
+                                    </span>
+                                </button>
+                            )}
+
+                            {order.receipt && (
+                                <button className="flex h-full items-center gap-1.5 px-3 text-blue-600 transition-all hover:bg-muted/50">
+                                    <FileText className="h-3.5 w-3.5" />
+                                    <span className="text-[10px]">
+                                        Comprobantes
+                                    </span>
+                                    <span className="text-xs font-black">
+                                        (1)
+                                    </span>
+                                </button>
+                            )}
+                            {/* --- BARRA DE ESTADOS (Con un poco de margen extra a la izquierda) --- */}
+                            <div className="ml-2 flex h-8 items-center overflow-hidden rounded-sm border border-border bg-muted/30 text-[10px] font-bold tracking-wider uppercase">
+                                <div
+                                    className={cn(
+                                        'relative flex h-full items-center justify-center border-r border-border px-4 transition-colors',
+                                        isDraft
+                                            ? 'bg-emerald-600/10 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                            : 'text-muted-foreground opacity-50',
+                                    )}
+                                >
+                                    Cotización
+                                </div>
+                                <div
+                                    className={cn(
+                                        'flex h-full items-center justify-center border-r border-border px-4 transition-colors',
+                                        order.status === 'sent'
+                                            ? 'bg-blue-600/10 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                                            : 'text-muted-foreground opacity-50',
+                                    )}
+                                >
+                                    Confirmada
+                                </div>
+                                <div
+                                    className={cn(
+                                        'flex h-full items-center justify-center border-r border-border px-4 transition-colors',
+                                        order.status === 'approved'
+                                            ? 'bg-yellow-600/10 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                            : 'text-muted-foreground opacity-50',
+                                    )}
+                                >
+                                    Aprobada
+                                </div>
+                                <div
+                                    className={cn(
+                                        'flex h-full items-center justify-center px-4 transition-colors',
+                                        order.status === 'received'
+                                            ? 'bg-emerald-600/10 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                            : 'text-muted-foreground opacity-50',
+                                    )}
+                                >
+                                    Completada
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -786,6 +690,22 @@ export default function EditPurchaseOrder({
                     {/* PANEL IZQUIERDO (Formulario 100%) */}
                     <div className="custom-scrollbar flex-1 overflow-x-auto overflow-y-auto p-6 md:p-8">
                         <div className="w-full min-w-[800px] space-y-8">
+                            <div className="flex justify-end gap-0">
+                                {/* Espacio para Comprobantes a futuro */}
+                                {order.receipt && (
+                                    <button className="flex h-12 w-32 flex-col items-center justify-center rounded-r-md border border-border bg-card transition-all hover:bg-muted/50">
+                                        <div className="flex items-center gap-1.5 text-blue-600">
+                                            <FileText className="h-4 w-4" />
+                                            <span className="text-lg font-black">
+                                                1
+                                            </span>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                                            Comprobante
+                                        </span>
+                                    </button>
+                                )}
+                            </div>
                             <div className="flex items-center gap-3">
                                 <ShoppingBag
                                     className={cn(
