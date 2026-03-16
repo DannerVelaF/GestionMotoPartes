@@ -325,4 +325,17 @@ class PurchaseOrdersController extends Controller
 
         return view('purchases.print', compact('purchaseOrder', 'businessConfig'));
     }
+    public function cancel(Request $request, $id)
+    {
+        try {
+            // Podrías validar aquí si la orden tiene recepciones hechas,
+            // pero generalmente el Service se encarga de esa lógica de negocio.
+            $this->service->cancelOrder($id);
+
+            return back()->with('success', 'La orden ha sido cancelada correctamente.');
+        } catch (\Exception $e) {
+            Log::error('Error cancelando PO: ' . $e->getMessage());
+            return back()->withErrors(['error' => 'No se pudo cancelar la orden: ' . $e->getMessage()]);
+        }
+    }
 }

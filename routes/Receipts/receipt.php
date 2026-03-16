@@ -51,5 +51,6 @@ Route::middleware("auth")->group(function () {
         Route::post('/compras/ordenes/{purchaseOrder}/aprobar', 'approve')->name('purchase-orders.approve');
         Route::get('/compras/ordenes/{id}/recepcion', 'prepareReception')->name('purchase-orders.reception');
         Route::get('/compras/{purchaseOrder}/print', [PurchaseOrdersController::class, 'print'])->name('purchase-orders.print');
+        Route::post('/compras/ordenes/{id}/cancelar', [PurchaseOrdersController::class, 'cancel'])->name('purchase-orders.cancel');
     });
 });

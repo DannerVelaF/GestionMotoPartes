@@ -294,4 +294,25 @@ class PurchaseOrderService extends BaseService
             return $order;
         });
     }
-}
+
+    public function cancelOrder($id)
+    {
+        return DB::transaction(function () use ($id) {
+            $order = PurchaseOrder::findOrFail($id);
+
+            if ($order->status === 'received') {
+                throw new \Exception("No se puede cancelar una orden que ya ha sido recibida completamente.");
+            }
+
+            $order->update(['status' => 'cancelled']);
+
+            // Registrar en el log
+            $order->logs()->create([
+                'id_user' => auth()->id(),
+                'action' => 'Orden Cancelada',
+                'notes' => 'El usuario canceló la orden de compra.'
+            ]);
+
+            return $order;
+        });
+    }}

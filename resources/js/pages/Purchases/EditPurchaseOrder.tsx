@@ -200,7 +200,8 @@ export default function EditPurchaseOrder({
     const isDraft = order.status === 'draft';
     const isApproved = order.status === 'approved';
     const isDone = order.status === 'received';
-    const showTracking = !isDraft;
+    const isCancelled = order.status === 'cancelled'; // ✅ NUEVO
+    const showTracking = !isDraft && !isCancelled; // Ocultar tracking si está cancelada o es borrador
 
     const { widths, onMouseDown, isResizing } = useTableResize({
         product: 350,
@@ -447,7 +448,22 @@ export default function EditPurchaseOrder({
             />
         </TableHead>
     );
-
+    const handleCancelOrder = () => {
+        if (
+            confirm(
+                '¿Estás seguro de que deseas cancelar esta orden? Esta acción no se puede deshacer y bloqueará cualquier transacción futura.',
+            )
+        ) {
+            router.post(
+                `/compras/ordenes/${order.id_purchase_order}/cancelar`,
+                {},
+                {
+                    preserveScroll: true,
+                    onSuccess: () => setIsWritingNote(false), // Opcional: cerrar notas
+                },
+            );
+        }
+    };
     return (
         <AppLayout
             breadcrumbs={[
@@ -543,6 +559,15 @@ export default function EditPurchaseOrder({
                                     )}
                                 </>
                             ) : null}
+                            {!isDone && !isCancelled && (
+                                <Button
+                                    onClick={handleCancelOrder}
+                                    variant="ghost"
+                                    className="h-8 text-red-600 hover:bg-red-50 hover:text-red-700 font-bold"
+                                >
+                                    Cancelar Orden
+                                </Button>
+                            )}
                             <Button
                                 variant="ghost"
                                 onClick={() => window.history.back()}
@@ -638,16 +663,32 @@ export default function EditPurchaseOrder({
                                 >
                                     Aprobada
                                 </div>
-                                <div
-                                    className={cn(
-                                        'px-4 py-2',
-                                        isDone
-                                            ? 'bg-emerald-600/10 text-emerald-600'
-                                            : 'opacity-50',
-                                    )}
-                                >
-                                    Completada
-                                </div>
+                                {
+                                    !isCancelled &&
+                                    <div
+                                        className={cn(
+                                            'px-4 py-2',
+                                            isDone
+                                                ? 'bg-emerald-600/10 text-emerald-600'
+                                                : 'opacity-50',
+                                        )}
+                                    >
+                                        Completada
+                                    </div>
+                                }
+                                {
+                                    isCancelled &&
+                                    <div
+                                        className={cn(
+                                            'px-4 py-2',
+                                            isCancelled
+                                                ? 'bg-red-600/10 text-red-600'
+                                                : 'opacity-50',
+                                        )}
+                                    >
+                                        Cancelada
+                                    </div>
+                                }
                             </div>
                         </div>
                     </div>
@@ -909,7 +950,8 @@ export default function EditPurchaseOrder({
                                                             }
                                                             disabled={
                                                                 isDone ||
-                                                                isApproved
+                                                                isApproved ||
+                                                                isCancelled
                                                             }
                                                             className={
                                                                 tableInputClass
