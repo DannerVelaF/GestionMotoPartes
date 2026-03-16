@@ -132,7 +132,8 @@ export default function CreateReceipt({
                 (t: any) =>
                     t.label.toLowerCase() ===
                         preloadedData.type?.toLowerCase() ||
-                    t.value === preloadedData.type,
+                    t.value === preloadedData.type ||
+                    t.id === preloadedData.type,
             )?.value;
 
             setData((prev) => ({

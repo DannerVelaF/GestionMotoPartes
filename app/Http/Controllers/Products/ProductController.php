@@ -157,39 +157,47 @@ class ProductController extends Controller
 
         $mappedMovements = $product->movements->map(function ($move) {
             $refLabel = $move->notes ?? 'Movimiento manual';
-
-            $unitCostInSoles = $move->unit_cost; // Valor por defecto
+            $unitCostInSoles = $move->unit_cost;
 
             if ($move->reference) {
-                // Venta (Siempre Soles por ahora)
+                // 1. VENTAS
                 if ($move->reference_type === \App\Models\Sales::class) {
                     $refLabel = "Venta " . ($move->reference->code_sales ?? "#{$move->reference_id}");
-                } elseif ($move->reference_type === \App\Models\Receipt::class) {
+                }
+                // 2. COMPRAS / RECIBOS
+                elseif ($move->reference_type === \App\Models\Receipt::class) {
                     $receipt = $move->reference;
                     $tipo = ($receipt->document_type === 'nota_credito') ? 'Devolución' : 'Compra';
                     $refLabel = $tipo . " " . ($receipt->receipt_code ?? "#{$move->reference_id}");
 
-                    // [CORRECCIÓN] Normalizar a Soles si es USD
                     if ($receipt->currency === 'USD' && $receipt->exchange_rate > 0) {
                         $unitCostInSoles = $move->unit_cost * $receipt->exchange_rate;
                     }
                 }
+                // 3. AJUSTES DE INVENTARIO (NUEVO)
+                elseif ($move->reference_type === \App\Models\InventoryAdjustment::class) {
+                    $refLabel = "Ajuste " . ($move->reference->adjustment_code ?? "#{$move->reference_id}");
+                }
             }
 
             return [
-                'id_movement'    => $move->id_movement,
-                'type'           => $move->type,
-                'quantity'       => $move->quantity,
-                'unit_cost'      => $unitCostInSoles, // Enviamos el valor ya convertido
-                'balance'        => $move->balance,
+                'id_movement'     => $move->id_movement,
+                'type'            => $move->type,
+                'quantity'        => $move->quantity,
+                'unit_cost'       => $unitCostInSoles,
+                'balance'         => $move->balance,
                 'reference_label' => $refLabel,
-                'reference_type' => $move->reference_type,
-                'reference_id'   => $move->reference_id,
-                'created_at'     => $move->created_at,
-                'user'           => $move->user,
-                'notes'          => $move->notes,
+                'reference_type'  => $move->reference_type,
+                'reference_id'    => $move->reference_id,
+                'created_at'      => $move->created_at,
+                'user'            => $move->user,
             ];
         });
+
+        // Conteo de Ajustes Manuales relacionados
+        $adjCount = \App\Models\InventoryAdjustment::whereHas('details', function($q) use ($id) {
+            $q->where('id_product', $id);
+        })->count();
 
         // 3. ANALÍTICA DE VENTAS (Siempre Soles)
         $salesAnalytics = DB::table('sale_details')
@@ -208,15 +216,15 @@ class ProductController extends Controller
             ->select(
                 DB::raw('SUM(receipt_details.quantity) as total_qty'),
                 DB::raw('SUM(
-                    CASE 
-                        WHEN receipts.currency = "USD" THEN (receipt_details.quantity * receipt_details.unit_price) * receipts.exchange_rate 
-                        ELSE (receipt_details.quantity * receipt_details.unit_price) 
+                    CASE
+                        WHEN receipts.currency = "USD" THEN (receipt_details.quantity * receipt_details.unit_price) * receipts.exchange_rate
+                        ELSE (receipt_details.quantity * receipt_details.unit_price)
                     END
                 ) as total_investment'),
                 DB::raw('AVG(
-                    CASE 
-                        WHEN receipts.currency = "USD" THEN receipt_details.unit_price * receipts.exchange_rate 
-                        ELSE receipt_details.unit_price 
+                    CASE
+                        WHEN receipts.currency = "USD" THEN receipt_details.unit_price * receipts.exchange_rate
+                        ELSE receipt_details.unit_price
                     END
                 ) as avg_cost')
             )

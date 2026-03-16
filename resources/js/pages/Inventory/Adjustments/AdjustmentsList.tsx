@@ -251,21 +251,32 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
                                         <TableCell className="font-bold tracking-tight text-foreground">
                                             {adj.reference_code}
                                         </TableCell>
+
+                                        {/* ✅ CORRECCIÓN AQUÍ: Acceder a .name del objeto */}
                                         <TableCell className="text-xs text-muted-foreground">
-                                            {adj.location_origin ||
-                                                'Partners/Proveedor'}
+                                            {adj.location_source?.name ||
+                                                adj.location_origin ||
+                                                'Externo'}
                                         </TableCell>
                                         <TableCell className="text-xs text-muted-foreground">
-                                            {adj.location_destination ||
+                                            {adj.location_destination?.name ||
+                                                adj.location_destination_name ||
                                                 'Almacén/Stock'}
                                         </TableCell>
+
                                         <TableCell className="text-xs font-medium">
                                             {adj.contact_name || '—'}
                                         </TableCell>
+
                                         <TableCell className="text-xs font-bold text-emerald-700 dark:text-emerald-500">
-                                            {adj.reason?.match(/OC-\d+/)?.[0] ||
+                                            {/* Si es una OC vinculada, mostrar el código de la OC */}
+                                            {adj.source?.po_code ||
+                                                adj.reason?.match(
+                                                    /OC-\d+/,
+                                                )?.[0] ||
                                                 '—'}
                                         </TableCell>
+
                                         <TableCell className="text-xs text-muted-foreground tabular-nums">
                                             {format(
                                                 new Date(adj.created_at),

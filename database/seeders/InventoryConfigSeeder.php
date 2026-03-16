@@ -111,5 +111,20 @@ class InventoryConfigSeeder extends Seeder
                 'default_location_destination_id' => $locSupplier->id_location,
             ]
         );
+
+        $locInitial = InventoryLocation::updateOrCreate(
+            ['name' => 'Virtual Location / Saldos Iniciales'],
+            ['type' => 'inventory'] // Sigue siendo de tipo inventario (virtual)
+        );
+
+        InventoryOperationType::updateOrCreate(
+            ['sequence_prefix' => 'WH/INIT/'],
+            [
+                'name' => 'Saldos Iniciales',
+                'code' => 'INIT',
+                'default_location_source_id'      => $locInitial->id_location, // De: Virtual Inicial
+                'default_location_destination_id' => $locStock->id_location,   // Para: Stock Real
+            ]
+        );
     }
 }

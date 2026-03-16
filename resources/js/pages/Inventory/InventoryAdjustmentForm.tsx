@@ -42,7 +42,16 @@ interface Category {
     id_product_category: number;
     name_product_category: string;
 }
+interface Supplier {
+    id_supplier: number;
+    company_name: string;
+}
 
+interface PurchaseOrder {
+    id_purchase_order: number;
+    po_code: string;
+    id_supplier: number;
+}
 interface MovementItem {
     id_product: number;
     product_name: string;
@@ -132,6 +141,8 @@ interface PageProps {
     operationTypes?: OperationType[];
     locations?: Location[];
     purchaseOrder?: PurchaseOrder;
+    suppliers?: Supplier[];
+    purchaseOrders?: PurchaseOrder[];
 }
 
 // --- COMPONENTE DE ALERTA ---
@@ -177,13 +188,16 @@ const odooInputClass =
 const tableInputClass =
     'h-8 w-full border-transparent bg-transparent text-center shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-emerald-500 tabular-nums dark:text-foreground dark:focus:bg-neutral-800';
 
+// ✅ CAMBIADO A EXPORT DEFAULT
 export default function InventoryAdjustmentForm({
     adjustment,
     products = [],
     categories = [],
     operationTypes = [],
     locations = [],
-    purchaseOrder,
+    suppliers = [],
+    purchaseOrders = [],
+    purchaseOrder, // Recibido aquí
 }: PageProps) {
     const { props } = usePage<any>();
 
@@ -240,6 +254,15 @@ export default function InventoryAdjustmentForm({
     }, [adjustment]);
 
     // Añadimos 'put' y 'isDirty' al destructuring
+    const initialSupplierId = useMemo(() => {
+        if (!adjustment?.contact_name) return '';
+        const found = (suppliers || []).find(
+            (s) => s.company_name === adjustment.contact_name,
+        );
+        return found ? String(found.id_supplier) : '';
+    }, [adjustment?.contact_name, suppliers]);
+
+    // 2. Ahora inicializamos el formulario
     const { data, setData, post, put, processing, isDirty } = useForm({
         kardex_date:
             adjustment?.kardex_date || format(new Date(), 'yyyy-MM-dd'),
@@ -263,17 +286,26 @@ export default function InventoryAdjustmentForm({
               ? String(adjustment.id_location_destination)
               : '',
 
+        // ✅ CORRECCIÓN: Usamos el ID calculado para que el selector lo reconozca
+        id_supplier: initialSupplierId,
+
+        // ✅ CORRECCIÓN: Aseguramos que source_id coincida con la columna source_document_id de la DB
+        source_id: adjustment?.source_document_id
+            ? String(adjustment.source_document_id)
+            : '',
+
         document_type: adjustment?.document_type || '',
         document_number: adjustment?.document_number || '',
         reason: adjustment?.reason || '',
         items: mappedItems,
     });
 
-    const linkedPo = purchaseOrder || adjustment.purchase_order;
+    // ✅ DEFINICIÓN DE linkedPo PARA EVITAR ReferenceError
+    const linkedPo = adjustment?.purchase_order || purchaseOrder;
 
     const availableOptions = useMemo(() => {
         if (linkedPo) {
-            return linkedPo.details
+            return (linkedPo.details || [])
                 .filter(
                     (pod) =>
                         !data.items.some(
@@ -376,7 +408,6 @@ export default function InventoryAdjustmentForm({
         });
     };
 
-    // --- NUEVO: FUNCIÓN PARA GUARDAR CAMBIOS ADMINISTRATIVOS CUANDO ESTÁ 'DONE' ---
     const handleUpdate = () => {
         put(`/inventario/ajuste/${adjustment.id_adjustment}`, {
             preserveScroll: true,
@@ -473,7 +504,31 @@ export default function InventoryAdjustmentForm({
             },
         );
     };
+    const sourceOptions = useMemo(() => {
+        const selectedOp = operationTypes.find(
+            (o) => String(o.id_operation_type) === data.id_operation_type,
+        );
+        const opCode = selectedOp?.code || '';
 
+        const ocList = (purchaseOrders || []).map((po) => ({
+            value: String(po.id_purchase_order),
+            label: `OC: ${po.po_code}`,
+            type: 'App\\Models\\PurchaseOrder',
+        }));
+
+        const salesList = (props.sales || []).map((sale) => ({
+            value: String(sale.id_sale),
+            label: `Venta: ${sale.code_sales}`,
+            type: 'App\\Models\\Sales',
+        }));
+
+        // Si es Entrada, solo OCs. Si es Salida, solo Ventas.
+        // Si es otra cosa (como Saldos Iniciales) o está vacío, mostramos ambos.
+        if (opCode === 'IN') return ocList;
+        if (opCode === 'OUT') return salesList;
+
+        return [...ocList, ...salesList];
+    }, [data.id_operation_type, purchaseOrders, props.sales, operationTypes]);
     return (
         <AppLayout
             breadcrumbs={[
@@ -528,7 +583,6 @@ export default function InventoryAdjustmentForm({
                                 </Button>
                             )}
 
-                            {/* BOTÓN GUARDAR CAMBIOS (Aparece cuando hay cambios y está en Realizado) */}
                             {adjustment?.status === 'done' && (
                                 <Button
                                     onClick={handleUpdate}
@@ -590,7 +644,6 @@ export default function InventoryAdjustmentForm({
                 </div>
 
                 <div className="flex min-h-0 flex-1 overflow-hidden">
-                    {/* PANEL IZQUIERDO: FORMULARIO */}
                     <div className="custom-scrollbar flex-1 overflow-y-auto border-r-2 border-border/80">
                         <div className="space-y-8 p-8">
                             <div className="flex items-start justify-between">
@@ -617,30 +670,50 @@ export default function InventoryAdjustmentForm({
                                 )}
                             </div>
 
-                            {/* CABECERA DINÁMICA */}
                             <div className="grid grid-cols-2 gap-x-16 gap-y-2">
                                 <div className="space-y-1">
                                     <div className="flex min-h-[32px] items-center">
                                         <span className="w-32 text-sm font-bold text-muted-foreground">
                                             Contacto:
                                         </span>
-                                        <Input
-                                            placeholder="Proveedor o Cliente..."
-                                            className={cn(
-                                                odooInputClass,
-                                                'w-full',
+                                        <SearchableSelect
+                                            options={(suppliers || []).map(
+                                                (s) => ({
+                                                    value: String(
+                                                        s.id_supplier,
+                                                    ),
+                                                    label: s.company_name,
+                                                }),
                                             )}
-                                            value={data.contact_name}
-                                            onChange={(e) =>
-                                                setData(
-                                                    'contact_name',
-                                                    e.target.value,
-                                                )
-                                            }
-                                            // --- Desbloqueado ---
+                                            // Buscamos el ID basado en el nombre y aseguramos que sea String para que el componente lo reconozca
+                                            value={String(
+                                                suppliers.find(
+                                                    (s) =>
+                                                        s.company_name ===
+                                                        data.contact_name,
+                                                )?.id_supplier || '',
+                                            )}
+                                            onChange={(v) => {
+                                                const supplier = suppliers.find(
+                                                    (s) =>
+                                                        String(
+                                                            s.id_supplier,
+                                                        ) === v,
+                                                );
+                                                if (supplier) {
+                                                    setData(
+                                                        'contact_name',
+                                                        supplier.company_name,
+                                                    );
+                                                } else {
+                                                    setData('contact_name', ''); // Limpiar si se deselecciona
+                                                }
+                                            }}
+                                            className="w-full text-sm"
+                                            placeholder="Buscar proveedor..."
                                         />
                                     </div>
-                                    <div className="flex min-h-[32px] items-center">
+                                    <div className="m in-h-[32px] flex items-center">
                                         <span className="w-32 text-sm font-bold text-muted-foreground">
                                             Tipo Operación:
                                         </span>
@@ -799,32 +872,71 @@ export default function InventoryAdjustmentForm({
                                                     e.target.value,
                                                 )
                                             }
-                                            // --- Desbloqueado ---
                                         />
                                     </div>
                                     <div className="flex min-h-[32px] items-center">
                                         <span className="w-36 text-sm font-bold text-muted-foreground">
                                             Documento Origen:
                                         </span>
-                                        <div className="flex flex-1 gap-2">
-                                            <Input
-                                                placeholder="Número"
-                                                className={odooInputClass}
-                                                value={data.document_number}
-                                                onChange={(e) =>
-                                                    setData(
-                                                        'document_number',
-                                                        e.target.value,
-                                                    )
+                                        <SearchableSelect
+                                            options={sourceOptions}
+                                            // Aseguramos que el ID sea string y comparamos con source_id o source_document_id
+                                            value={String(data.source_id || '')}
+                                            onChange={(v) => {
+                                                const selected =
+                                                    sourceOptions.find(
+                                                        (o) => o.value === v,
+                                                    );
+                                                if (selected) {
+                                                    setData((prev) => ({
+                                                        ...prev,
+                                                        source_id: v,
+                                                        source_type:
+                                                            selected.type,
+                                                    }));
+
+                                                    // Si es una OC, intentamos traer el proveedor al campo Contacto
+                                                    if (
+                                                        selected.type.includes(
+                                                            'PurchaseOrder',
+                                                        )
+                                                    ) {
+                                                        const po =
+                                                            purchaseOrders.find(
+                                                                (p) =>
+                                                                    String(
+                                                                        p.id_purchase_order,
+                                                                    ) === v,
+                                                            );
+                                                        if (po) {
+                                                            const supplier =
+                                                                suppliers.find(
+                                                                    (s) =>
+                                                                        s.id_supplier ===
+                                                                        po.id_supplier,
+                                                                );
+                                                            if (supplier)
+                                                                setData(
+                                                                    'contact_name',
+                                                                    supplier.company_name,
+                                                                );
+                                                        }
+                                                    }
+                                                } else {
+                                                    setData((prev) => ({
+                                                        ...prev,
+                                                        source_id: '',
+                                                        source_type: '',
+                                                    }));
                                                 }
-                                                // --- Desbloqueado ---
-                                            />
-                                        </div>
+                                            }}
+                                            className="w-full text-sm"
+                                            placeholder="Documento Origen"
+                                        />
                                     </div>
                                 </div>
                             </div>
 
-                            {/* TABLA DE PRODUCTOS */}
                             <div className="pt-2 pb-12">
                                 <div className="overflow-hidden rounded-md border border-border bg-card shadow-sm">
                                     <table className="w-full">
@@ -1001,7 +1113,6 @@ export default function InventoryAdjustmentForm({
                         </div>
                     </div>
 
-                    {/* PANEL DERECHO - CHATTER ESTILO COMPRAS */}
                     <div className="flex h-full w-[380px] shrink-0 flex-col border-l border-border bg-muted/10">
                         <div className="flex items-center justify-between border-b border-border bg-card p-4 shadow-sm">
                             <span className="flex items-center gap-2 text-xs font-black tracking-widest text-muted-foreground uppercase">

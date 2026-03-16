@@ -743,7 +743,7 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                                     >
                                                                         <div className="flex items-center gap-2">
                                                                             <ArrowDownLeft className="h-3.5 w-3.5" />{' '}
-                                                                            IN
+                                                                            IN / Entradas
                                                                         </div>
                                                                     </SelectItem>
                                                                     <SelectItem
@@ -752,7 +752,7 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                                     >
                                                                         <div className="flex items-center gap-2">
                                                                             <ArrowUpRight className="h-3.5 w-3.5" />{' '}
-                                                                            OUT
+                                                                            OUT / Salidas
                                                                         </div>
                                                                     </SelectItem>
                                                                     <SelectItem
@@ -761,7 +761,7 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                                     >
                                                                         <div className="flex items-center gap-2">
                                                                             <RefreshCcw className="h-3.5 w-3.5" />{' '}
-                                                                            INT
+                                                                            INT / Interna
                                                                         </div>
                                                                     </SelectItem>
                                                                     <SelectItem
@@ -770,7 +770,7 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                                     >
                                                                         <div className="flex items-center gap-2">
                                                                             <SlidersHorizontal className="h-3.5 w-3.5" />{' '}
-                                                                            ADJ
+                                                                            ADJ / Ajuste
                                                                         </div>
                                                                     </SelectItem>
                                                                 </SelectContent>
@@ -1009,7 +1009,7 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                         >
                                                             <div className="flex items-center gap-2">
                                                                 <ArrowDownLeft className="h-3.5 w-3.5" />{' '}
-                                                                IN
+                                                                IN / Entradas
                                                             </div>
                                                         </SelectItem>
                                                         <SelectItem
@@ -1018,7 +1018,7 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                         >
                                                             <div className="flex items-center gap-2">
                                                                 <ArrowUpRight className="h-3.5 w-3.5" />{' '}
-                                                                OUT
+                                                                OUT / Salidas
                                                             </div>
                                                         </SelectItem>
                                                         <SelectItem
@@ -1027,7 +1027,7 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                         >
                                                             <div className="flex items-center gap-2">
                                                                 <RefreshCcw className="h-3.5 w-3.5" />{' '}
-                                                                INT
+                                                                INT / Interno
                                                             </div>
                                                         </SelectItem>
                                                         <SelectItem
@@ -1036,7 +1036,7 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                         >
                                                             <div className="flex items-center gap-2">
                                                                 <SlidersHorizontal className="h-3.5 w-3.5" />{' '}
-                                                                ADJ
+                                                                ADJ / Ajuste
                                                             </div>
                                                         </SelectItem>
                                                     </SelectContent>

@@ -137,11 +137,31 @@ class InventoryMovementsController extends Controller
         $perPage = $request->input('per_page', 25);
 
         $query = \App\Models\InventoryAdjustment::query()
-            ->with(['user:id,name'])
+            ->with(['user:id,name', 'operationType', 'locationSource', 'locationDestination', "source"])
             ->when($search, function ($q, $search) {
-                $q->where('reference_code', 'like', "%{$search}%")
-                    ->orWhere('contact_name', 'like', "%{$search}%")
-                    ->orWhere('reason', 'like', "%{$search}%");
+                $q->where(function ($sub) use ($search) {
+                    // 1. Búsqueda en la cabecera del ajuste
+                    $sub->where('reference_code', 'like', "%{$search}%")
+                        ->orWhere('contact_name', 'like', "%{$search}%")
+                        ->orWhere('reason', 'like', "%{$search}%")
+                        ->orWhere('document_number', 'like', "%{$search}%")
+
+                        // 2. Búsqueda por Documento Origen (Si es una OC)
+                        // Usamos la relación 'source' que es polimórfica en tu sistema
+                        ->orWhereHasMorph('source', [\App\Models\PurchaseOrder::class], function ($query) use ($search) {
+                            $query->where('po_code', 'like', "%{$search}%")
+                                // 3. Búsqueda por nombre del Proveedor dentro de la OC
+                                ->orWhereHas('supplier', function($s) use ($search) {
+                                    $s->where('company_name', 'like', "%{$search}%");
+                                });
+                        })
+
+                        // 4. Búsqueda por Producto dentro del ajuste (por si buscas por código de producto)
+                        ->orWhereHas('details.product', function ($pq) use ($search) {
+                            $pq->where('product_name', 'like', "%{$search}%")
+                                ->orWhere('product_code', 'like', "%{$search}%");
+                        });
+                });
             })
             ->orderBy('created_at', 'desc');
 
@@ -149,10 +169,7 @@ class InventoryMovementsController extends Controller
 
         return Inertia::render('Inventory/Adjustments/AdjustmentsList', [
             'adjustments' => $adjustments,
-            'filters' => [
-                'search' => $search,
-                'per_page' => (int)$perPage,
-            ]
+            'filters' => ['search' => $search, 'per_page' => (int)$perPage]
         ]);
     }
 
@@ -311,13 +328,19 @@ class InventoryMovementsController extends Controller
             'locationSource',
             'locationDestination',
             'details.product',
-            'logs.user' // <--- ESTO FALTABA PARA QUE REACT RECIBA LOS LOGS
+            'logs.user'
         ])->findOrFail($id);
 
         return Inertia::render('Inventory/InventoryAdjustmentForm', [
             'adjustment'     => $adjustment,
-            'products'       => \App\Models\Products::where('status', 'active')->select('id_product', 'product_name', 'product_code', 'id_category', 'stock')->get(),
-            'categories'     => \App\Models\ProductCategory::where('status', 'active')->orderBy('name_product_category')->get(),
+            'products'       => \App\Models\Products::where('status', 'active')
+                ->select('id_product', 'product_name', 'product_code', 'stock')->get(),
+            // ✅ ENVIAR PROVEEDORES
+            'suppliers'      => \App\Models\Supplier::select('id_supplier', 'company_name', 'ruc')->get(),
+            // ✅ ENVIAR ÓRDENES DE COMPRA (Como documentos origen disponibles)
+            'purchaseOrders' => \App\Models\PurchaseOrder::select('id_purchase_order', 'po_code', 'id_supplier')
+                ->orderBy('created_at', 'desc')->take(50)->get(),
+            'categories'     => \App\Models\ProductCategory::where('status', 'active')->get(),
             'operationTypes' => \App\Models\InventoryOperationType::all(),
             'locations'      => \App\Models\InventoryLocation::all(),
         ]);
@@ -500,64 +523,62 @@ class InventoryMovementsController extends Controller
     {
         $adjustment = InventoryAdjustment::findOrFail($id);
 
-        // Solo procesamos actualizaciones administrativas si ya está validado (done)
         if ($adjustment->status === 'done') {
             $request->validate([
                 'kardex_date'     => 'required|date',
-                'contact_name'    => 'nullable|string|max:255',
-                'document_type'   => 'nullable|string|max:255',
                 'document_number' => 'nullable|string|max:255',
+                'contact_name'    => 'nullable|string|max:255',
+                'source_id'       => 'nullable|integer',
             ]);
 
-            // 1. Usamos fill() en lugar de update() para cargar los datos en memoria SIN guardarlos aún
-            $adjustment->fill($request->only([
-                'contact_name',
-                'kardex_date',
-                'document_type',
-                'document_number',
-            ]));
+            $adjustment->fill($request->only(['kardex_date', 'document_number', 'contact_name']));
 
-            // 2. Detectamos qué campos cambiaron realmente
+            // Manejo de la relación polimórfica
+            if ($request->filled('source_id')) {
+                $adjustment->source_document_type = \App\Models\PurchaseOrder::class;
+                $adjustment->source_document_id   = $request->source_id;
+            } else {
+                $adjustment->source_document_type = null;
+                $adjustment->source_document_id   = null;
+            }
+
             $changes = $adjustment->getDirty();
             $original = $adjustment->getOriginal();
 
             if (!empty($changes)) {
-                // Diccionario para que en el log se lea bonito (en español)
                 $fieldNames = [
                     'kardex_date'     => 'Fecha Kardex',
-                    'contact_name'    => 'Contacto',
-                    'document_type'   => 'Tipo de Documento',
-                    'document_number' => 'N° Documento'
+                    'contact_name'    => 'Proveedor/Contacto',
+                    'document_number' => 'N° Documento',
+                    'source_document_id' => 'Documento Origen'
                 ];
 
-                // 3. Creamos un log por cada campo modificado
                 foreach ($changes as $field => $newValue) {
                     if (array_key_exists($field, $fieldNames)) {
+
+                        // ✅ Lógica para que el historial imprima el CÓDIGO de la OC, no el ID
+                        $oldVal = $original[$field] ?? 'Vacío';
+                        $newVal = $newValue ?? 'Vacío';
+
+                        if ($field === 'source_document_id' && $newValue !== null) {
+                            $po = \App\Models\PurchaseOrder::find($newValue);
+                            $newVal = $po ? $po->po_code : $newValue;
+                        }
+
                         InventoryLog::create([
                             'id_adjustment' => $adjustment->id_adjustment,
                             'id_user'       => Auth::id(),
                             'action'        => 'Actualización',
                             'field_changed' => $fieldNames[$field],
-                            'old_value'     => $original[$field] ?? 'Vacío', // Si estaba nulo, pone 'Vacío'
-                            'new_value'     => $newValue ?? 'Vacío',
+                            'old_value'     => $oldVal,
+                            'new_value'     => $newVal,
                         ]);
                     }
                 }
-
-                // 4. Ahora sí, guardamos los cambios en la base de datos
                 $adjustment->save();
-
-                // 5. ¡MUY IMPORTANTE! Si cambiaron la fecha Kardex, se actualiza en el registro contable
-                if (array_key_exists('kardex_date', $changes)) {
-                    InventoryMovements::where('reference_type', get_class($adjustment))
-                        ->where('reference_id', $adjustment->id_adjustment)
-                        ->update(['kardex_date' => $request->kardex_date]);
-                }
             }
-
-            return back()->with('success', 'Documento actualizado correctamente.');
+            return back()->with('success', 'Actualizado correctamente.');
         }
-
-        return back()->withErrors(['error' => 'Solo se pueden hacer actualizaciones administrativas en documentos realizados.']);
+        return back()->withErrors(['error' => 'No se puede editar.']);
     }
 }
