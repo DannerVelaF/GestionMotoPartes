@@ -33,7 +33,7 @@ import {
     FileText,
     History,
     MessageSquare,
-    PackageOpen,
+    PackageOpen, Printer,
     ShoppingBag,
     Trash2,
 } from 'lucide-react';
@@ -160,8 +160,6 @@ interface Props {
     order: any;
     suppliers: any[];
     products: any[];
-    receptionsCount: number;
-    receiptsCount: number;
     documentTypes: { value: string; label: string }[];
 }
 
@@ -180,8 +178,6 @@ interface DetailRow {
 export default function EditPurchaseOrder({
     order,
     suppliers,
-    receptionsCount,
-    receiptsCount,
     products,
     documentTypes,
 }: Props) {
@@ -192,7 +188,7 @@ export default function EditPurchaseOrder({
     const [localError, setLocalError] = useState<string | null>(null);
     const [isWritingNote, setIsWritingNote] = useState(false);
     const [isApproving, setIsApproving] = useState(false);
-
+    const printFrameRef = useRef<HTMLIFrameElement>(null); // ✅ AGREGA ESTA LÍNEA
     // Modal de Facturación
     const [showBillingModal, setShowBillingModal] = useState(false);
     const [billingData, setBillingData] = useState({
@@ -558,7 +554,28 @@ export default function EditPurchaseOrder({
 
                         {/* StatusBar Visual */}
                         <div className="flex items-center gap-4">
-                            {receptionsCount > 0 && (
+                            <button
+                                onClick={() => {
+                                    if (printFrameRef.current) {
+                                        // Asignamos la ruta al iframe
+                                        printFrameRef.current.src = `/compras/${order.id_purchase_order}/print`;
+
+                                        // Cuando termine de cargar, disparamos la impresión del contenido del iframe
+                                        printFrameRef.current.onload = () => {
+                                            printFrameRef.current?.contentWindow?.focus();
+                                            printFrameRef.current?.contentWindow?.print();
+                                        };
+                                    }
+                                }}
+                                className="flex items-center gap-1.5 border-r border-border px-3 text-slate-600 transition-all hover:bg-muted/50 dark:text-slate-400"
+                            >
+                                <Printer className="h-3.5 w-3.5" />
+                                <span className="text-[10px] font-semibold uppercase">
+                                    Imprimir
+                                </span>
+                            </button>
+
+                            {order.inventory_adjustments_count > 0 && (
                                 <button
                                     onClick={() =>
                                         router.get(
@@ -567,14 +584,15 @@ export default function EditPurchaseOrder({
                                     }
                                     className="flex items-center gap-1.5 border-r border-border px-3 text-emerald-600 transition-all hover:bg-muted/50 dark:text-emerald-400"
                                 >
-                                    <PackageOpen className="h-3.5 w-3.5" />{' '}
+                                    <PackageOpen className="h-3.5 w-3.5" />
                                     <span className="text-[10px] font-semibold uppercase">
-                                        Recepciones ({receptionsCount})
+                                        Recepciones (
+                                        {order.inventory_adjustments_count})
                                     </span>
                                 </button>
                             )}
 
-                            {receiptsCount > 0 && (
+                            {order.receipts_count > 0 && (
                                 <button
                                     onClick={() =>
                                         router.get(
@@ -585,7 +603,7 @@ export default function EditPurchaseOrder({
                                 >
                                     <FileText className="h-3.5 w-3.5" />{' '}
                                     <span className="text-[10px] font-semibold uppercase">
-                                        Comprobantes ({receiptsCount})
+                                        Comprobantes ({order.receipts_count})
                                     </span>
                                 </button>
                             )}
@@ -1165,6 +1183,11 @@ export default function EditPurchaseOrder({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            <iframe
+                ref={printFrameRef}
+                style={{ display: 'none' }}
+                title="Print Content"
+            />
         </AppLayout>
     );
 }

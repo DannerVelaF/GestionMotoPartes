@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Purchase;
 
 use App\Http\Controllers\Controller;
-use App\Http\Services\PurchaseOrder\PurchaseOrderService; // Corregido el namespace según tu estructura
+use App\Http\Services\PurchaseOrder\PurchaseOrderService;
 use App\Models\InventoryAdjustment;
 use App\Models\InventoryOperationType;
 use App\Models\Products;
@@ -11,6 +11,7 @@ use App\Models\PurchaseOrder;
 use App\Models\Receipt;
 use App\Models\Supplier;
 use App\Models\User;
+use App\Models\BusinessConfig; // Importar el modelo BusinessConfig
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -103,16 +104,11 @@ class PurchaseOrdersController extends Controller
             'requester:id,name',
             'approver:id,name'
         ])
-            ->withCount('receipts') // Genera el atributo receipts_count
+            ->withCount(['receipts', 'inventoryAdjustments']) // Usar withCount para ambas relaciones
             ->findOrFail($id);
-
-        // Conteo de Recepciones
-        $receptionsCount = InventoryAdjustment::where('document_number', $order->po_code)->count();
 
         return Inertia::render('Purchases/EditPurchaseOrder', [
             'order' => $order,
-            'receptionsCount' => $receptionsCount,
-            'receiptsCount'   => $order->receipts_count, // ✅ Ahora toma el valor real de la relación hasMany
             'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')->orderBy('company_name')->get(),
             'products' => Products::where('status', 'active')
                 ->select('id_product', 'product_name', 'product_code', 'sale_price')
@@ -313,5 +309,20 @@ class PurchaseOrdersController extends Controller
             return redirect()->route('inventory.adjustment.edit', $reception->id_adjustment)
                 ->with('success', 'Recepción preparada. Ingrese las cantidades recibidas.');
         });
+    }
+
+    public function print(PurchaseOrder $purchaseOrder)
+    {
+        $purchaseOrder->load([
+            'supplier',
+            'details.product',
+            'creator',
+            'requester',
+            'approver'
+        ]);
+
+        $businessConfig = BusinessConfig::first(); // Asume que solo hay una configuración global
+
+        return view('purchases.print', compact('purchaseOrder', 'businessConfig'));
     }
 }

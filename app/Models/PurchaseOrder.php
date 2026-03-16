@@ -78,6 +78,12 @@ class PurchaseOrder extends Model
             ->orderBy('created_at', 'desc');
     }
 
+    // Relación polimórfica inversa para obtener las recepciones (Ajustes de Inventario)
+    public function inventoryAdjustments()
+    {
+        return $this->morphMany(InventoryAdjustment::class, 'source_document');
+    }
+
     // --- ACCESORES ÚTILES ---
 
     // Para obtener la fecha de creación legible (mapeo implícito)
