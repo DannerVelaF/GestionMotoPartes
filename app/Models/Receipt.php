@@ -22,7 +22,9 @@ class Receipt extends Model
         "receipt_code",
         "id_parent",
         "currency",
-        "exchange_rate"
+        "exchange_rate",
+        "id_purchase_order",
+        "id_purchase_order"
     ];
 
     protected function casts(): array
@@ -66,5 +68,16 @@ class Receipt extends Model
     public function children()
     {
         return $this->hasMany(Receipt::class, 'id_parent');
+    }
+
+    public function purchaseOrder()
+    {
+        return $this->belongsTo(PurchaseOrder::class, 'id_purchase_order');
+    }
+
+    // Relación con el Movimiento de Almacén (Recepción)
+    public function adjustment()
+    {
+        return $this->belongsTo(InventoryAdjustment::class, 'id_adjustment');
     }
 }

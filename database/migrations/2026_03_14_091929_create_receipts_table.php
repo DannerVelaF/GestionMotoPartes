@@ -14,19 +14,32 @@ return new class extends Migration
     {
         Schema::create('receipts', function (Blueprint $table) {
             $table->id("id_receipt");
-            $table->string("receipt_code");
+            $table->string("receipt_code"); // Código interno del sistema (REC-XXXX)
+
             $table->unsignedBigInteger("id_supplier");
             $table->foreign("id_supplier")->references("id_supplier")->on("suppliers");
-            $table->string('series', 20);       // Ej: B001
+
+            $table->unsignedBigInteger("id_purchase_order")->nullable();
+            $table->foreign("id_purchase_order")->references("id_purchase_order")->on("purchase_orders")->onDelete('set null');
+
+            // Un comprobante puede estar amarrado a una recepción específica de almacén
+            $table->unsignedBigInteger("id_adjustment")->nullable();
+            $table->foreign("id_adjustment")->references("id_adjustment")->on("inventory_adjustments")->onDelete('set null');
+
+            $table->string('series', 20);       // Ej: F001 o B001
             $table->string('number', 20);       // Ej: 00012345
-            $table->dateTime('issue_date');        // Fecha de emisión
-            $table->decimal('total_amount', 10, 2); // Monto total
+            $table->dateTime('issue_date');      // Fecha de emisión física del comprobante
+            $table->decimal('total_amount', 10, 2);
+
             $table->unsignedBigInteger("id_parent")->nullable();
             $table->foreign("id_parent")->references("id_receipt")->on("receipts")->onDelete('cascade');
+
             $table->enum("document_type", array_column(DocumentType::cases(), "value"))->default(DocumentType::RECEIPT->value);
-            $table->string('receipt_path')->nullable(); // Si guardan el archivo
+            $table->string('receipt_path')->nullable();
+
             $table->enum('currency', ['PEN', 'USD'])->default('PEN');
             $table->decimal('exchange_rate', 10, 4)->default(1.0000);
+
             $table->timestamps();
         });
     }

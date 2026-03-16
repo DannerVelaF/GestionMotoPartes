@@ -107,5 +107,9 @@ class DatabaseSeeder extends Seeder
         foreach ($productos as $p) {
             Products::create($p);
         }
+
+        $this->call([
+            InventoryConfigSeeder::class,
+        ]);
     }
 }
