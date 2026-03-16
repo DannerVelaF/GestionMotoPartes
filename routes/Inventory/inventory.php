@@ -8,24 +8,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::controller(InventoryMovementsController::class)->group(function () {
         Route::get('/inventario', 'index')->name('inventory.index');
         Route::get('/inventario/movimientos', 'movements')->name('inventory.movements');
-        Route::get('/inventario/exportar', 'export')->name('inventory.export');
-        Route::get('/inventario/kardex-exportar', 'exportKardex')->name('inventory.kardex.export');
-        Route::get('/inventario/kardex/{product}', 'kardexByProduct')->name('inventory.kardex.product');
 
-        // Creación y Listado de Ajustes
-        Route::get('/inventario/ajuste', 'createAdjustment')->name('inventory.adjustment.create');
-        Route::post('/inventario/ajuste', 'storeAdjustment')->name('inventory.adjustment.store');
+        // 1. Mueve el LISTADO arriba para que no choque con nada
         Route::get('/inventario/ajuste/movimientos', 'adjustments')->name('inventory.adjustments.index');
 
-        // ✅ SOLUCIÓN: Agregamos la ruta GET directa por si los enlaces no tienen el "/edit"
+        // 2. Rutas de CREACIÓN
+        Route::get('/inventario/ajuste/nuevo', 'createAdjustment')->name('inventory.adjustment.create'); // Sugerencia: añadir /nuevo
+        Route::post('/inventario/ajuste/guardar', 'storeAdjustment')->name('inventory.adjustment.store');
+
+        // 3. Rutas de EDICIÓN (con {id} siempre al final)
         Route::get('/inventario/ajuste/{id}', 'editAdjustment')->name('inventory.adjustment.show');
         Route::get('/inventario/ajuste/{id}/edit', 'editAdjustment')->name('inventory.adjustment.edit');
 
-        // ✅ Mantenemos las acciones de estado aquí en su controlador correcto
+        // Acciones
         Route::put('/inventario/ajuste/{id}', 'updateAdjustment');
         Route::post('/inventario/ajuste/{id}/check', 'checkAdjustment');
-        Route::post('/inventario/ajuste/{id}/validate', 'validateAdjustment')->name('inventory.adjustment.validate');
-        Route::post('/inventario/ajuste/{id}/note', 'addNote')->name('inventory.adjustment.note');
+        Route::post('/inventario/ajuste/{id}/validate', 'validateAdjustment');
+        Route::post('/inventario/ajuste/{id}/note', 'addNote');
     });
 
     Route::controller(InventorySettingsController::class)->group(function () {

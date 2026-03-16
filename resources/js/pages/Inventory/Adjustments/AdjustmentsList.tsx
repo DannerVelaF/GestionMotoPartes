@@ -136,7 +136,7 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
 
                         <Button
                             className="h-9 bg-foreground text-[11px] font-bold tracking-widest text-background uppercase shadow-sm hover:bg-foreground/90"
-                            onClick={() => router.visit('/inventario/ajuste')}
+                            onClick={() => router.visit('/inventario/ajuste/nuevo')} // ✅ Ahora apunta a la ruta clara
                         >
                             <Plus className="mr-2 h-4 w-4" />
                             Nuevo Ajuste

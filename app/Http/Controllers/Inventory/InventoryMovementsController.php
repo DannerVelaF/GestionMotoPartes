@@ -197,13 +197,27 @@ class InventoryMovementsController extends Controller
 
     public function createAdjustment()
     {
-        $products = Products::where('status', 'active')
-            ->select('id_product', 'product_name', 'product_code', 'stock', 'sale_price')
-            ->orderBy('product_name')
-            ->get();
+        return Inertia::render('Inventory/InventoryAdjustmentForm', [
+            // Enviamos null para indicar que es un registro nuevo
+            'adjustment'     => null,
 
-        return Inertia::render('Inventory/ManualAdjustment', [
-            'products' => $products
+            // Cargamos todos los catálogos necesarios
+            'products'       => \App\Models\Products::where('status', 'active')
+                ->select('id_product', 'product_name', 'product_code', 'stock', 'sale_price')
+                ->orderBy('product_name')->get(),
+
+            'suppliers'      => \App\Models\Supplier::select('id_supplier', 'company_name', 'ruc')
+                ->orderBy('company_name')->get(),
+
+            'purchaseOrders' => \App\Models\PurchaseOrder::select('id_purchase_order', 'po_code', 'id_supplier')
+                ->orderBy('created_at', 'desc')->take(50)->get(),
+
+            'operationTypes' => \App\Models\InventoryOperationType::all(),
+
+            'locations'      => \App\Models\InventoryLocation::all(),
+
+            // Si manejas categorías en el form, agrégalas también
+            'categories'     => \App\Models\ProductCategory::where('status', 'active')->get(),
         ]);
     }
 
