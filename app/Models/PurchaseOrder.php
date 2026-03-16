@@ -67,9 +67,9 @@ class PurchaseOrder extends Model
         return $this->hasMany(PurchaseOrderDetail::class, 'id_purchase_order', 'id_purchase_order');
     }
 
-    public function receipt()
+    public function receipts()
     {
-        return $this->hasOne(Receipt::class, 'id_purchase_order', 'id_purchase_order');
+        return $this->hasMany(Receipt::class, 'id_purchase_order', 'id_purchase_order');
     }
 
     public function logs()

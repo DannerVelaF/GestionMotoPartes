@@ -25,6 +25,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::put('/inventario/ajuste/{id}', 'updateAdjustment');
         Route::post('/inventario/ajuste/{id}/check', 'checkAdjustment');
         Route::post('/inventario/ajuste/{id}/validate', 'validateAdjustment')->name('inventory.adjustment.validate');
+        Route::post('/inventario/ajuste/{id}/note', 'addNote')->name('inventory.adjustment.note');
     });
 
     Route::controller(InventorySettingsController::class)->group(function () {

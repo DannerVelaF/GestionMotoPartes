@@ -804,24 +804,9 @@ export default function InventoryAdjustmentForm({
                                     </div>
                                     <div className="flex min-h-[32px] items-center">
                                         <span className="w-36 text-sm font-bold text-muted-foreground">
-                                            Documento:
+                                            Documento Origen:
                                         </span>
                                         <div className="flex flex-1 gap-2">
-                                            <Input
-                                                placeholder="Ej: Factura"
-                                                className={cn(
-                                                    odooInputClass,
-                                                    'w-24',
-                                                )}
-                                                value={data.document_type}
-                                                onChange={(e) =>
-                                                    setData(
-                                                        'document_type',
-                                                        e.target.value,
-                                                    )
-                                                }
-                                                // --- Desbloqueado ---
-                                            />
                                             <Input
                                                 placeholder="Número"
                                                 className={odooInputClass}

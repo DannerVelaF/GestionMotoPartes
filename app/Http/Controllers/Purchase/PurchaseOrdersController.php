@@ -8,6 +8,7 @@ use App\Models\InventoryAdjustment;
 use App\Models\InventoryOperationType;
 use App\Models\Products;
 use App\Models\PurchaseOrder;
+use App\Models\Receipt;
 use App\Models\Supplier;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -101,14 +102,17 @@ class PurchaseOrdersController extends Controller
             'creator:id,name',
             'requester:id,name',
             'approver:id,name'
-        ])->findOrFail($id);
+        ])
+            ->withCount('receipts') // Genera el atributo receipts_count
+            ->findOrFail($id);
 
-        $receptionsCount = InventoryAdjustment::where('reference_code', 'like', "%{$order->po_code}%")
-            ->count();
+        // Conteo de Recepciones
+        $receptionsCount = InventoryAdjustment::where('document_number', $order->po_code)->count();
 
         return Inertia::render('Purchases/EditPurchaseOrder', [
             'order' => $order,
-            'receptionsCount' => $receptionsCount, // <-- Pasamos el conteo
+            'receptionsCount' => $receptionsCount,
+            'receiptsCount'   => $order->receipts_count, // ✅ Ahora toma el valor real de la relación hasMany
             'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')->orderBy('company_name')->get(),
             'products' => Products::where('status', 'active')
                 ->select('id_product', 'product_name', 'product_code', 'sale_price')
@@ -120,36 +124,61 @@ class PurchaseOrdersController extends Controller
             ]
         ]);
     }
-
     public function update(Request $request, $id)
     {
-        $validated = $request->validate([
-            'id_supplier'   => 'required|exists:suppliers,id_supplier',
-            'order_type'    => 'required|in:purchase,service',
-            'issue_date'    => 'required|date',
-            'expected_date' => 'nullable|date',
-            'actual_arrival_date' => 'nullable|date', // Nuevo
-            'notes'         => 'nullable|string',
-            'internal_note' => 'nullable|string',
-            'status'        => 'required|in:draft,sent,received,cancelled',
-            'total_amount'  => 'required|numeric|min:0',
-            'currency'      => 'required|in:PEN,USD',
-            'exchange_rate' => 'required|numeric|min:0.0001',
-            'file'          => 'nullable|file|mimes:pdf,jpg,png,jpeg|max:5120',
-            'details'       => 'required|array|min:1',
-            'details.*.id_product' => 'nullable|exists:products,id_product',
-            'details.*.description' => 'nullable|string',
-            'details.*.quantity'   => 'required|numeric|min:0.01',
-            'details.*.unit_cost'  => 'required|numeric|min:0',
-            'details.*.subtotal'   => 'required|numeric|min:0',
+        // LOG 1: Ver qué llega exactamente del navegador
+        Log::info("Intentando actualizar OC ID: {$id}", [
+            'all_input' => $request->all(),
+            'content_type' => $request->header('Content-Type'),
         ]);
 
         try {
+            $validated = $request->validate([
+                'id_supplier'   => 'required|exists:suppliers,id_supplier',
+                'order_type'    => 'required|in:purchase,service',
+                'issue_date'    => 'required|date',
+                'expected_date' => 'nullable|date',
+                'actual_arrival_date' => 'nullable|date',
+                'notes'         => 'nullable|string',
+                'internal_note' => 'nullable|string',
+                'status'        => 'required|in:draft,sent,received,cancelled',
+                'total_amount'  => 'required|numeric|min:0',
+                'currency'      => 'required|in:PEN,USD',
+                'exchange_rate' => 'required|numeric|min:0.0001',
+                'file'          => 'nullable|file|mimes:pdf,jpg,png,jpeg|max:5120',
+                'details'       => 'required|array|min:1',
+                'details.*.id_product' => 'nullable|exists:products,id_product',
+                'details.*.description' => 'nullable|string',
+                'details.*.quantity'   => 'required|numeric|min:0.01',
+                'details.*.unit_cost'  => 'required|numeric|min:0',
+                'details.*.subtotal'   => 'required|numeric|min:0',
+                // Agregamos estos por si el Service los usa al actualizar
+                'details.*.margin_percentage' => 'nullable|numeric',
+                'details.*.suggested_sale_price' => 'nullable|numeric',
+            ]);
+
+            // LOG 2: Si llega aquí, la validación pasó
+            Log::info("Validación exitosa para OC ID: {$id}", ['validated_data' => $validated]);
+
             $this->service->updateOrder($validated, $id);
+
             return back()->with('success', 'Orden actualizada.');
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // LOG 3: Ver exactamente qué campo falló
+            Log::error("Error de validación en OC ID: {$id}", [
+                'errors' => $e->errors(),
+                'old_input' => $request->all()
+            ]);
+            throw $e; // Re-lanzar para que Inertia maneje los errores
+
         } catch (\Exception $e) {
-            Log::error('Error updating PO: ' . $e->getMessage());
-            return back()->withErrors(['error' => $e->getMessage()]);
+            // LOG 4: Errores del Service o Base de datos
+            Log::error('Error crítico actualizando OC: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            return back()->withErrors(['error' => 'Error interno: ' . $e->getMessage()]);
         }
     }
 
@@ -176,7 +205,7 @@ class PurchaseOrdersController extends Controller
         $order = PurchaseOrder::with('supplier', 'details.product')->findOrFail($id);
 
         // 1. Buscar si ya existe una recepción pendiente (draft o ready) para esta OC
-        $existingAdjustment = InventoryAdjustment::where('reference_code', 'like', "%{$order->po_code}%")
+        $existingAdjustment = InventoryAdjustment::where('document_number', $order->po_code)
             ->whereIn('status', ['draft', 'ready'])
             ->first();
 
@@ -194,6 +223,7 @@ class PurchaseOrdersController extends Controller
                 'id_user'        => Auth::id(),
                 'status'         => 'draft',
                 'reason'         => 'Recepción de mercadería de ' . $order->po_code,
+                'document_number' => $order->po_code,
                 'location'       => 'Almacén Principal',
                 'exchange_rate'  => $order->exchange_rate,
             ]);
@@ -221,7 +251,10 @@ class PurchaseOrdersController extends Controller
 
     public function prepareReception($id)
     {
+        // 1. Cargamos la OC con sus detalles
         $order = PurchaseOrder::with(['details.product', 'supplier'])->findOrFail($id);
+
+        // 2. Buscamos el tipo de operación de entrada (IN)
         $operationType = \App\Models\InventoryOperationType::where('code', 'IN')->first();
 
         if (!$operationType) {
@@ -230,6 +263,7 @@ class PurchaseOrdersController extends Controller
 
         return DB::transaction(function () use ($order, $operationType) {
 
+            // 3. Creamos la recepción vinculándola polimórficamente a la OC
             $reception = InventoryAdjustment::create([
                 'reference_code'          => $operationType->sequence_prefix . $order->po_code . '/' . now()->format('is'),
                 'id_operation_type'       => $operationType->id_operation_type,
@@ -243,36 +277,41 @@ class PurchaseOrdersController extends Controller
                 'document_type'           => 'Orden de Compra',
                 'document_number'         => $order->po_code,
                 'exchange_rate'           => $order->exchange_rate,
+
+                // ✅ ESTOS CAMPOS SON LOS QUE FALTABAN:
+                'source_document_id'      => $order->id_purchase_order,
+                'source_document_type'    => get_class($order),
             ]);
 
-            // LOG: Registrar la creación del borrador
+            // LOG: Registrar la creación
             \App\Models\InventoryLog::create([
                 'id_adjustment' => $reception->id_adjustment,
                 'id_user'       => Auth::id(),
                 'action'        => 'Documento Creado',
                 'field_changed' => 'Estado',
                 'new_value'     => 'Borrador',
-                'notes'         => 'Borrador creado a partir de la Orden de Compra: ' . $order->po_code,
+                'notes'         => 'Borrador de recepción vinculado a OC: ' . $order->po_code,
             ]);
 
-            // Guardamos en la NUEVA TABLA de detalles (demand = pendiente, quantity = 0)
+            // 4. Mapeamos los productos pendientes (solo lo que falta recibir)
             foreach ($order->details as $detail) {
+                // Saltamos servicios o productos sin ID
                 if (!$detail->id_product || $detail->is_service) continue;
 
-                $pendingQty = $detail->quantity - $detail->received_quantity;
+                $pendingQty = (float)$detail->quantity - (float)$detail->received_quantity;
 
                 if ($pendingQty > 0) {
                     $reception->details()->create([
                         'id_product' => $detail->id_product,
                         'demand'     => $pendingQty,
-                        'quantity'   => 0, // Inicia en 0 para que el usuario lo llene
+                        'quantity'   => 0, // Se deja en 0 para que el almacenero digite lo que llegó
                         'unit_cost'  => $detail->unit_cost,
                     ]);
                 }
             }
 
             return redirect()->route('inventory.adjustment.edit', $reception->id_adjustment)
-                ->with('success', 'Documento generado con los productos de la Orden de Compra.');
+                ->with('success', 'Recepción preparada. Ingrese las cantidades recibidas.');
         });
     }
 }

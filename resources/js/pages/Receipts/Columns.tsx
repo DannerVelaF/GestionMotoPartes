@@ -3,10 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
-import { ArrowUpDown } from 'lucide-react';
+import { ArrowUpDown, Link as LinkIcon } from 'lucide-react';
 
-// Interfaz actualizada con el campo 'currency'
 export interface Receipt {
     id_receipt: number;
     receipt_code: string;
@@ -15,12 +13,13 @@ export interface Receipt {
     issue_date: string;
     total_amount: number;
     document_type: string;
-    currency: string; // <--- NUEVO: Para saber si es PEN o USD
+    currency: string;
     supplier?: { company_name: string; ruc: string };
+    // ✅ Agregamos la relación en la interfaz
+    purchase_order?: { id_purchase_order: number; po_code: string };
 }
 
 export const Columns: ColumnDef<Receipt>[] = [
-    // --- CHECKBOX ---
     {
         id: 'select',
         header: ({ table }) => (
@@ -33,7 +32,6 @@ export const Columns: ColumnDef<Receipt>[] = [
                     table.toggleAllPageRowsSelected(!!value)
                 }
                 aria-label="Seleccionar todos"
-                className="border-slate-300 dark:border-slate-600"
             />
         ),
         cell: ({ row }) => (
@@ -41,7 +39,6 @@ export const Columns: ColumnDef<Receipt>[] = [
                 checked={row.getIsSelected()}
                 onCheckedChange={(value) => row.toggleSelected(!!value)}
                 aria-label="Seleccionar fila"
-                className="border-slate-300 dark:border-slate-600"
                 onClick={(e) => e.stopPropagation()}
             />
         ),
@@ -49,52 +46,36 @@ export const Columns: ColumnDef<Receipt>[] = [
         enableHiding: false,
         size: 40,
     },
-
-    // --- CÓDIGO INTERNO ---
     {
         accessorKey: 'receipt_code',
         header: 'Código',
         cell: ({ row }) => (
-            <div className="font-mono text-xs font-bold text-muted-foreground">
+            <div className="font-mono text-[11px] font-bold text-muted-foreground uppercase">
                 {row.getValue('receipt_code')}
             </div>
         ),
-        size: 120,
+        size: 110,
     },
-
-    // --- FECHA EMISIÓN ---
     {
         accessorKey: 'issue_date',
-        header: ({ column }) => {
-            return (
-                <Button
-                    variant="ghost"
-                    onClick={() =>
-                        column.toggleSorting(column.getIsSorted() === 'asc')
-                    }
-                    className="-ml-4 h-8 data-[state=open]:bg-accent"
-                >
-                    Emisión
-                    <ArrowUpDown className="ml-2 h-4 w-4" />
-                </Button>
-            );
-        },
+        header: ({ column }) => (
+            <Button
+                variant="ghost"
+                onClick={() =>
+                    column.toggleSorting(column.getIsSorted() === 'asc')
+                }
+                className="-ml-4 h-8 text-xs font-bold uppercase"
+            >
+                Emisión
+                <ArrowUpDown className="ml-2 h-3 w-3" />
+            </Button>
+        ),
         cell: ({ row }) => {
-            const dateValue = row.getValue('issue_date');
-            if (!dateValue)
-                return <span className="text-muted-foreground">-</span>;
-
-            const date = new Date(dateValue as string);
-            return (
-                <div className="text-sm">
-                    {format(date, 'dd MMM yyyy', { locale: es })}
-                </div>
-            );
+            const date = new Date(row.getValue('issue_date') as string);
+            return <div className="text-sm">{format(date, 'dd/MM/yyyy')}</div>;
         },
-        size: 120,
+        size: 110,
     },
-
-    // --- TIPO DOCUMENTO ---
     {
         accessorKey: 'document_type',
         header: 'Tipo',
@@ -102,7 +83,6 @@ export const Columns: ColumnDef<Receipt>[] = [
             const type = (
                 row.getValue('document_type') as string
             )?.toLowerCase();
-
             const typeConfig: Record<
                 string,
                 { label: string; classes: string }
@@ -128,48 +108,31 @@ export const Columns: ColumnDef<Receipt>[] = [
                         'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
                 },
                 credit_note: {
-                    label: 'Nota Crédito',
+                    label: 'N. Crédito',
                     classes:
                         'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300',
                 },
                 nota_credito: {
-                    label: 'Nota Crédito',
+                    label: 'N. Crédito',
                     classes:
                         'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300',
                 },
-                debit_note: {
-                    label: 'Nota Débito',
-                    classes:
-                        'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-900 dark:bg-purple-950 dark:text-purple-300',
-                },
-                nota_debito: {
-                    label: 'Nota Débito',
-                    classes:
-                        'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-900 dark:bg-purple-950 dark:text-purple-300',
-                },
             };
-
-            const defaultConfig = {
-                label: type || 'Otro',
-                classes:
-                    'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400',
+            const config = typeConfig[type] || {
+                label: type,
+                classes: 'bg-gray-100',
             };
-
-            const config = typeConfig[type] || defaultConfig;
-
             return (
                 <Badge
                     variant="outline"
-                    className={`font-normal whitespace-nowrap ${config.classes}`}
+                    className={`text-[10px] font-bold uppercase ${config.classes}`}
                 >
                     {config.label}
                 </Badge>
             );
         },
-        size: 110,
+        size: 100,
     },
-
-    // --- PROVEEDOR ---
     {
         accessorKey: 'supplier.company_name',
         header: 'Proveedor',
@@ -178,53 +141,71 @@ export const Columns: ColumnDef<Receipt>[] = [
             return (
                 <div className="flex flex-col">
                     <span
-                        className="max-w-[200px] truncate font-medium"
+                        className="max-w-[180px] truncate text-sm font-bold"
                         title={supplier?.company_name}
                     >
                         {supplier?.company_name || 'Desconocido'}
                     </span>
-                    <span className="text-[10px] text-muted-foreground">
-                        RUC: {supplier?.ruc || '-'}
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                        {supplier?.ruc || '-'}
                     </span>
                 </div>
             );
         },
     },
-
-    // --- REFERENCIA (SERIE-NUMERO) ---
+    // --- REFERENCIA (SERIE-NÚMERO) ---
     {
         id: 'reference',
         header: 'Referencia',
         cell: ({ row }) => (
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+            <span className="text-sm font-bold text-foreground/80 uppercase">
                 {row.original.series}-{row.original.number}
             </span>
         ),
+        size: 120,
     },
-
-    // --- TOTAL (CORREGIDO CON MONEDA) ---
+    // ✅ --- NUEVA COLUMNA: ORIGEN (ORDEN DE COMPRA) ---
+    {
+        id: 'origin',
+        header: 'Origen',
+        cell: ({ row }) => {
+            const po = row.original.purchase_order;
+            if (!po)
+                return (
+                    <span className="text-[10px] text-muted-foreground italic">
+                        Directo
+                    </span>
+                );
+            return (
+                <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-blue-600 uppercase dark:text-blue-400">
+                    <LinkIcon className="h-3 w-3" />
+                    {po.po_code}
+                </div>
+            );
+        },
+        size: 120,
+    },
     {
         accessorKey: 'total_amount',
-        header: () => <div className="text-right">Total</div>,
+        header: () => (
+            <div className="text-right text-xs font-bold uppercase">Total</div>
+        ),
         cell: ({ row }) => {
             const amount = parseFloat(row.getValue('total_amount'));
-            // Obtenemos la moneda del registro, por defecto PEN si falla
             const currency = row.original.currency || 'PEN';
-
-            const isNegative = amount < 0;
-
             const formatted = new Intl.NumberFormat('es-PE', {
                 style: 'currency',
-                currency: currency, // Usamos la moneda dinámica
+                currency: currency,
             }).format(amount);
 
             return (
                 <div
-                    className={`text-right font-bold tabular-nums ${isNegative ? 'text-red-500' : ''}`}
+                    className={`text-right font-black tabular-nums ${amount < 0 ? 'text-red-500' : 'text-foreground'}`}
                 >
                     {formatted}
                 </div>
             );
         },
+        size: 120,
     },
 ];

@@ -3,7 +3,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     Popover,
     PopoverContent,
@@ -24,40 +23,27 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
-import productRoutes from '@/routes/products';
 import receiptsRoute from '@/routes/receipts';
-import suppliersRoute from '@/routes/suppliers';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
     AlertCircle,
     ArrowRightLeft,
-    Box,
-    Briefcase,
     CalendarIcon,
     FileText,
-    Paperclip,
+    History,
+    Link as LinkIcon,
     Plus,
     RotateCcw,
     Save,
-    ShoppingBag,
     Trash2,
-    TrendingDown,
-    TrendingUp,
-    Truck,
     X,
 } from 'lucide-react';
-import { FormEventHandler, useState } from 'react';
+import React, { FormEventHandler, useEffect, useMemo, useState } from 'react';
+
 // --- ESTILOS REUTILIZABLES ---
 const cleanInputClass =
     'h-9 w-full rounded-none border-0 border-b border-muted bg-transparent px-0 text-sm shadow-none focus:ring-0 focus:border-blue-600 focus:outline-none transition-all font-medium dark:text-foreground dark:border-neutral-700 dark:focus:border-blue-500';
@@ -66,133 +52,53 @@ const tableInputClass =
     'h-8 border-transparent bg-transparent text-right shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-blue-500 tabular-nums dark:text-foreground dark:focus:bg-neutral-800';
 
 // --- HELPER COMPONENTS ---
-const InputError = ({
-    message,
-    className,
-}: {
-    message?: string;
-    className?: string;
-}) => {
+const InputError = ({ message }: { message?: string }) => {
     if (!message) return null;
     return (
-        <p
-            className={cn(
-                'mt-1 animate-pulse text-[10px] font-bold text-red-500 uppercase',
-                className,
-            )}
-        >
+        <p className="mt-1 animate-pulse text-[10px] font-bold text-red-500 uppercase">
             {message}
         </p>
     );
 };
 
-const MarginIndicator = ({
-    cost,
-    salePrice,
-    currency,
-    exchangeRate,
+const FormFieldRow = ({
+    label,
+    children,
 }: {
-    cost: number;
-    salePrice: number;
-    currency: string;
-    exchangeRate: number;
-}) => {
-    const numericCost = Number(cost) || 0;
-    const costInSoles =
-        currency === 'USD' ? numericCost * exchangeRate : numericCost;
-    const numericSalePrice = Number(salePrice) || 0;
-    if (numericSalePrice <= 0) return null;
-    const margin = numericSalePrice - costInSoles;
-    const marginPercent = (margin / numericSalePrice) * 100;
-    const marginText = `S/ ${margin.toFixed(2)}`;
-    if (costInSoles > numericSalePrice) {
-        return (
-            <TooltipProvider>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <div className="flex cursor-help items-center justify-center gap-1 font-bold text-red-600">
-                            <TrendingDown className="h-4 w-4" />
-                            <span className="text-[10px]">{marginText}</span>
-                        </div>
-                    </TooltipTrigger>
-                    <TooltipContent className="border-none bg-red-600 text-[10px] text-white uppercase">
-                        Pérdida Estimada
-                    </TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-        );
-    }
-    const colorClass =
-        marginPercent < 15 ? 'text-yellow-600' : 'text-emerald-600';
-    return (
-        <TooltipProvider>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <div
-                        className={cn(
-                            colorClass,
-                            'flex cursor-help items-center justify-center gap-1 font-bold',
-                        )}
-                    >
-                        <TrendingUp className="h-4 w-4" />
-                        <span className="text-[10px]">{marginText}</span>
-                    </div>
-                </TooltipTrigger>
-                <TooltipContent
-                    className={cn(
-                        'border-none text-[10px] font-bold text-white uppercase',
-                        marginPercent < 15 ? 'bg-yellow-500' : 'bg-emerald-600',
-                    )}
-                >
-                    {marginPercent < 15 ? 'Margen Ajustado' : 'Margen Óptimo'}
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
-    );
-};
+    label: string;
+    children: React.ReactNode;
+}) => (
+    <div className="flex min-h-[36px] items-center">
+        <div className="w-[140px] shrink-0 pr-4 text-sm font-bold tracking-tighter text-muted-foreground uppercase">
+            {label}
+        </div>
+        <div className="flex-1">{children}</div>
+    </div>
+);
 
-// --- INTERFACES ---
-interface Supplier {
-    id_supplier: number;
-    company_name: string;
-    ruc: string;
-}
-interface Product {
-    id_product: number;
-    product_name: string;
-    product_code: string | null;
-    sale_price: number;
-}
 interface DetailRow {
     id: number;
-    type: 'product' | 'service';
     id_product: string | null;
     description: string;
     quantity: number;
     unit_price: number;
-    sale_price: number;
-}
-interface Props {
-    suppliers: Supplier[];
-    products: Product[];
-    documentTypes: { value: string; label: string }[];
 }
 
 export default function CreateReceipt({
     suppliers,
     products,
     documentTypes,
-}: Props) {
+    preloadedData,
+}: any) {
     const [formError, setFormError] = useState<string | null>(null);
+    const [isWritingNote, setIsWritingNote] = useState(false);
     const [rows, setRows] = useState<DetailRow[]>([
         {
             id: Date.now(),
-            type: 'product',
             id_product: '',
             description: '',
             quantity: 1,
             unit_price: 0,
-            sale_price: 0,
         },
     ]);
 
@@ -215,576 +121,390 @@ export default function CreateReceipt({
         issue_date: new Date(),
         file: null as File | null,
         details: [] as any[],
+        id_purchase_order: '' as string | number,
+        internal_note: '',
     });
 
+    useEffect(() => {
+        if (preloadedData?.order) {
+            const order = preloadedData.order;
+            const matchedType = documentTypes.find(
+                (t: any) =>
+                    t.label.toLowerCase() ===
+                        preloadedData.type?.toLowerCase() ||
+                    t.value === preloadedData.type,
+            )?.value;
+
+            setData((prev) => ({
+                ...prev,
+                id_supplier: String(order.id_supplier),
+                id_purchase_order: order.id_purchase_order,
+                currency: order.currency,
+                exchange_rate: String(order.exchange_rate),
+                document_type: matchedType || '',
+                series: preloadedData.series || '',
+                number: preloadedData.number || '',
+            }));
+
+            const initialRows = order.details
+                .map((detail: any) => ({
+                    id: Math.random(),
+                    id_product: detail.id_product
+                        ? String(detail.id_product)
+                        : '',
+                    description: detail.description || '',
+                    quantity: detail.quantity - (detail.billed_quantity || 0),
+                    unit_price: Number(detail.unit_cost),
+                }))
+                .filter((r: any) => r.quantity > 0);
+
+            if (initialRows.length > 0) setRows(initialRows);
+        }
+    }, [preloadedData]);
+
     const symbol = data.currency === 'USD' ? '$' : 'S/';
+
+    // --- CÁLCULOS CORREGIDOS ---
+    const baseImponible = useMemo(
+        () => rows.reduce((acc, row) => acc + row.quantity * row.unit_price, 0),
+        [rows],
+    );
+    const igvAmount = baseImponible * 0.18;
+    const totalAmount = baseImponible + igvAmount;
+
     const handleCurrencyChange = (val: string) =>
         setData((prev) => ({
             ...prev,
             currency: val,
             exchange_rate: val === 'PEN' ? '1.000' : '3.800',
         }));
-    const onFieldChange = (field: keyof typeof data, value: any) => {
-        setData(field, value);
-        if (errors[field]) clearErrors(field);
-    };
+
     const updateRow = (id: number, field: keyof DetailRow, value: any) =>
         setRows((prev) =>
             prev.map((row) =>
                 row.id === id ? { ...row, [field]: value } : row,
             ),
         );
-    const toggleRowType = (id: number) =>
-        setRows((prev) =>
-            prev.map((row) =>
-                row.id === id
-                    ? {
-                          ...row,
-                          type: row.type === 'product' ? 'service' : 'product',
-                          id_product: '',
-                          description: '',
-                          sale_price: 0,
-                      }
-                    : row,
-            ),
-        );
 
-    const totalAmount = rows.reduce(
-        (acc, row) => acc + row.quantity * row.unit_price,
-        0,
-    );
-    const igvAmount = totalAmount - totalAmount / 1.18;
-    const subTotal = totalAmount - igvAmount;
-    const totalInSoles =
-        data.currency === 'USD'
-            ? totalAmount * Number(data.exchange_rate)
-            : totalAmount;
-
-    const supplierOptions = suppliers.map((s) => ({
+    const supplierOptions = suppliers.map((s: any) => ({
         value: String(s.id_supplier),
         label: s.company_name,
     }));
-    const productOptions = products.map((p) => ({
+    const productOptions = products.map((p: any) => ({
         value: String(p.id_product),
         label: p.product_code
             ? `[${p.product_code}] ${p.product_name}`
             : p.product_name,
-        salePrice: p.sale_price,
     }));
-    const selectedProductIds = rows
-        .map((r) => r.id_product)
-        .filter((id) => id !== '');
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
-        setFormError(null);
-        transform((data) => ({
-            ...data,
-            issue_date: format(data.issue_date, 'yyyy-MM-dd HH:mm:ss'),
-            exchange_rate: parseFloat(data.exchange_rate),
+        transform((currData) => ({
+            ...currData,
+            issue_date: format(currData.issue_date, 'yyyy-MM-dd HH:mm:ss'),
+            exchange_rate: parseFloat(String(currData.exchange_rate)),
             details: rows.map((r) => ({
-                id_product: r.type === 'product' ? r.id_product : null,
-                description: r.type === 'service' ? r.description : null,
+                id_product: r.id_product || null,
+                description: r.id_product ? null : r.description,
                 quantity: r.quantity,
                 unit_price: r.unit_price,
-                sale_price: r.sale_price,
-                is_service: r.type === 'service',
+                is_service: !r.id_product,
             })),
         }));
-        post(receiptsRoute.store().url, {
-            forceFormData: true,
-            onError: (err: any) => {
-                if (err.error) setFormError(err.error);
-                else setFormError('Por favor corrige los campos obligatorios.');
-            },
-        });
+        post(receiptsRoute.store().url, { forceFormData: true });
     };
-
-    const hasDetailErrors = Object.keys(errors).some((key) =>
-        key.startsWith('details'),
-    );
 
     return (
         <AppLayout
             breadcrumbs={[
                 { title: 'Comprobantes', href: receiptsRoute.index().url },
-                { title: 'Nuevo', href: '' },
+                { title: 'Nuevo' },
             ]}
         >
-            <Head title="Nueva Compra" />
-
+            <Head title="Nuevo Comprobante" />
             <form
                 onSubmit={submit}
-                className="flex h-full flex-col bg-background"
+                className="flex h-full flex-col overflow-hidden bg-background"
             >
-                {/* --- HEADER STICKY --- */}
-                <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b bg-background/95 px-8 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
-                            <Truck className="h-6 w-6" />
+                {/* TOOLBAR */}
+                <div className="sticky top-0 z-20 flex shrink-0 flex-col border-b border-border bg-card">
+                    <div className="flex items-center justify-between px-6 py-3">
+                        <div className="flex items-center gap-2">
+                            <Button
+                                type="submit"
+                                disabled={processing}
+                                className="h-8 bg-blue-600 text-white shadow-md hover:bg-blue-700"
+                            >
+                                <Save className="mr-2 h-4 w-4" /> Registrar
+                                Comprobante
+                            </Button>
+                            <Button
+                                variant="outline"
+                                type="button"
+                                onClick={() => reset()}
+                                className="h-8"
+                            >
+                                <RotateCcw className="mr-2 h-4 w-4" /> Descartar
+                            </Button>
                         </div>
-                        <div className="flex flex-col">
-                            <h1 className="text-xl font-bold tracking-tight text-foreground">
-                                Nueva Compra
-                            </h1>
-                            <span className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
-                                Registro de Abastecimiento
-                            </span>
+                        <div className="flex h-8 items-center overflow-hidden rounded-sm border border-border bg-muted/30 text-[10px] font-bold uppercase">
+                            <div className="bg-blue-600/10 px-4 py-2 text-blue-600">
+                                Borrador
+                            </div>
+                            <div className="border-l border-border px-4 py-2 text-muted-foreground opacity-50">
+                                Registrado
+                            </div>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => reset()}
-                            disabled={processing}
-                        >
-                            <RotateCcw className="mr-2 h-4 w-4" /> Descartar
-                        </Button>
-                        <Button
-                            type="submit"
-                            disabled={processing}
-                            className="bg-blue-600 text-white shadow-md hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
-                        >
-                            <Save className="mr-2 h-4 w-4" /> Registrar
-                            Comprobante
-                        </Button>
                     </div>
                 </div>
 
-                <div className="w-full animate-in px-8 py-8 duration-500 fade-in slide-in-from-bottom-4">
-                    <Tabs defaultValue="general" className="w-full">
-                        <TabsList className="mb-8 w-full justify-start rounded-none border-b border-border bg-transparent p-0">
-                            <TabsTrigger
-                                value="general"
-                                className="relative rounded-none px-8 py-4 text-sm font-bold tracking-wide text-muted-foreground uppercase transition-colors hover:text-foreground data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:after:absolute data-[state=active]:after:bottom-0 data-[state=active]:after:left-0 data-[state=active]:after:h-[3px] data-[state=active]:after:w-full data-[state=active]:after:bg-blue-600 dark:data-[state=active]:text-blue-400 dark:data-[state=active]:after:bg-blue-400"
-                            >
-                                Información General
-                            </TabsTrigger>
-                            <TabsTrigger
-                                value="files"
-                                className="relative rounded-none px-8 py-4 text-sm font-bold tracking-wide text-muted-foreground uppercase transition-colors hover:text-foreground data-[state=active]:bg-transparent data-[state=active]:text-blue-600 data-[state=active]:after:absolute data-[state=active]:after:bottom-0 data-[state=active]:after:left-0 data-[state=active]:after:h-[3px] data-[state=active]:after:w-full data-[state=active]:after:bg-blue-600 dark:data-[state=active]:text-blue-400 dark:data-[state=active]:after:bg-blue-400"
-                            >
-                                Archivo Adjunto
-                            </TabsTrigger>
-                        </TabsList>
+                <div className="flex min-h-0 flex-1 overflow-hidden">
+                    <div className="custom-scrollbar flex-1 overflow-y-auto p-8">
+                        <div className="w-full space-y-8">
+                            <div className="flex items-center gap-3">
+                                <FileText className="h-8 w-8 text-blue-500 opacity-80" />
+                                <h1 className="text-3xl font-black tracking-tighter uppercase">
+                                    NUEVO COMPROBANTE
+                                </h1>
+                            </div>
 
-                        <TabsContent
-                            value="general"
-                            className="mt-6 animate-in duration-300 fade-in-50"
-                        >
-                            {/* --- GRID CABECERA --- */}
-                            <div className="mb-12 grid grid-cols-1 gap-x-20 gap-y-10 md:grid-cols-2">
-                                {/* COMERCIAL */}
-                                <div className="space-y-6">
-                                    <h3 className="flex items-center gap-2 border-b pb-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:border-neutral-800">
-                                        <Truck className="h-3 w-3" /> Datos
-                                        Comerciales
-                                    </h3>
-                                    <div className="space-y-4">
-                                        <div className="space-y-2">
-                                            <Label className="text-[10px] font-bold text-muted-foreground uppercase">
-                                                Proveedor
-                                            </Label>
-                                            <SearchableSelect
-                                                options={supplierOptions}
-                                                value={data.id_supplier}
-                                                onChange={(val) =>
-                                                    onFieldChange(
-                                                        'id_supplier',
-                                                        val,
+                            <div className="grid grid-cols-1 gap-x-20 gap-y-2 pt-4 xl:grid-cols-2">
+                                <div className="space-y-1">
+                                    <FormFieldRow label="Proveedor">
+                                        <SearchableSelect
+                                            options={supplierOptions}
+                                            value={data.id_supplier}
+                                            onChange={(val) =>
+                                                setData('id_supplier', val)
+                                            }
+                                        />
+                                        <InputError
+                                            message={errors.id_supplier}
+                                        />
+                                    </FormFieldRow>
+                                    <FormFieldRow label="Tipo Doc">
+                                        <Select
+                                            value={data.document_type}
+                                            onValueChange={(val) =>
+                                                setData('document_type', val)
+                                            }
+                                        >
+                                            <SelectTrigger
+                                                className={cleanInputClass}
+                                            >
+                                                <SelectValue placeholder="Seleccionar..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {documentTypes.map(
+                                                    (dt: any) => (
+                                                        <SelectItem
+                                                            key={dt.value}
+                                                            value={dt.value}
+                                                        >
+                                                            {dt.label}
+                                                        </SelectItem>
+                                                    ),
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                        <InputError
+                                            message={errors.document_type}
+                                        />
+                                    </FormFieldRow>
+                                    <div className="grid grid-cols-2 gap-8">
+                                        <FormFieldRow label="Serie">
+                                            <Input
+                                                value={data.series}
+                                                onChange={(e) =>
+                                                    setData(
+                                                        'series',
+                                                        e.target.value.toUpperCase(),
                                                     )
                                                 }
-                                                placeholder="Buscar proveedor..."
-                                                onCreate={() =>
-                                                    router.visit(
-                                                        suppliersRoute.create()
-                                                            .url,
+                                                placeholder="F001"
+                                                className={cn(
+                                                    cleanInputClass,
+                                                    'text-center font-bold',
+                                                )}
+                                            />
+                                        </FormFieldRow>
+                                        <FormFieldRow label="Número">
+                                            <Input
+                                                value={data.number}
+                                                onChange={(e) =>
+                                                    setData(
+                                                        'number',
+                                                        e.target.value,
                                                     )
+                                                }
+                                                placeholder="000123"
+                                                className={cn(
+                                                    cleanInputClass,
+                                                    'font-bold',
+                                                )}
+                                            />
+                                        </FormFieldRow>
+                                    </div>
+                                    {preloadedData?.order && (
+                                        <FormFieldRow label="Documento Origen">
+                                            <div className="relative">
+                                                <LinkIcon className="absolute top-2.5 left-0 h-3.5 w-3.5 text-blue-500" />
+                                                <Input
+                                                    value={
+                                                        preloadedData.order
+                                                            .po_code
+                                                    }
+                                                    disabled
+                                                    className={cn(
+                                                        cleanInputClass,
+                                                        'pl-6 font-mono font-bold text-blue-600 opacity-100',
+                                                    )}
+                                                />
+                                            </div>
+                                        </FormFieldRow>
+                                    )}
+                                </div>
+
+                                <div className="space-y-1">
+                                    <FormFieldRow label="Fecha Emisión">
+                                        <Popover>
+                                            <PopoverTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    className={cn(
+                                                        cleanInputClass,
+                                                        'text-left',
+                                                    )}
+                                                >
+                                                    <CalendarIcon className="mr-2 h-4 w-4 text-blue-600" />
+                                                    {format(
+                                                        data.issue_date,
+                                                        'PPP',
+                                                        { locale: es },
+                                                    )}
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent
+                                                className="w-auto p-0"
+                                                align="start"
+                                            >
+                                                <Calendar
+                                                    mode="single"
+                                                    selected={data.issue_date}
+                                                    onSelect={(d) =>
+                                                        d &&
+                                                        setData('issue_date', d)
+                                                    }
+                                                    disabled={(date) =>
+                                                        date > new Date()
+                                                    }
+                                                />
+                                            </PopoverContent>
+                                        </Popover>
+                                    </FormFieldRow>
+                                    <FormFieldRow label="Moneda">
+                                        <Select
+                                            value={data.currency}
+                                            onValueChange={handleCurrencyChange}
+                                        >
+                                            <SelectTrigger
+                                                className={cleanInputClass}
+                                            >
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="PEN">
+                                                    Soles (PEN)
+                                                </SelectItem>
+                                                <SelectItem value="USD">
+                                                    Dólares (USD)
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </FormFieldRow>
+                                    <FormFieldRow label="T. Cambio">
+                                        <div className="relative">
+                                            <ArrowRightLeft className="absolute top-2.5 left-0 h-3.5 w-3.5 text-muted-foreground" />
+                                            <Input
+                                                type="number"
+                                                step="0.001"
+                                                value={data.exchange_rate}
+                                                onChange={(e) =>
+                                                    setData(
+                                                        'exchange_rate',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                disabled={
+                                                    data.currency === 'PEN'
                                                 }
                                                 className={cn(
                                                     cleanInputClass,
-                                                    errors.id_supplier &&
-                                                        'border-red-500',
+                                                    'pl-8',
                                                 )}
                                             />
-                                            <InputError
-                                                message={errors.id_supplier}
-                                            />
                                         </div>
-                                        <div className="grid grid-cols-2 gap-6">
-                                            <div className="space-y-2">
-                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase">
-                                                    Moneda
-                                                </Label>
-                                                <Select
-                                                    value={data.currency}
-                                                    onValueChange={
-                                                        handleCurrencyChange
-                                                    }
-                                                >
-                                                    <SelectTrigger
-                                                        className={
-                                                            cleanInputClass
-                                                        }
-                                                    >
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="PEN">
-                                                            S/ Soles (PEN)
-                                                        </SelectItem>
-                                                        <SelectItem value="USD">
-                                                            $ Dólares (USD)
-                                                        </SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase">
-                                                    Tipo de Cambio
-                                                </Label>
-                                                <div className="relative">
-                                                    <ArrowRightLeft className="absolute top-2.5 left-0 h-3 w-3 text-muted-foreground" />
-                                                    <Input
-                                                        type="number"
-                                                        step="0.001"
-                                                        value={
-                                                            data.exchange_rate
-                                                        }
-                                                        onChange={(e) =>
-                                                            onFieldChange(
-                                                                'exchange_rate',
-                                                                e.target.value,
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            data.currency ===
-                                                            'PEN'
-                                                        }
-                                                        className={cn(
-                                                            cleanInputClass,
-                                                            'pl-6 font-mono',
-                                                        )}
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                {/* DOCUMENTO */}
-                                <div className="space-y-6">
-                                    <h3 className="flex items-center gap-2 border-b pb-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:border-neutral-800">
-                                        <FileText className="h-3 w-3" />{' '}
-                                        Detalles Documento
-                                    </h3>
-                                    <div className="space-y-4">
-                                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                                            <div className="space-y-2">
-                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase">
-                                                    Tipo Doc
-                                                </Label>
-                                                <Select
-                                                    value={data.document_type}
-                                                    onValueChange={(val) =>
-                                                        onFieldChange(
-                                                            'document_type',
-                                                            val,
-                                                        )
-                                                    }
-                                                >
-                                                    <SelectTrigger
-                                                        className={cn(
-                                                            cleanInputClass,
-                                                            errors.document_type &&
-                                                                'border-red-500',
-                                                        )}
-                                                    >
-                                                        <SelectValue placeholder="Seleccionar..." />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {documentTypes.map(
-                                                            (dt) => (
-                                                                <SelectItem
-                                                                    key={
-                                                                        dt.value
-                                                                    }
-                                                                    value={
-                                                                        dt.value
-                                                                    }
-                                                                >
-                                                                    {dt.label}
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                                <InputError
-                                                    message={
-                                                        errors.document_type
-                                                    }
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase">
-                                                    Fecha Emisión
-                                                </Label>
-                                                <Popover>
-                                                    <PopoverTrigger asChild>
-                                                        <Button
-                                                            variant="outline"
-                                                            className={cn(
-                                                                cleanInputClass,
-                                                                'text-left font-medium',
-                                                                errors.issue_date &&
-                                                                    'border-red-500',
-                                                            )}
-                                                        >
-                                                            <CalendarIcon className="mr-2 h-4 w-4 text-blue-600" />
-                                                            {data.issue_date
-                                                                ? format(
-                                                                      data.issue_date,
-                                                                      'Pp',
-                                                                      {
-                                                                          locale: es,
-                                                                      },
-                                                                  )
-                                                                : 'Elegir...'}
-                                                        </Button>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent
-                                                        className="w-auto p-0"
-                                                        align="start"
-                                                    >
-                                                        <Calendar
-                                                            mode="single"
-                                                            selected={
-                                                                data.issue_date
-                                                            }
-                                                            onSelect={(d) =>
-                                                                d &&
-                                                                onFieldChange(
-                                                                    'issue_date',
-                                                                    d,
-                                                                )
-                                                            }
-                                                            disabled={(date) =>
-                                                                date >
-                                                                new Date()
-                                                            }
-                                                        />
-                                                    </PopoverContent>
-                                                </Popover>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-6">
-                                            <div className="space-y-2">
-                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase">
-                                                    Serie
-                                                </Label>
-                                                <Input
-                                                    value={data.series}
-                                                    onChange={(e) =>
-                                                        onFieldChange(
-                                                            'series',
-                                                            e.target.value.toUpperCase(),
-                                                        )
-                                                    }
-                                                    className={cn(
-                                                        cleanInputClass,
-                                                        'text-center uppercase',
-                                                        errors.series &&
-                                                            'border-red-500',
-                                                    )}
-                                                    placeholder="F001"
-                                                />
-                                                <InputError
-                                                    message={errors.series}
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label className="text-[10px] font-bold text-muted-foreground uppercase">
-                                                    Número
-                                                </Label>
-                                                <Input
-                                                    value={data.number}
-                                                    onChange={(e) =>
-                                                        onFieldChange(
-                                                            'number',
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    className={cn(
-                                                        cleanInputClass,
-                                                        errors.number &&
-                                                            'border-red-500',
-                                                    )}
-                                                    placeholder="000123"
-                                                />
-                                                <InputError
-                                                    message={errors.number}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
+                                    </FormFieldRow>
                                 </div>
                             </div>
 
-                            {/* --- TABLA DE LÍNEAS --- */}
-                            <div className="space-y-4 pt-6">
-                                <h3
-                                    className={cn(
-                                        'flex items-center gap-2 border-b pb-2 text-sm font-bold tracking-tight uppercase',
-                                        hasDetailErrors
-                                            ? 'border-red-500 text-red-500'
-                                            : 'border-blue-100 text-slate-800 dark:text-neutral-200',
-                                    )}
-                                >
-                                    <ShoppingBag className="h-4 w-4" /> Líneas
-                                    de Compra ({data.currency})
-                                </h3>
+                            <div className="pt-6">
+                                <div className="mb-4 border-b border-border text-sm font-bold text-muted-foreground">
+                                    <span className="border-b-2 border-blue-600 pb-2 tracking-widest text-foreground uppercase">
+                                        Detalle del Comprobante
+                                    </span>
+                                </div>
                                 <div
                                     className={cn(
-                                        'overflow-hidden rounded-xl border bg-card shadow-sm dark:border-neutral-800',
-                                        hasDetailErrors &&
-                                            'border-red-500 ring-1 ring-red-500',
+                                        'overflow-hidden rounded-sm border bg-card shadow-sm',
+                                        errors.details && 'border-red-500',
                                     )}
                                 >
-                                    <Table>
-                                        <TableHeader className="bg-muted/30 dark:bg-neutral-900">
-                                            <TableRow className="dark:border-neutral-800">
-                                                <TableHead className="w-[50px] text-center text-[10px] font-bold uppercase">
-                                                    Tipo
-                                                </TableHead>
-                                                <TableHead className="w-[30%] text-center text-[10px] font-bold uppercase">
+                                    <Table className="w-full table-fixed">
+                                        <TableHeader className="bg-muted/30">
+                                            <TableRow>
+                                                <TableHead className="w-[55%] px-4 text-[10px] font-bold uppercase">
                                                     Producto / Descripción
                                                 </TableHead>
-                                                <TableHead className="w-[8%] text-center text-[10px] font-bold uppercase">
+                                                <TableHead className="w-[10%] text-center text-[10px] font-bold uppercase">
                                                     Cant.
                                                 </TableHead>
-                                                <TableHead className="w-[12%] text-center text-[10px] font-bold uppercase">
-                                                    Costo ({symbol})
+                                                <TableHead className="w-[15%] px-4 text-center text-[10px] font-bold uppercase">
+                                                    Costo Unit ({symbol})
                                                 </TableHead>
-                                                <TableHead className="w-[12%] text-center text-[10px] font-bold uppercase">
-                                                    P. Venta (S/)
+                                                <TableHead className="w-[15%] px-4 text-right text-[10px] font-bold uppercase">
+                                                    Línea Subtotal
                                                 </TableHead>
-                                                <TableHead className="w-[12%] text-center text-[10px] font-bold text-blue-600 uppercase">
-                                                    {data.currency === 'USD'
-                                                        ? 'Conv. (S/)'
-                                                        : ''}
-                                                </TableHead>
-                                                <TableHead className="w-[8%] text-center text-[10px] font-bold uppercase">
-                                                    Margen
-                                                </TableHead>
-                                                <TableHead className="w-[12%] text-center text-[10px] font-bold uppercase">
-                                                    Subtotal ({symbol})
-                                                </TableHead>
-                                                <TableHead className="w-[40px]"></TableHead>
+                                                <TableHead className="w-[50px]"></TableHead>
                                             </TableRow>
                                         </TableHeader>
-                                        <TableBody>
+                                        <TableBody className="divide-y divide-border/50">
                                             {rows.map((row) => (
                                                 <TableRow
                                                     key={row.id}
-                                                    className="hover:bg-muted/20 dark:border-neutral-800"
+                                                    className="group transition-colors hover:bg-muted/5"
                                                 >
-                                                    <TableCell className="p-2 text-center">
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className={cn(
-                                                                'h-8 w-8 rounded-full',
-                                                                row.type ===
-                                                                    'service'
-                                                                    ? 'bg-purple-100 text-purple-600'
-                                                                    : 'bg-blue-50 text-blue-600',
-                                                            )}
-                                                            onClick={() =>
-                                                                toggleRowType(
+                                                    <TableCell className="px-4 py-2">
+                                                        <SearchableSelect
+                                                            options={
+                                                                productOptions
+                                                            }
+                                                            value={
+                                                                row.id_product ||
+                                                                ''
+                                                            }
+                                                            onChange={(val) =>
+                                                                updateRow(
                                                                     row.id,
+                                                                    'id_product',
+                                                                    val,
                                                                 )
                                                             }
-                                                        >
-                                                            {row.type ===
-                                                            'service' ? (
-                                                                <Briefcase className="h-4 w-4" />
-                                                            ) : (
-                                                                <Box className="h-4 w-4" />
-                                                            )}
-                                                        </Button>
+                                                            placeholder="Seleccionar producto..."
+                                                            className="h-8 border-transparent"
+                                                        />
                                                     </TableCell>
-                                                    <TableCell className="p-2">
-                                                        {row.type ===
-                                                        'product' ? (
-                                                            <SearchableSelect
-                                                                options={productOptions.filter(
-                                                                    (o) =>
-                                                                        !selectedProductIds.includes(
-                                                                            o.value,
-                                                                        ) ||
-                                                                        o.value ===
-                                                                            row.id_product,
-                                                                )}
-                                                                value={
-                                                                    row.id_product ||
-                                                                    ''
-                                                                }
-                                                                onChange={(
-                                                                    val,
-                                                                ) => {
-                                                                    const opt =
-                                                                        productOptions.find(
-                                                                            (
-                                                                                o,
-                                                                            ) =>
-                                                                                o.value ===
-                                                                                val,
-                                                                        );
-                                                                    updateRow(
-                                                                        row.id,
-                                                                        'id_product',
-                                                                        val,
-                                                                    );
-                                                                    updateRow(
-                                                                        row.id,
-                                                                        'sale_price',
-                                                                        opt?.salePrice ||
-                                                                            0,
-                                                                    );
-                                                                }}
-                                                                onCreate={() =>
-                                                                    router.visit(
-                                                                        productRoutes.create()
-                                                                            .url,
-                                                                    )
-                                                                }
-                                                                placeholder="Buscar..."
-                                                                className={
-                                                                    cleanInputClass
-                                                                }
-                                                            />
-                                                        ) : (
-                                                            <Input
-                                                                value={
-                                                                    row.description
-                                                                }
-                                                                onChange={(e) =>
-                                                                    updateRow(
-                                                                        row.id,
-                                                                        'description',
-                                                                        e.target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                                placeholder="Descripción..."
-                                                                className={
-                                                                    cleanInputClass
-                                                                }
-                                                            />
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="p-2">
+                                                    <TableCell className="px-2 py-2">
                                                         <Input
                                                             type="number"
                                                             className={
@@ -803,15 +523,14 @@ export default function CreateReceipt({
                                                             }
                                                         />
                                                     </TableCell>
-
-                                                    {/* CELDA DE COSTO CON CONVERSIÓN VISUAL SI ES USD */}
-                                                    <TableCell className="p-2">
+                                                    <TableCell className="px-4 py-2">
                                                         <Input
                                                             type="number"
                                                             step="0.01"
-                                                            className={
-                                                                tableInputClass
-                                                            }
+                                                            className={cn(
+                                                                tableInputClass,
+                                                                'text-blue-600',
+                                                            )}
                                                             value={
                                                                 row.unit_price
                                                             }
@@ -826,93 +545,19 @@ export default function CreateReceipt({
                                                                 )
                                                             }
                                                         />
-                                                        {data.currency ===
-                                                            'USD' &&
-                                                            row.type ===
-                                                                'product' &&
-                                                            row.unit_price >
-                                                                0 && (
-                                                                <div className="mt-1 animate-in text-right font-mono text-[9px] font-bold text-amber-600 fade-in slide-in-from-top-1">
-                                                                    S/{' '}
-                                                                    {(
-                                                                        row.unit_price *
-                                                                        Number(
-                                                                            data.exchange_rate,
-                                                                        )
-                                                                    ).toFixed(
-                                                                        2,
-                                                                    )}
-                                                                </div>
-                                                            )}
                                                     </TableCell>
-
-                                                    <TableCell className="p-2 text-right">
-                                                        {row.type ===
-                                                        'product' ? (
-                                                            <Input
-                                                                type="number"
-                                                                step="0.01"
-                                                                className={
-                                                                    tableInputClass
-                                                                }
-                                                                value={
-                                                                    row.sale_price
-                                                                }
-                                                                onChange={(e) =>
-                                                                    updateRow(
-                                                                        row.id,
-                                                                        'sale_price',
-                                                                        parseFloat(
-                                                                            e
-                                                                                .target
-                                                                                .value,
-                                                                        ) || 0,
-                                                                    )
-                                                                }
-                                                            />
-                                                        ) : (
-                                                            '-'
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="p-2 text-center font-mono text-[11px] font-bold text-amber-600">
-                                                        {data.currency ===
-                                                            'USD' &&
-                                                        row.type === 'product'
-                                                            ? `S/ ${(row.unit_price * Number(data.exchange_rate)).toFixed(2)}`
-                                                            : ''}
-                                                    </TableCell>
-                                                    <TableCell className="p-2 text-center">
-                                                        {row.type ===
-                                                            'product' && (
-                                                            <MarginIndicator
-                                                                cost={
-                                                                    row.unit_price
-                                                                }
-                                                                salePrice={
-                                                                    row.sale_price
-                                                                }
-                                                                currency={
-                                                                    data.currency
-                                                                }
-                                                                exchangeRate={Number(
-                                                                    data.exchange_rate,
-                                                                )}
-                                                            />
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="p-2 text-right font-bold tabular-nums">
+                                                    <TableCell className="px-4 py-2 text-right font-bold tabular-nums">
                                                         {symbol}{' '}
                                                         {(
                                                             row.quantity *
                                                             row.unit_price
                                                         ).toFixed(2)}
                                                     </TableCell>
-                                                    <TableCell className="p-2 text-center">
+                                                    <TableCell className="p-0 text-center">
                                                         <Button
-                                                            type="button"
                                                             variant="ghost"
                                                             size="icon"
-                                                            className="h-7 w-7 text-muted-foreground hover:text-red-600"
+                                                            className="h-7 w-7 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-red-600"
                                                             onClick={() =>
                                                                 rows.length >
                                                                     1 &&
@@ -933,10 +578,8 @@ export default function CreateReceipt({
                                         </TableBody>
                                     </Table>
                                 </div>
-                                {/* --- FOOTER TOTALES --- */}
-                                <div className="flex items-start justify-between pt-6">
+                                <div className="flex items-start justify-between pt-4 pb-12">
                                     <Button
-                                        type="button"
                                         variant="ghost"
                                         size="sm"
                                         onClick={() =>
@@ -944,172 +587,78 @@ export default function CreateReceipt({
                                                 ...rows,
                                                 {
                                                     id: Date.now(),
-                                                    type: 'product',
                                                     id_product: '',
                                                     description: '',
                                                     quantity: 1,
                                                     unit_price: 0,
-                                                    sale_price: 0,
                                                 },
                                             ])
                                         }
-                                        className="text-[10px] font-bold tracking-widest text-blue-600 uppercase hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                                        className="text-[10px] font-bold text-blue-600 uppercase hover:bg-blue-50"
                                     >
                                         <Plus className="mr-2 h-4 w-4" /> Añadir
-                                        Ítem
+                                        Línea
                                     </Button>
-                                    <div className="w-full max-w-sm space-y-3 rounded-xl border bg-muted/10 p-6 dark:border-neutral-800">
-                                        <div className="flex justify-between text-sm font-medium text-muted-foreground">
+
+                                    <div className="w-full max-w-xs space-y-2 rounded-xl border bg-muted/10 p-5 shadow-inner">
+                                        <div className="flex justify-between text-xs font-medium text-muted-foreground uppercase">
                                             <span>Base Imponible</span>
-                                            <span>
-                                                {symbol} {subTotal.toFixed(2)}
+                                            <span className="font-mono">
+                                                {symbol}{' '}
+                                                {baseImponible.toFixed(2)}
                                             </span>
                                         </div>
-                                        <div className="flex justify-between text-sm font-medium text-muted-foreground">
+                                        <div className="flex justify-between text-xs font-medium text-muted-foreground uppercase">
                                             <span>IGV (18%)</span>
-                                            <span>
+                                            <span className="font-mono">
                                                 {symbol} {igvAmount.toFixed(2)}
                                             </span>
                                         </div>
-                                        <div className="mt-4 flex justify-between border-t border-blue-200 pt-4 dark:border-neutral-700">
-                                            <span className="text-lg font-black uppercase">
-                                                Total Compra
-                                            </span>
-                                            <span className="text-2xl font-black text-blue-600 dark:text-blue-400">
+                                        <div className="flex justify-between border-t border-blue-200 pt-3 text-lg font-black tracking-tighter text-blue-600 uppercase">
+                                            <span>Total</span>
+                                            <span className="tabular-nums">
                                                 {symbol}{' '}
                                                 {totalAmount.toFixed(2)}
                                             </span>
                                         </div>
-                                        {data.currency === 'USD' && (
-                                            <div className="mt-2 rounded-md bg-emerald-50 p-2 dark:bg-emerald-900/20">
-                                                <div className="flex justify-between text-xs text-emerald-700 dark:text-emerald-400">
-                                                    <span className="font-medium uppercase">
-                                                        Total en Soles (T.C.{' '}
-                                                        {data.exchange_rate})
-                                                    </span>
-                                                    <span className="text-lg font-black">
-                                                        S/{' '}
-                                                        {totalInSoles.toFixed(
-                                                            2,
-                                                        )}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
                             </div>
-                        </TabsContent>
-
-                        <TabsContent
-                            value="files"
-                            className="mt-6 animate-in duration-300 fade-in-50"
-                        >
-                            <div className="mx-auto max-w-2xl space-y-6">
-                                <div className="rounded-xl border-2 border-dashed p-12 text-center dark:border-neutral-800">
-                                    <div className="flex flex-col items-center gap-4">
-                                        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/20">
-                                            <FileText className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <h4 className="text-sm font-bold tracking-tight uppercase">
-                                                Cargar Comprobante Digital
-                                            </h4>
-                                            <p className="text-xs text-muted-foreground">
-                                                PDF o imagen (JPG/PNG).
-                                            </p>
-                                        </div>
-                                        <div className="mt-4 w-full">
-                                            <div
-                                                className={cn(
-                                                    'relative flex items-center justify-center gap-3 rounded-lg border border-muted bg-muted/5 p-4 transition-all hover:bg-blue-50/50 dark:border-neutral-800',
-                                                    data.file &&
-                                                        'border-emerald-500/50 bg-emerald-50/30',
-                                                )}
-                                            >
-                                                <Paperclip
-                                                    className={cn(
-                                                        'h-5 w-5',
-                                                        data.file
-                                                            ? 'text-emerald-600'
-                                                            : 'text-blue-600',
-                                                    )}
-                                                />
-                                                <span className="text-sm font-bold">
-                                                    {data.file ? (
-                                                        <span className="block max-w-[300px] truncate text-emerald-700">
-                                                            {data.file.name}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-muted-foreground">
-                                                            Seleccionar
-                                                            archivo...
-                                                        </span>
-                                                    )}
-                                                </span>
-                                                <input
-                                                    type="file"
-                                                    accept=".pdf,.jpg,.jpeg,.png"
-                                                    className="absolute inset-0 z-10 cursor-pointer opacity-0"
-                                                    onChange={(e) =>
-                                                        onFieldChange(
-                                                            'file',
-                                                            e.target
-                                                                .files?.[0] ||
-                                                                null,
-                                                        )
-                                                    }
-                                                />
-                                                {data.file && (
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="relative z-20 h-8 w-8 text-red-500 hover:bg-red-100"
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            e.stopPropagation();
-                                                            onFieldChange(
-                                                                'file',
-                                                                null,
-                                                            );
-                                                        }}
-                                                    >
-                                                        <X className="h-4 w-4" />
-                                                    </Button>
-                                                )}
-                                            </div>
-                                            <InputError
-                                                message={errors.file}
-                                                className="mt-2 text-center"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </TabsContent>
-                    </Tabs>
+                        </div>
+                    </div>
+                    {/* CHATTER (DUMMY) */}
+                    <div className="hidden h-full w-[380px] shrink-0 flex-col border-l border-border bg-muted/10 xl:flex">
+                        <div className="border-b bg-card p-4 shadow-sm">
+                            <span className="flex items-center gap-2 text-xs font-black tracking-widest text-muted-foreground uppercase">
+                                <History className="h-3.5 w-3.5" /> Historial
+                            </span>
+                        </div>
+                        <div className="flex flex-1 items-center justify-center p-8 opacity-20">
+                            <p className="text-xs font-bold tracking-widest uppercase italic">
+                                Actividad disponible tras registro
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </form>
 
-            {/* ALERTA FLOTANTE */}
             {formError && (
-                <div className="fixed top-6 right-6 z-[100] w-auto max-w-md animate-in fade-in slide-in-from-top-2">
+                <div className="fixed top-6 right-6 z-[100] w-auto animate-in fade-in slide-in-from-top-2">
                     <Alert
                         variant="destructive"
-                        className="border-2 border-red-500 bg-white shadow-2xl dark:bg-red-950"
+                        className="border-2 border-red-500 bg-white shadow-2xl"
                     >
                         <AlertCircle className="h-4 w-4" />
-                        <AlertTitle className="ml-2 font-bold text-red-700 dark:text-white">
+                        <AlertTitle className="ml-2 font-bold text-red-700">
                             Atención
                         </AlertTitle>
-                        <AlertDescription className="ml-2 text-red-600/90 dark:text-red-100/90">
+                        <AlertDescription className="ml-2">
                             {formError}
                         </AlertDescription>
                         <Button
                             variant="ghost"
                             size="icon"
-                            className="absolute top-2 right-2 text-red-500 hover:bg-red-100"
+                            className="absolute top-2 right-2 text-red-500"
                             onClick={() => setFormError(null)}
                         >
                             <X className="h-4 w-4" />

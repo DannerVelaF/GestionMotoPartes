@@ -28,6 +28,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
+import { cn } from '@/lib/utils';
 import receiptsRoute from '@/routes/receipts';
 import { Head, router } from '@inertiajs/react';
 import { RowSelectionState } from '@tanstack/react-table';
@@ -37,6 +38,7 @@ import {
     ChevronDown,
     ChevronLeft,
     ChevronRight,
+    Link as LinkIcon,
     Plus,
     Search,
     Trash2,
@@ -51,6 +53,7 @@ import React, {
 } from 'react';
 import { useDebounce } from 'use-debounce';
 import { Columns, Receipt } from './Columns';
+
 interface PaginatedReceipts {
     data: Receipt[];
     current_page: number;
@@ -83,10 +86,7 @@ export default function ListReceipts({ receipts, filters }: Props) {
     const perPageInputRef = useRef<HTMLInputElement>(null);
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
 
-    // Estado para controlar qué grupos están expandidos (por defecto todos abiertos)
-    const [expandedGroups, setExpandedGroups] = useState<
-        Record<string, boolean>
-    >({});
+    const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
     // --- EFECTOS ---
     useEffect(() => {
@@ -99,7 +99,6 @@ export default function ListReceipts({ receipts, filters }: Props) {
         const currentGroup = filters.group_by || 'none';
         if (groupBy !== currentGroup) {
             updateParams({ group_by: groupBy, page: 1 });
-            // Al cambiar agrupación, reseteamos selección
             setRowSelection({});
         }
     }, [groupBy]);
@@ -147,22 +146,12 @@ export default function ListReceipts({ receipts, filters }: Props) {
     };
 
     const executeBulkDelete = () => {
-        // Obtenemos IDs basados en la selección (sea agrupada o plana)
-        // Nota: En modo agrupado, rowSelection puede necesitar lógica extra si usas checkboxes personalizados
-        // Para simplificar, asumimos que rowSelection contiene los IDs de recibos directamente
-
-        // Si usas el DataTable estándar, rowSelection tiene indices.
-        // Si usamos la vista agrupada manual, gestionaremos IDs directos.
-
         let selectedIds: number[] = [];
-
         if (groupBy === 'none') {
-            // Lógica DataTable (Indices)
             selectedIds = Object.keys(rowSelection).map(
                 (idx) => receipts.data[Number(idx)].id_receipt,
             );
         } else {
-            // Lógica Custom (IDs directos)
             selectedIds = Object.keys(rowSelection).map(Number);
         }
 
@@ -179,7 +168,7 @@ export default function ListReceipts({ receipts, filters }: Props) {
     const toggleGroup = (groupKey: string) => {
         setExpandedGroups((prev) => ({
             ...prev,
-            [groupKey]: prev[groupKey] === undefined ? false : !prev[groupKey], // Toggle
+            [groupKey]: prev[groupKey] === undefined ? false : !prev[groupKey],
         }));
     };
 
@@ -195,12 +184,10 @@ export default function ListReceipts({ receipts, filters }: Props) {
     // --- AGRUPACIÓN DE DATOS ---
     const groupedData = useMemo(() => {
         if (groupBy === 'none') return null;
-
         const groups: Record<string, { items: Receipt[]; total: number }> = {};
 
         receipts.data.forEach((receipt) => {
             let key = 'Otros';
-
             if (groupBy === 'document_type') {
                 const mapNames: Record<string, string> = {
                     factura: 'Facturas',
@@ -209,13 +196,11 @@ export default function ListReceipts({ receipts, filters }: Props) {
                     receipt: 'Boletas de Venta',
                     nota_credito: 'Notas de Crédito',
                 };
-                // Normalizamos a minúsculas por si acaso
                 key = mapNames[receipt.document_type.toLowerCase()] || 'Otros';
             } else if (groupBy === 'supplier') {
                 key = receipt.supplier?.company_name || 'Sin Proveedor';
             } else if (groupBy === 'month') {
                 const date = new Date(receipt.issue_date);
-                // Asegúrate de que la fecha sea válida antes de formatear
                 if (!isNaN(date.getTime())) {
                     key = format(date, 'MMMM yyyy', { locale: es });
                     key = key.charAt(0).toUpperCase() + key.slice(1);
@@ -228,13 +213,11 @@ export default function ListReceipts({ receipts, filters }: Props) {
             groups[key].items.push(receipt);
             groups[key].total += Number(receipt.total_amount);
         });
-
         return groups;
     }, [receipts.data, groupBy]);
 
     const selectedCount = Object.keys(rowSelection).length;
-    const hidePaginationControls =
-        receipts.total <= receipts.per_page || receipts.total === 0;
+    const hidePaginationControls = receipts.total <= receipts.per_page || receipts.total === 0;
 
     // --- RENDERIZADO DEL CONTENIDO PRINCIPAL ---
     const renderContent = () => {
@@ -266,139 +249,87 @@ export default function ListReceipts({ receipts, filters }: Props) {
                     <TableHeader className="bg-muted/50 dark:bg-neutral-800/50">
                         <TableRow className="border-b hover:bg-transparent dark:border-neutral-800">
                             <TableHead className="w-[50px]"></TableHead>
-                            <TableHead className="text-xs font-bold tracking-wider uppercase">
-                                Fecha
-                            </TableHead>
-                            <TableHead className="text-xs font-bold tracking-wider uppercase">
-                                Documento
-                            </TableHead>
-                            <TableHead className="text-xs font-bold tracking-wider uppercase">
-                                Proveedor
-                            </TableHead>
-                            <TableHead className="text-xs font-bold tracking-wider uppercase">
-                                Referencia
-                            </TableHead>
-                            <TableHead className="text-right text-xs font-bold tracking-wider uppercase">
-                                Total
-                            </TableHead>
+                            <TableHead className="text-xs font-bold tracking-wider uppercase">Fecha</TableHead>
+                            <TableHead className="text-xs font-bold tracking-wider uppercase">Documento</TableHead>
+                            <TableHead className="text-xs font-bold tracking-wider uppercase">Proveedor</TableHead>
+                            <TableHead className="text-xs font-bold tracking-wider uppercase">Referencia</TableHead>
+                            <TableHead className="text-xs font-bold tracking-wider uppercase">Origen</TableHead>
+                            <TableHead className="text-right text-xs font-bold tracking-wider uppercase">Total</TableHead>
                             <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {Object.entries(groupedData).map(
-                            ([groupName, { items, total }]) => {
-                                const isExpanded =
-                                    expandedGroups[groupName] !== false;
+                        {Object.entries(groupedData).map(([groupName, { items, total }]) => {
+                            const isExpanded = expandedGroups[groupName] !== false;
+                            return (
+                                <React.Fragment key={groupName}>
+                                    <TableRow
+                                        className="cursor-pointer border-b bg-muted/30 font-medium transition-colors hover:bg-muted/50 dark:border-neutral-800 dark:bg-neutral-800/30"
+                                        onClick={() => toggleGroup(groupName)}
+                                    >
+                                        <TableCell className="py-3 pl-4">
+                                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                        </TableCell>
+                                        <TableCell colSpan={5} className="font-bold text-foreground">
+                                            {groupName} <span className="ml-2 text-xs font-normal text-muted-foreground">({items.length} registros)</span>
+                                        </TableCell>
+                                        <TableCell className="text-right font-black text-blue-700 tabular-nums dark:text-blue-400">
+                                            S/ {total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                                        </TableCell>
+                                        <TableCell></TableCell>
+                                    </TableRow>
 
-                                return (
-                                    <React.Fragment key={groupName}>
-                                        {/* --- FILA DE GRUPO (CABECERA) --- */}
+                                    {isExpanded && items.map((receipt) => (
                                         <TableRow
-                                            className="cursor-pointer border-b bg-muted/30 font-medium transition-colors hover:bg-muted/50 dark:border-neutral-800 dark:bg-neutral-800/30 dark:hover:bg-neutral-800/50"
-                                            onClick={() =>
-                                                toggleGroup(groupName)
-                                            }
+                                            key={receipt.id_receipt}
+                                            className="cursor-pointer border-b last:border-0 hover:bg-muted/40 dark:border-neutral-800/50"
+                                            onClick={() => handleCardClick(receipt)}
                                         >
-                                            <TableCell className="py-3 pl-4">
-                                                {isExpanded ? (
-                                                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                            <TableCell className="py-3 pl-4" onClick={(e) => e.stopPropagation()}>
+                                                <Checkbox
+                                                    checked={!!rowSelection[receipt.id_receipt]}
+                                                    onCheckedChange={() => toggleSelectionCustom(receipt.id_receipt)}
+                                                />
+                                            </TableCell>
+                                            <TableCell className="text-sm text-foreground/80">
+                                                {format(new Date(receipt.issue_date), 'dd/MM/yyyy')}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="w-fit rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] font-bold text-muted-foreground dark:bg-neutral-800 uppercase">
+                                                        {receipt.receipt_code}
+                                                    </span>
+                                                    <span className="text-[10px] font-black tracking-tighter text-blue-600/70 uppercase">
+                                                        {receipt.document_type}
+                                                    </span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-sm font-medium text-foreground">
+                                                {receipt.supplier?.company_name}
+                                            </TableCell>
+                                            <TableCell className="text-[11px] font-bold tracking-tight text-foreground/70 uppercase">
+                                                {receipt.series}-{receipt.number}
+                                            </TableCell>
+                                            {/* ✅ NUEVA COLUMNA DE ORIGEN (OC) */}
+                                            <TableCell>
+                                                {receipt.purchase_order ? (
+                                                    <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase">
+                                                        <LinkIcon className="h-3 w-3" />
+                                                        {receipt.purchase_order.po_code}
+                                                    </div>
                                                 ) : (
-                                                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                                    <span className="text-[10px] text-muted-foreground italic">S/O</span>
                                                 )}
                                             </TableCell>
-                                            <TableCell
-                                                colSpan={4}
-                                                className="font-bold text-foreground"
-                                            >
-                                                {groupName}{' '}
-                                                <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                                    ({items.length} registros)
-                                                </span>
-                                            </TableCell>
-                                            <TableCell className="text-right font-black text-blue-700 tabular-nums dark:text-blue-400">
-                                                S/{' '}
-                                                {total.toLocaleString('es-PE', {
-                                                    minimumFractionDigits: 2,
-                                                })}
+                                            <TableCell className="text-right font-bold text-foreground tabular-nums">
+                                                S/ {Number(receipt.total_amount).toFixed(2)}
                                             </TableCell>
                                             <TableCell></TableCell>
                                         </TableRow>
-
-                                        {/* --- FILAS DE DATOS (ITEMS) --- */}
-                                        {isExpanded &&
-                                            items.map((receipt) => (
-                                                <TableRow
-                                                    key={receipt.id_receipt}
-                                                    className="cursor-pointer border-b last:border-0 hover:bg-muted/40 dark:border-neutral-800/50 dark:hover:bg-neutral-800/20"
-                                                    onClick={() =>
-                                                        handleCardClick(receipt)
-                                                    }
-                                                >
-                                                    <TableCell
-                                                        className="py-3 pl-4"
-                                                        onClick={(e) =>
-                                                            e.stopPropagation()
-                                                        }
-                                                    >
-                                                        <Checkbox
-                                                            checked={
-                                                                !!rowSelection[
-                                                                    receipt
-                                                                        .id_receipt
-                                                                ]
-                                                            }
-                                                            onCheckedChange={() =>
-                                                                toggleSelectionCustom(
-                                                                    receipt.id_receipt,
-                                                                )
-                                                            }
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell className="text-sm text-foreground/80">
-                                                        {format(
-                                                            new Date(
-                                                                receipt.issue_date,
-                                                            ),
-                                                            'dd/MM/yyyy',
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <div className="flex flex-col gap-1">
-                                                            <span className="w-fit rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] font-bold text-muted-foreground dark:bg-neutral-800">
-                                                                {
-                                                                    receipt.receipt_code
-                                                                }
-                                                            </span>
-                                                            <span className="text-[10px] font-black tracking-tighter text-blue-600/70 uppercase dark:text-blue-400/70">
-                                                                {
-                                                                    receipt.document_type
-                                                                }
-                                                            </span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-sm font-medium text-foreground">
-                                                        {
-                                                            receipt.supplier
-                                                                ?.company_name
-                                                        }
-                                                    </TableCell>
-                                                    <TableCell className="text-[11px] tracking-tight text-muted-foreground uppercase">
-                                                        {receipt.series}-
-                                                        {receipt.number}
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-bold text-foreground tabular-nums">
-                                                        S/{' '}
-                                                        {Number(
-                                                            receipt.total_amount,
-                                                        ).toFixed(2)}
-                                                    </TableCell>
-                                                    <TableCell></TableCell>
-                                                </TableRow>
-                                            ))}
-                                    </React.Fragment>
-                                );
-                            },
-                        )}
+                                    ))}
+                                </React.Fragment>
+                            );
+                        })}
                     </TableBody>
                 </Table>
             </div>
@@ -408,195 +339,60 @@ export default function ListReceipts({ receipts, filters }: Props) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Comprobantes" />
-
-            {/* ALERT DIALOG */}
-            <AlertDialog
-                open={isDeleteAlertOpen}
-                onOpenChange={setIsDeleteAlertOpen}
-            >
+            <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Se eliminarán <strong>{selectedCount}</strong>{' '}
-                            comprobantes seleccionados permanentemente.
+                            Se eliminarán <strong>{selectedCount}</strong> comprobantes seleccionados permanentemente.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={executeBulkDelete}
-                            className="bg-red-600 text-white hover:bg-red-700"
-                        >
-                            Sí, eliminar
-                        </AlertDialogAction>
+                        <AlertDialogAction onClick={executeBulkDelete} className="bg-red-600 text-white hover:bg-red-700">Sí, eliminar</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
 
             <div className="flex h-full flex-1 flex-col overflow-hidden">
-                {/* --- TOOLBAR SUPERIOR --- */}
-                <div
-                    className={`flex items-center justify-between border-b px-6 py-3 transition-colors duration-300 ${selectedCount > 0 ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-background'}`}
-                >
+                <div className={cn("flex items-center justify-between border-b px-6 py-3 transition-colors duration-300", selectedCount > 0 ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-background')}>
                     {selectedCount > 0 ? (
-                        // MODO SELECCIÓN ACTIVADO
-                        <div className="flex w-full animate-in items-center justify-between fade-in slide-in-from-top-1">
+                        <div className="flex w-full items-center justify-between">
                             <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2 rounded-md bg-purple-100 px-3 py-1 text-blue-700 dark:bg-blue-900 dark:text-blue-100">
-                                    <span className="font-bold">
-                                        {selectedCount}
-                                    </span>
-                                    <span className="text-sm font-medium">
-                                        seleccionado
-                                        {selectedCount > 1 ? 's' : ''}
-                                    </span>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="ml-2 h-4 w-4 rounded-full hover:bg-purple-200"
-                                        onClick={() => setRowSelection({})}
-                                    >
-                                        <X className="h-3 w-3" />
-                                    </Button>
+                                <div className="flex items-center gap-2 rounded-md bg-purple-100 px-3 py-1 text-blue-700 dark:bg-blue-900 dark:text-blue-100 font-bold">
+                                    {selectedCount} seleccionado{selectedCount > 1 ? 's' : ''}
+                                    <Button variant="ghost" size="icon" className="ml-2 h-4 w-4" onClick={() => setRowSelection({})}><X className="h-3 w-3" /></Button>
                                 </div>
-                                <div className="mx-2 h-6 w-px bg-gray-300" />
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={confirmBulkDelete}
-                                >
-                                    <Trash2 className="mr-2 h-4 w-4 text-red-500" />{' '}
-                                    Eliminar
-                                </Button>
+                                <div className="h-6 w-px bg-gray-300" />
+                                <Button variant="secondary" size="sm" onClick={confirmBulkDelete}><Trash2 className="mr-2 h-4 w-4 text-red-500" /> Eliminar</Button>
                             </div>
                         </div>
                     ) : (
-                        // MODO NORMAL (BÚSQUEDA Y FILTROS)
-                        <div className="flex w-full animate-in items-center justify-between fade-in slide-in-from-bottom-1">
+                        <div className="flex w-full items-center justify-between">
                             <div className="flex items-center gap-4">
-                                <Button
-                                    className="bg-blue-700 font-medium text-white shadow-sm hover:bg-blue-800"
-                                    onClick={() =>
-                                        router.visit(receiptsRoute.create().url)
-                                    }
-                                >
-                                    <Plus className="mr-2 h-4 w-4" /> Nuevo
-                                </Button>
-                                <h1 className="text-lg font-semibold text-foreground">
-                                    Comprobantes
-                                </h1>
+                                <Button className="bg-blue-700 text-white hover:bg-blue-800" onClick={() => router.visit(receiptsRoute.create().url)}><Plus className="mr-2 h-4 w-4" /> Nuevo</Button>
+                                <h1 className="text-lg font-semibold uppercase tracking-tight">Comprobantes</h1>
                             </div>
-
                             <div className="flex items-center gap-4">
-                                {/* Selector Agrupar */}
-                                <div className="w-44">
-                                    <Select
-                                        value={groupBy}
-                                        onValueChange={(val) => setGroupBy(val)}
-                                    >
-                                        <SelectTrigger className="h-9 border-muted bg-muted/30 text-xs font-medium">
-                                            <SelectValue placeholder="Agrupar por" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="none">
-                                                Sin agrupar
-                                            </SelectItem>
-                                            <SelectItem value="month">
-                                                Mes de Emisión
-                                            </SelectItem>
-                                            <SelectItem value="supplier">
-                                                Proveedor
-                                            </SelectItem>
-                                            <SelectItem value="document_type">
-                                                Tipo Documento
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-
-                                {/* Buscador */}
+                                <Select value={groupBy} onValueChange={setGroupBy}>
+                                    <SelectTrigger className="h-9 w-44 bg-muted/30 text-xs font-medium"><SelectValue placeholder="Agrupar por" /></SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">Sin agrupar</SelectItem>
+                                        <SelectItem value="month">Mes de Emisión</SelectItem>
+                                        <SelectItem value="supplier">Proveedor</SelectItem>
+                                        <SelectItem value="document_type">Tipo Documento</SelectItem>
+                                    </SelectContent>
+                                </Select>
                                 <div className="relative w-64">
-                                    <Search className="absolute top-2.5 left-2 h-4 w-4 text-muted-foreground" />
-                                    <Input
-                                        type="text"
-                                        placeholder="Buscar..."
-                                        className="h-9 border-muted bg-muted/30 pl-8 focus-visible:ring-1"
-                                        value={searchTerm}
-                                        onChange={(e) =>
-                                            setSearchTerm(e.target.value)
-                                        }
-                                    />
+                                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                                    <Input placeholder="Buscar..." className="h-9 pl-8 bg-muted/30" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                                 </div>
-
-                                {/* Paginación */}
-                                <div className="flex items-center gap-2 border-l pl-4 text-sm whitespace-nowrap text-muted-foreground tabular-nums">
-                                    <span className="flex items-center gap-1">
-                                        <span>{receipts.from || 0}</span>-
-                                        <div
-                                            className="relative min-w-[1.5rem] text-center"
-                                            onClick={() =>
-                                                setIsEditingPerPage(true)
-                                            }
-                                        >
-                                            {isEditingPerPage ? (
-                                                <input
-                                                    ref={perPageInputRef}
-                                                    type="number"
-                                                    className="h-6 w-12 rounded-sm border bg-background text-center text-sm font-bold"
-                                                    value={perPage}
-                                                    onChange={(e) =>
-                                                        setPerPage(
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    onBlur={handlePerPageSubmit}
-                                                    onKeyDown={
-                                                        handleKeyDownPerPage
-                                                    }
-                                                />
-                                            ) : (
-                                                <span className="cursor-pointer rounded px-1 font-bold hover:bg-muted">
-                                                    {receipts.to || 0}
-                                                </span>
-                                            )}
-                                        </div>
-                                        / {receipts.total}
-                                    </span>
+                                <div className="flex items-center gap-2 border-l pl-4 text-sm text-muted-foreground font-mono">
+                                    <span>{receipts.from || 0}-{receipts.to || 0} / {receipts.total}</span>
                                     {!hidePaginationControls && (
-                                        <div className="ml-2 flex items-center">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 disabled:opacity-30"
-                                                onClick={() =>
-                                                    receipts.prev_page_url &&
-                                                    router.visit(
-                                                        receipts.prev_page_url,
-                                                    )
-                                                }
-                                                disabled={
-                                                    !receipts.prev_page_url
-                                                }
-                                            >
-                                                <ChevronLeft className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 disabled:opacity-30"
-                                                onClick={() =>
-                                                    receipts.next_page_url &&
-                                                    router.visit(
-                                                        receipts.next_page_url,
-                                                    )
-                                                }
-                                                disabled={
-                                                    !receipts.next_page_url
-                                                }
-                                            >
-                                                <ChevronRight className="h-4 w-4" />
-                                            </Button>
+                                        <div className="flex">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.visit(receipts.prev_page_url!)} disabled={!receipts.prev_page_url}><ChevronLeft className="h-4 w-4" /></Button>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => router.visit(receipts.next_page_url!)} disabled={!receipts.next_page_url}><ChevronRight className="h-4 w-4" /></Button>
                                         </div>
                                     )}
                                 </div>
@@ -604,11 +400,7 @@ export default function ListReceipts({ receipts, filters }: Props) {
                         </div>
                     )}
                 </div>
-
-                {/* --- TABLA (Contenido) --- */}
-                <div className="flex-1 overflow-auto bg-muted/5 p-4">
-                    {renderContent()}
-                </div>
+                <div className="flex-1 overflow-auto bg-muted/5 p-4">{renderContent()}</div>
             </div>
         </AppLayout>
     );

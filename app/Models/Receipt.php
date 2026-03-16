@@ -24,7 +24,7 @@ class Receipt extends Model
         "currency",
         "exchange_rate",
         "id_purchase_order",
-        "id_purchase_order"
+        "glosa",
     ];
 
     protected function casts(): array
@@ -79,5 +79,10 @@ class Receipt extends Model
     public function adjustment()
     {
         return $this->belongsTo(InventoryAdjustment::class, 'id_adjustment');
+    }
+
+    public function logs()
+    {
+        return $this->hasMany(ReceiptLog::class, 'id_receipt')->orderBy('created_at', 'desc');
     }
 }

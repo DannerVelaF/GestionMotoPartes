@@ -367,7 +367,8 @@ class InventoryMovementsController extends Controller
     public function validateAdjustment(Request $request, $id)
     {
         return DB::transaction(function () use ($request, $id) {
-            $adjustment = InventoryAdjustment::with('details')->findOrFail($id);
+            // Cargamos el ajuste con sus detalles y la relación polimórfica 'source'
+            $adjustment = InventoryAdjustment::with(['details', 'source'])->findOrFail($id);
             $userId = Auth::id();
 
             if ($adjustment->status === 'done') throw new \Exception("Este movimiento ya ha sido validado.");
@@ -378,9 +379,9 @@ class InventoryMovementsController extends Controller
 
             if ($totalQty <= 0) throw new \Exception("No hay cantidades válidas.");
 
+            // Sincronizamos detalles antes de procesar stock
             $this->syncAdjustmentDetails($adjustment, $items);
 
-            // IMPORTANTE: Tomamos la Fecha Kardex final
             $kardexDate = $request->input('kardex_date', now()->format('Y-m-d'));
 
             foreach ($items as $item) {
@@ -390,12 +391,12 @@ class InventoryMovementsController extends Controller
                 $product = Products::findOrFail($item['id_product']);
                 $product->increment('stock', $qtyDone);
 
-                // Insertamos en el Kardex usando la $kardexDate
+                // Registro en Kardex
                 InventoryMovements::create([
                     'id_product'     => $product->id_product,
                     'id_user'        => $userId,
                     'type'           => 'IN',
-                    'kardex_date'    => $kardexDate, // <-- LA FECHA CONTABLE
+                    'kardex_date'    => $kardexDate,
                     'quantity'       => $qtyDone,
                     'unit_cost'      => $item['unit_cost'] ?? 0,
                     'total_cost'     => $qtyDone * ($item['unit_cost'] ?? 0),
@@ -404,14 +405,43 @@ class InventoryMovementsController extends Controller
                     'reference_id'   => $adjustment->id_adjustment,
                     'notes'          => "Validado en: {$adjustment->reference_code}"
                 ]);
+
+                // --- ACTUALIZACIÓN DE CANTIDAD RECIBIDA EN LA OC ---
+                // Verificamos si el ajuste tiene una Orden de Compra vinculada
+                if ($adjustment->source instanceof \App\Models\PurchaseOrder) {
+                    $purchaseOrder = $adjustment->source;
+
+                    // Buscamos la línea específica del detalle de la OC para este producto
+                    $poDetail = $purchaseOrder->details()
+                        ->where('id_product', $item['id_product'])
+                        ->first();
+
+                    if ($poDetail) {
+                        $poDetail->increment('received_quantity', $qtyDone);
+                    }
+                }
             }
 
+            // Actualizamos estado del movimiento de almacén
             $adjustment->update([
                 'status'          => 'done',
                 'kardex_date'     => $kardexDate,
                 'document_type'   => $request->input('document_type'),
                 'document_number' => $request->input('document_number'),
             ]);
+
+            // Verificamos si la OC debe pasar a estado "received" (opcional)
+            if ($adjustment->source instanceof \App\Models\PurchaseOrder) {
+                $purchaseOrder = $adjustment->source->fresh(['details']);
+                $allReceived = $purchaseOrder->details->every(function ($detail) {
+                    // Si es servicio, lo ignoramos; si es producto, comparamos cantidades
+                    return $detail->is_service || ($detail->received_quantity >= $detail->quantity);
+                });
+
+                if ($allReceived) {
+                    $purchaseOrder->update(['status' => 'received']);
+                }
+            }
 
             InventoryLog::create([
                 'id_adjustment' => $adjustment->id_adjustment,
@@ -422,7 +452,7 @@ class InventoryMovementsController extends Controller
                 'new_value'     => 'Realizado',
             ]);
 
-            return redirect()->back()->with('success', 'Movimiento validado y stock actualizado.');
+            return redirect()->back()->with('success', 'Movimiento validado, stock y OC actualizados.');
         });
     }
 
@@ -480,12 +510,12 @@ class InventoryMovementsController extends Controller
             ]);
 
             // 1. Usamos fill() en lugar de update() para cargar los datos en memoria SIN guardarlos aún
-            $adjustment->fill([
-                'contact_name'    => $request->contact_name,
-                'kardex_date'     => $request->kardex_date,
-                'document_type'   => $request->document_type,
-                'document_number' => $request->document_number,
-            ]);
+            $adjustment->fill($request->only([
+                'contact_name',
+                'kardex_date',
+                'document_type',
+                'document_number',
+            ]));
 
             // 2. Detectamos qué campos cambiaron realmente
             $changes = $adjustment->getDirty();

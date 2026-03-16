@@ -7,11 +7,13 @@ use App\Exports\TaxReportExport;
 use App\Http\Controllers\Controller;
 use App\Http\Services\Receipt\ReceiptService;
 use App\Models\Products; // Asegúrate de importar tu modelo de productos
+use App\Models\PurchaseOrder;
 use App\Models\Receipt;
 use App\Models\ReceiptDetail;
 use App\Models\Supplier;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
@@ -19,6 +21,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Models\ReceiptLog;
 
 class ReceiptController extends Controller
 {
@@ -40,7 +43,10 @@ class ReceiptController extends Controller
         }
 
         $query = Receipt::query()
-            ->with(['supplier:id_supplier,company_name,ruc'])
+            ->with([
+                'supplier:id_supplier,company_name,ruc',
+                'purchaseOrder:id_purchase_order,po_code'
+            ])
             ->when($search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('receipt_code', 'like', "%{$search}%")
@@ -49,6 +55,10 @@ class ReceiptController extends Controller
                         ->orWhereHas('supplier', function ($sq) use ($search) {
                             $sq->where('company_name', 'like', "%{$search}%")
                                 ->orWhere('ruc', 'like', "%{$search}%");
+                        })
+                        // ✅ Permitir buscar por el código de la Orden de Compra
+                        ->orWhereHas('purchaseOrder', function ($pq) use ($search) {
+                            $pq->where('po_code', 'like', "%{$search}%");
                         });
                 });
             });
@@ -73,28 +83,118 @@ class ReceiptController extends Controller
         ]);
     }
 
-    public function create()
-    {
-        $allowedTypes = [
-            DocumentType::INVOICE,
-            DocumentType::RECEIPT
-        ];
+    public function create(Request $request) {
+        $allowedTypes = [DocumentType::INVOICE, DocumentType::RECEIPT];
+
+        // --- LÓGICA DE PRE-CARGA DESDE OC ---
+        $sourceOrder = null;
+        if ($request->has('source_po')) {
+            $sourceOrder = PurchaseOrder::with(['details.product', 'supplier'])
+                ->findOrFail($request->source_po);
+        }
 
         return Inertia::render('Receipts/CreateReceipt', [
-            'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')
-                ->orderBy('company_name')
-                ->get(),
+            'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')->orderBy('company_name')->get(),
             'products' => Products::where('status', 'active')
                 ->select('id_product', 'product_name', 'product_code', 'sale_price')
-                ->orderBy('product_name')
-                ->get(),
+                ->orderBy('product_name')->get(),
+            'documentTypes' => collect($allowedTypes)->map(fn($t) => [
+                'value' => $t->value,
+                'label' => $t->label()
+            ]),
+            'preloadedData' => [
+                'order'  => $sourceOrder,
+                'type'   => $request->type,
+                'series' => $request->series,
+                'number' => $request->number,
+            ]
+        ]);
+    }
+
+    public function show($id) {
+        $allowedTypes = [DocumentType::INVOICE, DocumentType::RECEIPT];
+
+        // ✅ Cargamos el comprobante incluyendo 'purchaseOrder' (o como se llame en tu modelo)
+        $receipt = Receipt::with([
+            'details.product',
+            'supplier',
+            'logs.user',
+            'purchaseOrder', // <--- AGREGA ESTA LÍNEA
+            'children' => function ($query) {
+                $query->with('supplier', 'details')->orderBy('issue_date', 'desc');
+            }
+        ])->findOrFail($id);
+
+        return Inertia::render('Receipts/EditReceipt', [
+            'receipt' => $receipt,
+            'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')->orderBy('company_name')->get(),
+            'products' => Products::where('status', 'active')->select('id_product', 'product_name', 'product_code', "stock")->get(),
             'documentTypes' => collect($allowedTypes)->map(fn($t) => [
                 'value' => $t->value,
                 'label' => $t->label()
             ]),
         ]);
     }
+    public function addNote(Request $request, $id)
+    {
+        try {
+            $validated = $request->validate([
+                'internal_note' => 'required|string|max:1000',
+            ]);
 
+            $receipt = Receipt::findOrFail($id);
+
+            $receipt->logs()->create([
+                'id_user' => Auth::id(),
+                'action' => 'Nota',
+                'notes' => $validated['internal_note'],
+            ]);
+
+            // Importante cargar el usuario para que el Chatter lo muestre al refrescar
+            $receipt->load('logs.user');
+
+            return back()->with('success', 'Nota registrada correctamente.');
+
+        } catch (\Exception $e) {
+            Log::error("Error al agregar nota: " . $e->getMessage());
+            return back()->withErrors(['error' => 'No se pudo guardar la nota.']);
+        }
+    }
+
+    public function update(Request $request, $id)
+    {
+        // Decodificar 'details' si es un string JSON (enviado desde FormData)
+        if ($request->has('details') && is_string($request->details)) {
+            $request->merge(['details' => json_decode($request->details, true)]);
+        }
+
+        $validated = $request->validate([
+            'id_supplier'   => 'required|exists:suppliers,id_supplier',
+            'document_type' => ['required'],
+            'currency'      => 'required|in:PEN,USD',
+            'exchange_rate' => 'required|numeric|min:0.0001',
+            'series'        => 'required|string|max:10',
+            'number'        => 'required|string|max:20',
+            'issue_date'    => 'required|date',
+            'file'          => 'nullable|file|mimes:pdf,jpg,png,jpeg|max:5120',
+            'glosa'         => 'nullable|string',
+            'details'           => 'sometimes|array|min:1',
+            'details.*.is_service' => 'boolean',
+            'details.*.id_product' => 'nullable|required_if:details.*.is_service,false|exists:products,id_product',
+            'details.*.description' => 'nullable|required_if:details.*.is_service,true|string|max:255',
+            'details.*.quantity'   => 'required|numeric|min:0.01',
+            'details.*.unit_price' => 'required|numeric|min:0',
+        ]);
+
+        try {
+            $this->service->updateReceipt($validated, $id);
+
+            return to_route('receipts.show', $id)->with('success', 'Comprobante actualizado correctamente.');
+        } catch (\Exception $e) {
+            Log::error("Error al actualizar recibo: " . $e->getMessage());
+            return back()->withErrors(['error' => 'Error al actualizar el comprobante.']);
+        }
+    }
     public function store(Request $request)
     {
         $messages = [
@@ -110,13 +210,14 @@ class ReceiptController extends Controller
             'details.*.quantity.min' => 'La cantidad debe ser mayor a 0.',
             'details.*.unit_price.required' => 'El costo unitario es obligatorio.',
             'details.*.unit_price.min' => 'El costo unitario debe ser mayor o igual a 0.',
+
         ];
 
         $validated = $request->validate([
             'id_supplier'       => 'required|exists:suppliers,id_supplier',
+            'id_purchase_order' => 'nullable|exists:purchase_orders,id_purchase_order', // ✅ AGREGADO
             'document_type'     => ['required', Rule::enum(DocumentType::class)],
 
-            // --- NUEVOS CAMPOS ---
             'currency'          => 'required|in:PEN,USD',
             'exchange_rate'     => 'required|numeric|min:0.0001',
 
@@ -173,6 +274,13 @@ class ReceiptController extends Controller
 
             $receipt = $this->service->createReceipt($validated);
 
+            ReceiptLog::create([
+                'id_receipt' => $receipt->id_receipt,
+                'id_user'    => Auth::id(),
+                'action'     => 'Creación',
+                'notes'      => 'Comprobante creado.'
+            ]);
+
             return to_route('receipts.show', $receipt->id_receipt)
                 ->with('success', 'Comprobante registrado correctamente.');
         } catch (\Exception $e) {
@@ -181,68 +289,6 @@ class ReceiptController extends Controller
         }
     }
 
-    public function show($id)
-    {
-        $allowedTypes = [
-            DocumentType::INVOICE,
-            DocumentType::RECEIPT
-        ];
-
-        $receipt = Receipt::with(['details.product', 'supplier', 'children' => function ($query) {
-            $query->with('supplier', 'details');
-            $query->orderBy('issue_date', 'desc');
-        }])->findOrFail($id);
-
-        if (Session::has('success')) {
-            Session::forget('success');
-        }
-
-        return Inertia::render('Receipts/EditReceipt', [
-            'receipt' => $receipt,
-            'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')->orderBy('company_name')->get(),
-            'products' => Products::where('status', 'active')
-                ->select('id_product', 'product_name', 'product_code', "stock")
-                ->orderBy('product_name')
-                ->get(),
-            'documentTypes' => collect($allowedTypes)->map(fn($t) => [
-                'value' => $t->value,
-                'label' => $t->label()
-            ]),
-        ]);
-    }
-
-    public function update(Request $request, $id)
-    {
-        $validated = $request->validate([
-            'id_supplier'       => 'required|exists:suppliers,id_supplier',
-            'document_type'     => ['required', Rule::enum(DocumentType::class)],
-            'currency'          => 'required|in:PEN,USD',
-            'exchange_rate'     => 'required|numeric|min:0.0001',
-
-            'series'            => 'required|string|max:10',
-            'number'            => 'required|string|max:20',
-            'issue_date'        => 'required|date',
-            'file'              => 'nullable|file|mimes:pdf,jpg,png,jpeg|max:5120',
-
-            'details'           => 'required|array|min:1',
-            'details.*.is_service' => 'boolean',
-            'details.*.id_product' => 'nullable|required_if:details.*.is_service,false|exists:products,id_product',
-            'details.*.description' => 'nullable|required_if:details.*.is_service,true|string|max:255',
-            'details.*.quantity'   => 'required|numeric|min:0.01',
-            'details.*.unit_price' => 'required|numeric|min:0',
-            'details.*.sale_price' => 'nullable|numeric|min:0',
-        ]);
-
-        try {
-            $validated['issue_date'] = Carbon::parse($validated['issue_date']);
-            $this->service->updateReceipt($validated, $id);
-
-            return back()->with('success', 'Comprobante actualizado correctamente.');
-        } catch (\Exception $e) {
-            Log::error('Error updating receipt: ' . $e->getMessage());
-            return back()->withErrors(['error' => 'Error al actualizar: ' . $e->getMessage()]);
-        }
-    }
 
     public function destroy($id)
     {
@@ -339,16 +385,16 @@ class ReceiptController extends Controller
                 ->where('receipt_details.id_product', $idProduct);
 
             $sumExpression = 'SUM(
-                CASE 
-                    WHEN receipts.currency = "USD" THEN receipt_details.subtotal * receipts.exchange_rate 
-                    ELSE receipt_details.subtotal 
+                CASE
+                    WHEN receipts.currency = "USD" THEN receipt_details.subtotal * receipts.exchange_rate
+                    ELSE receipt_details.subtotal
                 END
             )';
         } else {
             $sumExpression = 'SUM(
-                CASE 
-                    WHEN receipts.currency = "USD" THEN receipts.total_amount * receipts.exchange_rate 
-                    ELSE receipts.total_amount 
+                CASE
+                    WHEN receipts.currency = "USD" THEN receipts.total_amount * receipts.exchange_rate
+                    ELSE receipts.total_amount
                 END
             )';
         }
@@ -396,16 +442,16 @@ class ReceiptController extends Controller
             ->whereBetween('receipts.issue_date', [$from, $to])
             ->select(
                 DB::raw('
-                    CASE 
+                    CASE
                         WHEN receipt_details.id_product IS NOT NULL THEN "Productos"
                         ELSE "Servicios"
                     END as expense_type
                 '),
                 DB::raw('COUNT(receipt_details.id_receipt_detail) as count'),
                 DB::raw('SUM(
-                    CASE 
-                        WHEN receipts.currency = "USD" THEN receipt_details.subtotal * receipts.exchange_rate 
-                        ELSE receipt_details.subtotal 
+                    CASE
+                        WHEN receipts.currency = "USD" THEN receipt_details.subtotal * receipts.exchange_rate
+                        ELSE receipt_details.subtotal
                     END
                 ) as total_amount')
             )
@@ -430,16 +476,16 @@ class ReceiptController extends Controller
             ->whereBetween('receipts.issue_date', [$from, $to])
             ->select(
                 DB::raw('
-                    CASE 
+                    CASE
                         WHEN receipt_details.id_product IS NOT NULL THEN "Productos"
                         ELSE "Servicios"
                     END as category
                 '),
                 DB::raw('COALESCE(products.product_name, receipt_details.description) as item_name'),
                 DB::raw('SUM(
-                    CASE 
-                        WHEN receipts.currency = "USD" THEN receipt_details.subtotal * receipts.exchange_rate 
-                        ELSE receipt_details.subtotal 
+                    CASE
+                        WHEN receipts.currency = "USD" THEN receipt_details.subtotal * receipts.exchange_rate
+                        ELSE receipt_details.subtotal
                     END
                 ) as total_amount')
             )
@@ -474,9 +520,9 @@ class ReceiptController extends Controller
                 'products.product_code',
                 'products.sale_price as current_sale_price',
                 DB::raw('AVG(
-                    CASE 
-                        WHEN receipts.currency = "USD" THEN receipt_details.unit_price * receipts.exchange_rate 
-                        ELSE receipt_details.unit_price 
+                    CASE
+                        WHEN receipts.currency = "USD" THEN receipt_details.unit_price * receipts.exchange_rate
+                        ELSE receipt_details.unit_price
                     END
                 ) as avg_cost'),
                 DB::raw('SUM(receipt_details.quantity) as total_qty')
@@ -523,9 +569,9 @@ class ReceiptController extends Controller
                 'suppliers.ruc',
                 DB::raw('COUNT(receipts.id_receipt) as purchase_count'),
                 DB::raw('SUM(
-                    CASE 
-                        WHEN receipts.currency = "USD" THEN receipts.total_amount * receipts.exchange_rate 
-                        ELSE receipts.total_amount 
+                    CASE
+                        WHEN receipts.currency = "USD" THEN receipts.total_amount * receipts.exchange_rate
+                        ELSE receipts.total_amount
                     END
                 ) as total_invested'),
                 DB::raw('MAX(receipts.issue_date) as last_purchase')
@@ -568,9 +614,9 @@ class ReceiptController extends Controller
         $trendData = $trendQuery->select(
             'receipts.issue_date as date',
             DB::raw('AVG(
-                CASE 
-                    WHEN receipts.currency = "USD" THEN receipt_details.unit_price * receipts.exchange_rate 
-                    ELSE receipt_details.unit_price 
+                CASE
+                    WHEN receipts.currency = "USD" THEN receipt_details.unit_price * receipts.exchange_rate
+                    ELSE receipt_details.unit_price
                 END
             ) as price')
         )
@@ -605,7 +651,7 @@ class ReceiptController extends Controller
                 };
 
                 $firstPrice = $getNormalizedPrice($p->first_detail_id);
-                $lastPrice = $getNormalizedPrice($p->last_detail_id);
+                $lastPrice = getNormalizedPrice($p->last_detail_id);
                 $variation = $firstPrice > 0 ? (($lastPrice - $firstPrice) / $firstPrice) * 100 : 0;
 
                 return [

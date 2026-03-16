@@ -70,7 +70,8 @@ class InventoryAdjustment extends Model
      */
     public function source()
     {
-        return $this->morphTo('source_document');
+        // Definimos explícitamente el nombre de la relación y las columnas
+        return $this->morphTo('source', 'source_document_type', 'source_document_id');
     }
 
     // Borra la relación vieja movements() y pon esta:

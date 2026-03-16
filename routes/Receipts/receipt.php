@@ -26,6 +26,7 @@ Route::middleware("auth")->group(function () {
         Route::post('/recibos', 'store')->name('receipts.store');
         Route::get('/recibos/{receipt}', 'show')->name('receipts.show');
         Route::put('/recibos/{receipt}', 'update')->name('receipts.update');
+        Route::post('/recibos/{receipt}/nota', [ReceiptController::class, 'addNote'])->name('receipts.note');
         Route::delete("/recibos/bulk-delete", 'bulkDestroy')->name('receipts.bulk-destroy');
         Route::delete("/recibos/{receipt}", "destroy")->name("receipts.destroy");
         Route::post('/receipts/{receipt}/return', [ReceiptController::class, 'returnReceipt'])
