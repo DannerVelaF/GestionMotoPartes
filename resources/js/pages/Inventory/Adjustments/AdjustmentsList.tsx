@@ -333,12 +333,6 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
                                     <TableHead className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
                                         Contacto
                                     </TableHead>
-                                    <TableHead className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                        Producto
-                                    </TableHead>
-                                    <TableHead className="text-center text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                        Cant.
-                                    </TableHead>
                                     <TableHead className="text-[10px] font-bold tracking-wider text-emerald-600 uppercase dark:text-emerald-400">
                                         Doc. Origen
                                     </TableHead>

@@ -732,7 +732,11 @@ export default function EditProduct({ product, categories = [], brands = [], typ
                                         className="h-full flex-col border-dashed py-4"
                                         onClick={() =>
                                             router.get(
-                                                `/inventario/ajuste/movimientos?search=${product.product_code}`,
+                                                '/inventario/movimientos',
+                                                {
+                                                    id_product:
+                                                        product.id_product,
+                                                },
                                             )
                                         }
                                     >

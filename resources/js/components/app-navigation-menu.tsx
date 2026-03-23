@@ -144,18 +144,18 @@ export function AppNavigationMenu() {
                                 className={itemClass}
                                 onClick={() =>
                                     router.visit(
-                                        '/inventario/ajuste/movimientos',
+                                        '/inventario',
                                     )
                                 }
                             >
                                 <ArrowLeftRight className="h-4 w-4 text-emerald-600" />{' '}
-                                Operaciones de Almacén
+                                Stock por producto
                             </MenubarItem>
                             <MenubarSeparator className="my-1 h-px bg-muted" />
                             <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
                                 Informes y Trazabilidad
                             </div>
-                            <MenubarItem
+                            {/*<MenubarItem
                                 className={itemClass}
                                 onClick={() =>
                                     router.visit('/inventario/movimientos')
@@ -163,7 +163,7 @@ export function AppNavigationMenu() {
                             >
                                 <Activity className="h-4 w-4 text-orange-600" />{' '}
                                 Kardex de Movimientos
-                            </MenubarItem>
+                            </MenubarItem>*/}
                             <MenubarItem
                                 className={itemClass}
                                 onClick={openKardexModal}

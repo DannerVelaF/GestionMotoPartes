@@ -82,9 +82,19 @@ class InventoryMovementsController extends Controller
     {
         $search = $request->input('search');
         $type = $request->input('type');
+        $idProduct = $request->input('id_product'); // ✅ Nuevo parámetro para filtrar por producto específico
 
         $query = InventoryMovements::query()
-            ->with(['product:id_product,product_name,product_code', 'user:id,name'])
+            ->with([
+                'product:id_product,product_name,product_code',
+                'user:id,name',
+                'reference' // ✅ Cargamos la relación polimórfica (Ajuste, Venta, etc.)
+            ])
+            // ✅ Filtro por producto específico (si viene el ID)
+            ->when($idProduct, function ($q, $idProduct) {
+                $q->where('id_product', $idProduct);
+            })
+            // Filtro de búsqueda general
             ->when($search, function ($q, $search) {
                 $q->whereHas('product', function ($pq) use ($search) {
                     $pq->where('product_name', 'like', "%{$search}%")
@@ -95,18 +105,61 @@ class InventoryMovementsController extends Controller
                 $q->where('type', $type);
             });
 
-        if (!$request->has('per_page')) {
-            $totalCount = (clone $query)->count();
-            $perPage = ($totalCount > 25) ? 25 : max($totalCount, 1);
-        } else {
-            $perPage = $request->input('per_page');
-        }
-
+        // Gestión de paginación
+        $perPage = $request->input('per_page', 25);
         if (!is_numeric($perPage) || $perPage < 1) $perPage = 25;
 
         $movements = $query->orderBy('created_at', 'desc')
             ->paginate((int)$perPage)
-            ->withQueryString();
+            ->through(function ($move) {
+                $sourceName = '—';
+                $destName = '—';
+                $refCode = 'MOV-SISTEMA';
+                $sourceDoc = '—'; // ✅ Nueva variable para el documento origen
+
+                if ($move->reference instanceof \App\Models\InventoryAdjustment) {
+                    $adj = $move->reference;
+                    $sourceName = $adj->locationSource?->name ?? 'Externo';
+                    $destName = $adj->locationDestination?->name ?? 'Stock';
+                    $refCode = $adj->reference_code;
+
+                    // ✅ Extraemos el Documento Origen (ej: OC-202603-00002)
+                    $sourceDoc = $adj->document_number ?? 'Manual';
+                }
+                // Si el movimiento se registró directamente desde una OC (sin ajuste intermedio)
+                elseif ($move->reference instanceof \App\Models\PurchaseOrder) {
+                    $refCode = $move->reference->po_code;
+                    $sourceDoc = $move->reference->po_code;
+                    $sourceName = "Proveedor";
+                    $destName = "Almacén";
+                }
+                // Si viene de una Venta
+                elseif ($move->reference instanceof \App\Models\Sales) {
+                    $refCode = $move->reference->code_sales;
+                    $sourceDoc = $move->reference->code_sales;
+                    $sourceName = "Almacén";
+                    $destName = "Cliente";
+                }
+
+                return [
+                    'id_movement'     => $move->id_movement,
+                    'created_at'      => $move->created_at,
+                    'type'            => $move->type,
+                    'quantity'        => $move->quantity,
+                    'balance'         => $move->balance,
+                    'product'         => $move->product,
+                    'user'            => $move->user,
+                    'reference_id'    => $move->reference_id,
+                    'reference_type'  => $move->reference_type,
+                    'reference_label' => $refCode,
+                    'source_document' => $sourceDoc, // ✅ Enviamos a la vista
+                    'location_source' => $sourceName,
+                    'location_dest'   => $destName,
+                ];
+            });
+
+        // Si es una vista para un producto específico, cargamos sus datos para el título
+        $selectedProduct = $idProduct ? Products::find($idProduct) : null;
 
         $products = Products::where('status', 'active')
             ->select('id_product', 'product_name', 'product_code')
@@ -115,8 +168,14 @@ class InventoryMovementsController extends Controller
 
         return Inertia::render('Inventory/Reports/GlobalMovements', [
             'movements' => $movements,
-            'products' => $products,
-            'filters' => ['search' => $search, 'per_page' => (int)$perPage, 'type' => $type]
+            'products'  => $products,
+            'selectedProduct' => $selectedProduct, // ✅ Para mostrar el nombre en el encabezado
+            'filters'   => [
+                'search'   => $search,
+                'per_page' => (int)$perPage,
+                'type'     => $type,
+                'id_product' => $idProduct // ✅ Mantenemos el filtro en la URL
+            ]
         ]);
     }
 

@@ -12,8 +12,8 @@ import {
     ChevronLeft,
     ChevronRight,
     FileDown,
-    Package,
-    Plus,
+    History,
+    Package, // ✅ Cambiado Plus por History para el botón de trazabilidad
     Search,
     X,
 } from 'lucide-react';
@@ -93,7 +93,8 @@ export default function ListInventory({ inventory, filters }: Props) {
     const handlePerPageSubmit = () => {
         setIsEditingPerPage(false);
         let newValue = Number(perPage);
-        if (newValue > inventory.total) newValue = inventory.total;
+        if (newValue > inventory.total && inventory.total > 0)
+            newValue = inventory.total;
         else if (newValue < 1) newValue = 20;
         setPerPage(newValue);
         if (newValue !== inventory.per_page)
@@ -101,15 +102,18 @@ export default function ListInventory({ inventory, filters }: Props) {
     };
 
     return (
-        <AppLayout breadcrumbs={[{ title: 'Inventario Actual', href: '#' }]}>
+        <AppLayout
+            breadcrumbs={[
+                { title: 'Inventario', href: '/inventario/ajuste/movimientos' }, // El módulo principal
+                { title: 'Stock Actual', href: '#' } // La página donde estamos
+            ]}
+        >
             <Head title="Stock de Almacén" />
 
-            {/* Contenedor principal con fondo adaptable */}
             <div className="flex h-full flex-1 flex-col overflow-hidden bg-background">
                 {/* --- TOOLBAR SUPERIOR --- */}
                 <div className="flex items-center justify-between border-b border-border bg-background px-6 py-3 transition-colors">
                     <div className="flex items-center gap-4">
-                        {/* Icono con fondo azul suave en light, azul oscuro transparente en dark */}
                         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
                             <Package className="h-6 w-6" />
                         </div>
@@ -117,7 +121,6 @@ export default function ListInventory({ inventory, filters }: Props) {
                             Inventario / Stock
                         </h1>
 
-                        {/* INDICADOR DE CONTEO LOCAL */}
                         {selectedCount > 0 && (
                             <div className="flex animate-in items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1 text-blue-700 fade-in slide-in-from-left-2 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
                                 <span className="text-sm font-bold">
@@ -152,14 +155,16 @@ export default function ListInventory({ inventory, filters }: Props) {
                             />
                         </div>
 
-                        {/* ✅ NUEVO BOTÓN: Ajuste Manual */}
+                        {/* ✅ BOTÓN ACTUALIZADO: Redirige a la Trazabilidad / Movimientos */}
                         <Button
                             variant="default"
                             className="h-9 bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600"
-                            onClick={() => router.visit('/inventario/ajuste/nuevo')}
+                            onClick={() =>
+                                router.visit('/inventario/movimientos')
+                            }
                         >
-                            <Plus className="mr-2 h-4 w-4" />
-                            Ajuste Manual
+                            <History className="mr-2 h-4 w-4" />
+                            Ver Trazabilidad
                         </Button>
 
                         <Button
@@ -167,8 +172,8 @@ export default function ListInventory({ inventory, filters }: Props) {
                             className={cn(
                                 'h-9 transition-all',
                                 selectedCount > 0
-                                    ? 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:text-white' // Botón primario sólido
-                                    : 'border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/30', // Botón outline adaptable
+                                    ? 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:text-white'
+                                    : 'border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/30',
                             )}
                             disabled={selectedCount === 0}
                             onClick={handleExport}
@@ -184,14 +189,14 @@ export default function ListInventory({ inventory, filters }: Props) {
                             <span>
                                 {inventory.from || 0}-
                                 <span
-                                    className="cursor-pointer rounded px-1 font-bold hover:bg-muted"
+                                    className="cursor-pointer rounded px-1 font-bold text-foreground hover:bg-muted"
                                     onClick={() => setIsEditingPerPage(true)}
                                 >
                                     {isEditingPerPage ? (
                                         <input
                                             ref={perPageInputRef}
                                             type="number"
-                                            className="h-5 w-10 rounded border border-input bg-background text-center text-foreground"
+                                            className="h-5 w-10 rounded border border-input bg-background text-center text-foreground outline-none"
                                             value={perPage}
                                             onChange={(e) =>
                                                 setPerPage(e.target.value)
@@ -244,6 +249,7 @@ export default function ListInventory({ inventory, filters }: Props) {
                 </div>
 
                 <div className="flex-1 overflow-auto bg-muted/5 p-4 dark:bg-background">
+                    {/* Banner de selección global */}
                     {selectedCount === inventory.data.length &&
                         inventory.total > inventory.data.length && (
                             <div className="mb-4 animate-in rounded-md bg-blue-600 p-2 text-center text-xs text-white shadow-sm slide-in-from-top-1 dark:bg-blue-700">
@@ -266,8 +272,8 @@ export default function ListInventory({ inventory, filters }: Props) {
                                     <p>
                                         Están seleccionados los{' '}
                                         <strong>{inventory.total}</strong>{' '}
-                                        productos del inventario (incluyendo
-                                        todas las páginas).{' '}
+                                        productos del inventario (todas las
+                                        páginas).{' '}
                                         <button
                                             onClick={() => {
                                                 setRowSelection({});
