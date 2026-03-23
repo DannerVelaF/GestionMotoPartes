@@ -141,12 +141,9 @@ export default function CreatePurchaseOrder({
     taxes,
 }: Props) {
     const { props: pageProps } = usePage<any>();
-    const serverErrors = pageProps.errors;
     const today = new Date().toISOString().split('T')[0];
 
     const [formError, setFormError] = useState<string | null>(null);
-    const [localError, setLocalError] = useState<string | null>(null);
-    const [isWritingNote, setIsWritingNote] = useState(false);
 
     const { widths, onMouseDown, isResizing } = useTableResize({
         product: 320,
@@ -202,8 +199,6 @@ export default function CreatePurchaseOrder({
     const isServiceOrder = data.order_type === 'service';
     const symbol = data.currency === 'USD' ? '$' : 'S/';
 
-    // --- FUNCIONES DE LÓGICA ---
-
     const handleCurrencyChange = (val: string) => {
         setData((prev) => ({
             ...prev,
@@ -248,7 +243,6 @@ export default function CreatePurchaseOrder({
         if (errors[field as keyof typeof errors]) clearErrors(field as any);
     };
 
-    // --- CÁLCULOS DE TOTALES ---
     const rowsWithCalculations = rows.map((row) => {
         const selectedTax = taxes.find(
             (t) => t.id_tax.toString() === row.id_tax,
@@ -273,7 +267,6 @@ export default function CreatePurchaseOrder({
             ? totalAmount * Number(data.exchange_rate)
             : totalAmount;
 
-    // --- OPCIONES ---
     const supplierOptions = suppliers.map((s) => ({
         value: String(s.id_supplier),
         label: s.company_name,
@@ -292,6 +285,9 @@ export default function CreatePurchaseOrder({
             ...currentData,
             status: targetStatus,
             issue_date: format(currentData.issue_date, 'yyyy-MM-dd HH:mm:ss'),
+            expected_date: currentData.expected_date
+                ? format(currentData.expected_date, 'yyyy-MM-dd')
+                : null,
             total_amount: totalAmount,
             details: rows
                 .filter((r) => (isServiceOrder ? r.description : r.id_product))
@@ -393,7 +389,6 @@ export default function CreatePurchaseOrder({
                 </div>
 
                 <div className="flex min-h-0 flex-1 overflow-hidden">
-                    {/* PANEL IZQUIERDO: FORMULARIO */}
                     <div className="custom-scrollbar flex-1 overflow-x-auto overflow-y-auto p-6 md:p-8">
                         <div className="w-full min-w-[800px] space-y-8">
                             <div className="flex items-center gap-3">
@@ -456,22 +451,6 @@ export default function CreatePurchaseOrder({
                                     </FormFieldRow>
                                 </div>
                                 <div className="space-y-1">
-                                    <FormFieldRow label="Fecha">
-                                        <Input
-                                            type="date"
-                                            value={format(
-                                                data.issue_date,
-                                                'yyyy-MM-dd',
-                                            )}
-                                            onChange={(e) =>
-                                                onFieldChange(
-                                                    'issue_date',
-                                                    new Date(e.target.value),
-                                                )
-                                            }
-                                            className={cleanInputClass}
-                                        />
-                                    </FormFieldRow>
                                     <FormFieldRow label="Tipo Cambio">
                                         <Input
                                             type="number"
@@ -484,6 +463,47 @@ export default function CreatePurchaseOrder({
                                                 )
                                             }
                                             disabled={data.currency === 'PEN'}
+                                            className={cleanInputClass}
+                                        />
+                                    </FormFieldRow>
+                                    {/* ✅ CAMPO AGREGADO: Fecha de llegada esperada */}
+                                    <FormFieldRow label="Llegada esperada">
+                                        <Input
+                                            type="date"
+                                            value={
+                                                data.expected_date
+                                                    ? format(
+                                                          data.expected_date,
+                                                          'yyyy-MM-dd',
+                                                      )
+                                                    : ''
+                                            }
+                                            onChange={(e) =>
+                                                onFieldChange(
+                                                    'expected_date',
+                                                    e.target.value
+                                                        ? new Date(
+                                                              e.target.value,
+                                                          )
+                                                        : null,
+                                                )
+                                            }
+                                            className={cleanInputClass}
+                                        />
+                                    </FormFieldRow>
+                                    <FormFieldRow label="Fecha de Orden">
+                                        <Input
+                                            type="date"
+                                            value={format(
+                                                data.issue_date,
+                                                'yyyy-MM-dd',
+                                            )}
+                                            onChange={(e) =>
+                                                onFieldChange(
+                                                    'issue_date',
+                                                    new Date(e.target.value),
+                                                )
+                                            }
                                             className={cleanInputClass}
                                         />
                                     </FormFieldRow>
@@ -515,6 +535,7 @@ export default function CreatePurchaseOrder({
                                 </div>
                             </div>
 
+                            {/* TABLA Y TOTALES (Sin cambios significativos para no romper el diseño) */}
                             <div
                                 className={cn(
                                     'mt-6 w-full overflow-x-auto rounded-sm border border-border bg-card shadow-sm',
@@ -809,7 +830,7 @@ export default function CreatePurchaseOrder({
                                         ))}
                                         <tr>
                                             <td
-                                                colSpan={isServiceOrder ? 5 : 8}
+                                                colSpan={isServiceOrder ? 5 : 7}
                                                 className="bg-muted/5 px-4 py-2"
                                             >
                                                 <Button
@@ -878,7 +899,6 @@ export default function CreatePurchaseOrder({
                         </div>
                     </div>
 
-                    {/* PANEL DERECHO: HISTORIAL / CHATTER */}
                     <div className="relative hidden h-full w-[380px] shrink-0 flex-col border-l border-border bg-muted/10 xl:flex">
                         <div className="z-10 flex shrink-0 items-center gap-1 border-b border-border bg-card p-2 shadow-sm">
                             <Button

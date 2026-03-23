@@ -16,6 +16,7 @@ class Receipt extends Model
         'series',
         'number',
         'issue_date',
+        "published_at",
         'total_amount',
         "document_type",
         'receipt_path',

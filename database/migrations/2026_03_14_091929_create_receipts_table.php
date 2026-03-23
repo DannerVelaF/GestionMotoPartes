@@ -29,6 +29,7 @@ return new class extends Migration
             $table->string('series', 20);       // Ej: F001 o B001
             $table->string('number', 20);       // Ej: 00012345
             $table->dateTime('issue_date');      // Fecha de emisión física del comprobante
+            $table->timestamp('published_at')->nullable();
             $table->decimal('total_amount', 10, 2);
 
             $table->unsignedBigInteger("id_parent")->nullable();

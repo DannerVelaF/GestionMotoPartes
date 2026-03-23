@@ -480,7 +480,6 @@ class InventoryMovementsController extends Controller
 
             $opCode = $adjustment->operationType ? $adjustment->operationType->code : 'IN';
 
-            // ✅ 1. TODAS LAS VALIDACIONES OCURREN AQUÍ (Antes de tocar la BD)
             foreach ($items as $item) {
                 $qtyDone = (float) ($item['quantity'] ?? 0);
                 if ($qtyDone <= 0) continue;
@@ -501,7 +500,6 @@ class InventoryMovementsController extends Controller
                 }
             }
 
-            // ✅ 2. SI TODO ESTÁ PERFECTO, EMPEZAMOS A GUARDAR EN LA BD
             $this->syncAdjustmentDetails($adjustment, $items);
 
             $kardexDate = $request->input('kardex_date', $adjustment->kardex_date);
@@ -535,7 +533,6 @@ class InventoryMovementsController extends Controller
                     'notes'          => "Validado en: {$adjustment->reference_code}"
                 ]);
 
-                // Actualizar OC
                 if ($adjustment->source instanceof \App\Models\PurchaseOrder) {
                     $poDetail = $adjustment->source->details()
                         ->where('id_product', $item['id_product'])
@@ -575,6 +572,11 @@ class InventoryMovementsController extends Controller
 
             if ($adjustment->source instanceof \App\Models\PurchaseOrder) {
                 $purchaseOrder = $adjustment->source->fresh(['details']);
+                if ($opCode === 'IN') {
+                    $purchaseOrder->update([
+                        'actual_arrival_date' => $kardexDate
+                    ]);
+                }
                 $allReceived = $purchaseOrder->details->every(function ($detail) {
                     return $detail->is_service || ($detail->received_quantity >= $detail->quantity);
                 });

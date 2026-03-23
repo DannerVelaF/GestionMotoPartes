@@ -84,6 +84,7 @@ interface OrderLog {
 }
 
 interface PurchaseOrder {
+    actual_arrival_date: React.JSX.Element;
     id_purchase_order: number;
     po_code: string;
     status: string;
@@ -537,36 +538,60 @@ export default function EditPurchaseOrder({
                                     Imprimir
                                 </span>
                             </button>
-                            <button
-                                onClick={() =>
-                                    router.get(
-                                        '/inventario/ajuste/movimientos',
-                                        { search: order.po_code },
-                                    )
-                                }
-                                className="flex h-12 items-center gap-1.5 border-r border-border px-3 text-slate-600 transition-all hover:bg-muted/50"
-                            >
-                                <Truck className="h-3.5 w-3.5 text-emerald-600" />
-                                <span className="text-[10px] font-semibold uppercase">
-                                    {order.inventory_adjustments_count || 0}{' '}
-                                    Recepciones
-                                </span>
-                            </button>
+                            {order.inventory_adjustments_count > 0 && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() =>
+                                        router.get(
+                                            '/inventario/ajuste/movimientos',
+                                            { search: order.po_code },
+                                        )
+                                    }
+                                    className="h-9 border-emerald-200 bg-emerald-50/30 px-3 hover:border-emerald-300 hover:bg-emerald-100"
+                                >
+                                    <Truck className="mr-2 h-4 w-4 text-emerald-600" />
+                                    <div className="flex flex-col items-start text-left">
+                                        <span className="text-[8px] leading-none font-bold text-muted-foreground uppercase">
+                                            Recepciones
+                                        </span>
+                                        <span className="text-[10px] leading-tight font-black text-emerald-700">
+                                            {order.inventory_adjustments_count}{' '}
+                                            {order.inventory_adjustments_count >
+                                            1
+                                                ? 'Movimientos'
+                                                : 'Movimiento'}
+                                        </span>
+                                    </div>
+                                </Button>
+                            )}
 
-                            {/* Botón Facturas (Diseño igual al de imprimir) */}
-                            <button
-                                onClick={() =>
-                                    router.get('/recibos', {
-                                        search: order.po_code,
-                                    })
-                                }
-                                className="flex h-12 items-center gap-1.5 border-r border-border px-3 text-slate-600 transition-all hover:bg-muted/50"
-                            >
-                                <FileText className="h-3.5 w-3.5 text-blue-600" />
-                                <span className="text-[10px] font-semibold uppercase">
-                                    {order.receipts_count || 0} Facturas
-                                </span>
-                            </button>
+                            {/* Smart Button: Comprobantes (Solo si hay facturas/boletas) */}
+                            {order.receipts_count > 0 && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() =>
+                                        router.get('/recibos', {
+                                            search: order.po_code,
+                                        })
+                                    }
+                                    className="h-9 border-blue-200 bg-blue-50/30 px-3 hover:border-blue-300 hover:bg-blue-100"
+                                >
+                                    <FileText className="mr-2 h-4 w-4 text-blue-600" />
+                                    <div className="flex flex-col items-start text-left">
+                                        <span className="text-[8px] leading-none font-bold text-muted-foreground uppercase">
+                                            Comprobantes
+                                        </span>
+                                        <span className="text-[10px] leading-tight font-black text-blue-700">
+                                            {order.receipts_count}{' '}
+                                            {order.receipts_count > 1
+                                                ? 'Comprobantes'
+                                                : 'Comprobante'}
+                                        </span>
+                                    </div>
+                                </Button>
+                            )}
 
                             {/* StatusBar Indicators */}
                             <div className="flex h-8 items-center overflow-hidden rounded-sm border border-border bg-muted/30 text-[10px] font-bold uppercase">
@@ -696,18 +721,12 @@ export default function EditPurchaseOrder({
                                             onValueChange={handleCurrencyChange}
                                             disabled={isDone || isApproved}
                                         >
-                                            <SelectTrigger
-                                                className={cleanInputClass}
-                                            >
+                                            <SelectTrigger className={cleanInputClass}>
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="PEN">
-                                                    Soles (PEN)
-                                                </SelectItem>
-                                                <SelectItem value="USD">
-                                                    Dólares (USD)
-                                                </SelectItem>
+                                                <SelectItem value="PEN">Soles (PEN)</SelectItem>
+                                                <SelectItem value="USD">Dólares (USD)</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </FormFieldRow>
@@ -716,37 +735,38 @@ export default function EditPurchaseOrder({
                                             type="number"
                                             step="0.001"
                                             value={data.exchange_rate}
-                                            onChange={(e) =>
-                                                onFieldChange(
-                                                    'exchange_rate',
-                                                    e.target.value,
-                                                )
-                                            }
-                                            disabled={
-                                                data.currency === 'PEN' ||
-                                                isDone ||
-                                                isApproved
-                                            }
+                                            onChange={(e) => onFieldChange('exchange_rate', e.target.value)}
+                                            disabled={data.currency === 'PEN' || isDone || isApproved}
                                             className={cleanInputClass}
                                         />
                                     </FormFieldRow>
                                     <FormFieldRow label="Fecha de Orden">
                                         <Input
                                             type="date"
-                                            value={format(
-                                                data.issue_date,
-                                                'yyyy-MM-dd',
-                                            )}
-                                            onChange={(e) =>
-                                                onFieldChange(
-                                                    'issue_date',
-                                                    new Date(e.target.value),
-                                                )
-                                            }
+                                            value={format(data.issue_date, 'yyyy-MM-dd')}
+                                            onChange={(e) => onFieldChange('issue_date', new Date(e.target.value))}
                                             disabled={isDone || isApproved}
                                             className={cleanInputClass}
                                         />
                                     </FormFieldRow>
+                                    <FormFieldRow label="Llegada Esperada">
+                                        <Input
+                                            type="date"
+                                            value={data.expected_date ? format(data.expected_date, 'yyyy-MM-dd') : ''}
+                                            onChange={(e) => onFieldChange('expected_date', e.target.value ? new Date(e.target.value) : null)}
+                                            disabled={isDone || isApproved}
+                                            className={cleanInputClass}
+                                        />
+                                    </FormFieldRow>
+                                    {order.actual_arrival_date && (
+                                        <FormFieldRow label="Llegada Real">
+                                            <Input
+                                                value={format(new Date(order.actual_arrival_date), 'dd/MM/yyyy')}
+                                                disabled
+                                                className={cn(cleanInputClass, "border-emerald-200 text-emerald-700 font-bold")}
+                                            />
+                                        </FormFieldRow>
+                                    )}
                                 </div>
                             </div>
 

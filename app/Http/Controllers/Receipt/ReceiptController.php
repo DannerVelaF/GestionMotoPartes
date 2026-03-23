@@ -107,26 +107,56 @@ class ReceiptController extends Controller
                 'type'   => $request->type,
                 'series' => $request->series,
                 'number' => $request->number,
-            ]
+                'currency' => $sourceOrder ? $sourceOrder->currency : 'PEN',
+                'exchange_rate' => $sourceOrder ? $sourceOrder->exchange_rate : '1.000',
+            ],
+            'purchaseOrders' => PurchaseOrder::with(['details.product'])->whereHas('details', function($q) {
+                $q->whereColumn('billed_quantity', '<', 'quantity');
+            })->get(),
         ]);
     }
 
     public function show($id) {
-        $allowedTypes = [DocumentType::INVOICE, DocumentType::RECEIPT];
+        $allowedTypes = [DocumentType::INVOICE, DocumentType::RECEIPT, DocumentType::CREDIT_NOTE];
 
-        // ✅ Cargamos el comprobante incluyendo 'purchaseOrder' (o como se llame en tu modelo)
         $receipt = Receipt::with([
             'details.product',
             'supplier',
             'logs.user',
-            'purchaseOrder', // <--- AGREGA ESTA LÍNEA
+            'purchaseOrder',
             'children' => function ($query) {
                 $query->with('supplier', 'details')->orderBy('issue_date', 'desc');
             }
         ])->findOrFail($id);
 
+        $returnsCount = $receipt->children->count();
+
+        $parentReference = null;
+        if ($receipt->id_parent) {
+            $parent = Receipt::find($receipt->id_parent);
+            if ($parent) {
+                $parentReference = [
+                    'id' => $parent->id_receipt,
+                    'code' => $parent->receipt_code,
+                    'url' => "/recibos/{$parent->id_receipt}"
+                ];
+            }
+        }
+
+        $masterDocument = null;
+        if ($receipt->id_purchase_order && $receipt->purchaseOrder) {
+            $masterDocument = [
+                'type' => 'Orden Compra',
+                'code' => $receipt->purchaseOrder->po_code,
+                'url'  => "/compras/ordenes/{$receipt->id_purchase_order}"
+            ];
+        }
+
         return Inertia::render('Receipts/EditReceipt', [
             'receipt' => $receipt,
+            'returnsCount' => $returnsCount,
+            'parentReference' => $parentReference,
+            'masterDocument' => $masterDocument,
             'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')->orderBy('company_name')->get(),
             'products' => Products::where('status', 'active')->select('id_product', 'product_name', 'product_code', "stock")->get(),
             'documentTypes' => collect($allowedTypes)->map(fn($t) => [
@@ -340,7 +370,6 @@ class ReceiptController extends Controller
 
     public function returnReceipt(Request $request, $id)
     {
-        // 1. Validación simple
         $validated = $request->validate([
             'return_items' => 'required|array',
             'return_items.*.id_product' => 'nullable',
@@ -350,21 +379,19 @@ class ReceiptController extends Controller
         ]);
 
         try {
-            // Filtramos solo los items que tienen cantidad > 0
             $itemsToReturn = collect($validated['return_items'])
-                ->filter(function ($item) {
-                    return $item['return_quantity'] > 0;
-                })
+                ->filter(fn($item) => $item['return_quantity'] > 0)
                 ->toArray();
 
             if (empty($itemsToReturn)) {
                 return back()->withErrors(['error' => 'No hay items seleccionados para devolver.']);
             }
 
-            // 2. Llamar al servicio
-            $this->service->createReturn($itemsToReturn, $id);
+            $creditNote = $this->service->createReturn($itemsToReturn, $id);
 
-            return back()->with('success', 'Devolución registrada correctamente (Nota de Crédito creada).');
+            return to_route('receipts.show', $creditNote->id_receipt)
+                ->with('success', 'Nota de Crédito generada correctamente.');
+
         } catch (\Exception $e) {
             Log::error('Error processing return: ' . $e->getMessage());
             return back()->withErrors(['error' => 'Error al procesar devolución: ' . $e->getMessage()]);

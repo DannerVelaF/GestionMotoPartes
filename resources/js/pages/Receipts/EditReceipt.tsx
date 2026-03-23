@@ -373,8 +373,25 @@ export default function EditReceipt({
                                     Cambios sin guardar
                                 </span>
                             )}
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => reset()}
+                                disabled={!isDirty}
+                                className="h-8"
+                            >
+                                Descartar
+                            </Button>
+                            <Button
+                                type="submit"
+                                disabled={!isDirty || processing}
+                                className="h-8 bg-blue-600 font-bold text-white shadow-md transition-colors hover:bg-blue-700"
+                            >
+                                <Save className="mr-2 h-4 w-4" /> Guardar
+                            </Button>
 
-                            {isPublished ? (
+                            {/* Botón Nota de Crédito (Solo aparece si ESTÁ publicado y no es una nota en sí) */}
+                            {isPublished && receipt.document_type == "credit_note" &&
                                 receipt.document_type !== 'credit_note' && (
                                     <Button
                                         type="button"
@@ -384,48 +401,30 @@ export default function EditReceipt({
                                         <Undo2 className="mr-2 h-4 w-4" /> Nota
                                         de Crédito
                                     </Button>
-                                )
-                            ) : (
-                                <>
-                                    <Button
-                                        type="submit"
-                                        disabled={!isDirty || processing}
-                                        className="h-8 bg-blue-600 font-bold text-white shadow-md transition-colors hover:bg-blue-700"
-                                    >
-                                        <Save className="mr-2 h-4 w-4" />{' '}
-                                        Guardar
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() => reset()}
-                                        disabled={!isDirty}
-                                        className="h-8"
-                                    >
-                                        <RotateCcw className="mr-2 h-4 w-4" />{' '}
-                                        Descartar
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        onClick={publishReceipt}
-                                        disabled={isDirty || processing}
-                                        className="h-8 bg-emerald-600 font-bold text-white shadow-md transition-colors hover:bg-emerald-700"
-                                    >
-                                        <CheckCircle2 className="mr-2 h-4 w-4" />{' '}
-                                        Publicar
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        onClick={() =>
-                                            setIsDeleteAlertOpen(true)
-                                        }
-                                        className="h-8 text-red-600 hover:bg-red-50 hover:text-red-700"
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </>
+                                )}
+
+                            {/* Botón Publicar (Solo aparece si NO está publicado) */}
+                            {!isPublished && (
+                                <Button
+                                    type="button"
+                                    onClick={publishReceipt}
+                                    disabled={isDirty || processing}
+                                    className="h-8 bg-emerald-600 font-bold text-white shadow-md transition-colors hover:bg-emerald-700"
+                                >
+                                    <CheckCircle2 className="mr-2 h-4 w-4" />{' '}
+                                    Publicar
+                                </Button>
                             )}
+
+                            {/* Botón Eliminar (Siempre visible) */}
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => setIsDeleteAlertOpen(true)}
+                                className="h-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
                         </div>
 
                         {/* Botones Derecha: Smart Buttons + Estado */}
@@ -666,18 +665,13 @@ export default function EditReceipt({
                                         </div>
 
                                         <div className="space-y-1">
-                                            <FormFieldRow label="Fecha Emisión">
+                                            <FormFieldRow label="Fecha Facturación">
                                                 <Popover>
-                                                    <PopoverTrigger
-                                                        asChild
-                                                        disabled={isPublished}
-                                                    >
+                                                    <PopoverTrigger asChild>
                                                         <Button
                                                             variant="outline"
                                                             className={cn(
-                                                                isPublished
-                                                                    ? disabledInputClass
-                                                                    : cleanInputClass,
+                                                                cleanInputClass,
                                                                 'text-left',
                                                             )}
                                                         >

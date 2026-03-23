@@ -139,7 +139,10 @@ class ReceiptService extends BaseService
                 }
             }
 
-            $receipt->update(['status' => 'published']);
+            $receipt->update([
+                'status' => 'published',
+                'published_at' => now(),
+            ]);
 
             ReceiptLog::create([
                 'id_receipt' => $receipt->id_receipt,
