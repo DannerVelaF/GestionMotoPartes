@@ -60,6 +60,7 @@ import {
     Warehouse,
 } from 'lucide-react';
 import { FormEventHandler, useEffect, useRef, useState } from 'react';
+import { FloatingAlert } from '@/components/FloatingAlert';
 
 // --- INTERFACES ---
 interface FlashProps {
@@ -90,20 +91,6 @@ interface Props {
     types: any[];
 }
 
-function FloatingAlert({ message, type = 'error' }: { message?: string; type?: 'error' | 'success' }) {
-    if (!message) return null;
-    const isSuccess = type === 'success';
-    return (
-        <div className="fixed top-6 right-6 z-[100] w-auto max-w-md animate-in fade-in slide-in-from-top-2">
-            <Alert className={cn('border-2 shadow-xl', isSuccess ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-red-500 bg-white text-red-900')}>
-                {isSuccess ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-                <AlertTitle className="ml-2 font-bold">{isSuccess ? '¡Éxito!' : 'Error'}</AlertTitle>
-                <AlertDescription className="ml-2">{message}</AlertDescription>
-            </Alert>
-        </div>
-    );
-}
-// --- COMPONENTE PARA TARJETAS ESTADÍSTICAS ---
 function StatCard({ title, value, icon, description, highlight = false }: any) {
     return (
         <Card
@@ -531,12 +518,42 @@ export default function EditProduct({ product, categories = [], brands = [], typ
                                         </div>
                                     </div>
                                 </div>
-                                <div className="mt-10 grid grid-cols-1 gap-20 md:grid-cols-2">
+                                {/* --- SECCIÓN DE PRECIOS (NEUTRO) --- */}
+                                <div className="mt-10 grid grid-cols-1 gap-10 md:grid-cols-2">
+                                    {/* PRECIO DE COMPRA (COSTO) */}
                                     <div className="space-y-2">
                                         <Label className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-                                            Precio de Venta
+                                            Costo de Adquisición (Compra)
                                         </Label>
-                                        <div className="flex items-end gap-2 border-b-2 border-muted focus-within:border-blue-600">
+                                        <div className="flex items-end gap-2 border-b-2 border-muted transition-colors focus-within:border-foreground">
+                                            <span className="mb-2 text-2xl font-light text-muted-foreground">
+                                                S/
+                                            </span>
+                                            <Input
+                                                type="number"
+                                                step="0.01"
+                                                value={data.purchase_price}
+                                                onChange={(e) =>
+                                                    onFieldChange(
+                                                        'purchase_price',
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                className="h-10 border-0 bg-transparent px-0 text-3xl font-black focus-visible:ring-0"
+                                                placeholder="0.00"
+                                            />
+                                        </div>
+                                        <p className="text-[10px] font-medium text-muted-foreground uppercase">
+                                            Valor para el Kardex
+                                        </p>
+                                    </div>
+
+                                    {/* PRECIO DE VENTA */}
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
+                                            Precio de Venta al Público
+                                        </Label>
+                                        <div className="flex items-end gap-2 border-b-2 border-muted transition-colors focus-within:border-foreground">
                                             <span className="mb-2 text-2xl font-light text-muted-foreground">
                                                 S/
                                             </span>
@@ -553,39 +570,37 @@ export default function EditProduct({ product, categories = [], brands = [], typ
                                                 className="h-10 border-0 bg-transparent px-0 text-3xl font-black focus-visible:ring-0"
                                             />
                                         </div>
+                                        <p className="text-[10px] font-medium text-muted-foreground uppercase">
+                                            Precio final de salida
+                                        </p>
                                     </div>
-                                    <div className="mt-auto flex items-start space-x-3 rounded-xl border border-dashed p-4">
-                                        <Checkbox
-                                            id="product-status"
-                                            checked={data.status === 'active'}
-                                            onCheckedChange={(c) =>
-                                                onFieldChange(
-                                                    'status',
-                                                    c ? 'active' : 'inactive',
-                                                )
-                                            }
-                                            className="mt-1 h-5 w-5 border-2 border-blue-600"
-                                        />
-                                        <div className="grid gap-1.5 leading-none">
-                                            <Label
-                                                htmlFor="product-status"
-                                                className="flex cursor-pointer items-center gap-2 text-sm font-black uppercase"
-                                            >
-                                                <Power
-                                                    className={cn(
-                                                        'h-3.5 w-3.5',
-                                                        data.status === 'active'
-                                                            ? 'text-emerald-500'
-                                                            : 'text-red-500',
-                                                    )}
-                                                />{' '}
-                                                Listar en el Catálogo
-                                            </Label>
-                                            <p className="text-[10px] font-bold text-muted-foreground uppercase">
-                                                Define si el producto es visible
-                                                para ventas y compras.
-                                            </p>
-                                        </div>
+                                </div>
+
+                                {/* --- ESTADO EN EL CATÁLOGO (NEUTRO) --- */}
+                                <div className="mt-8 flex items-center space-x-4 rounded-xl border border-muted bg-muted/5 p-6">
+                                    <Checkbox
+                                        id="product-status"
+                                        checked={data.status === 'active'}
+                                        onCheckedChange={(c) =>
+                                            onFieldChange(
+                                                'status',
+                                                c ? 'active' : 'inactive',
+                                            )
+                                        }
+                                        className="h-5 w-5 border-2 border-muted-foreground data-[state=checked]:border-foreground data-[state=checked]:bg-foreground"
+                                    />
+                                    <div className="grid gap-1 leading-none">
+                                        <Label
+                                            htmlFor="product-status"
+                                            className="flex cursor-pointer items-center gap-2 text-sm font-bold tracking-tight uppercase"
+                                        >
+                                            <Power className="h-3.5 w-3.5 text-muted-foreground" />
+                                            Listar en el Catálogo de Productos
+                                        </Label>
+                                        <p className="text-[10px] text-muted-foreground uppercase">
+                                            Define la visibilidad del producto
+                                            en ventas e inventario.
+                                        </p>
                                     </div>
                                 </div>
                             </TabsContent>
@@ -744,6 +759,7 @@ export default function EditProduct({ product, categories = [], brands = [], typ
 }
 
 // --- TABLA DE TRANSACCIONES (KARDEX) ---
+// --- TABLA DE TRANSACCIONES (KARDEX) ---
 function TransactionTable({ movements, emptyMessage, productCode }: { movements: any[]; emptyMessage: string; productCode: string | null }) {
     if (!movements || !movements.length) return <div className="py-20 text-center text-xs font-bold text-muted-foreground uppercase opacity-50">{emptyMessage}</div>;
 
@@ -752,27 +768,65 @@ function TransactionTable({ movements, emptyMessage, productCode }: { movements:
             <Table>
                 <TableHeader className="bg-muted/30">
                     <TableRow className="hover:bg-transparent">
-                        <TableHead className="px-6 text-xs font-bold uppercase">Fecha</TableHead>
-                        <TableHead className="px-6 text-xs font-bold uppercase">Referencia</TableHead>
-                        <TableHead className="px-6 text-right text-xs font-bold uppercase">Cant.</TableHead>
-                        <TableHead className="px-6 text-right text-xs font-bold uppercase">Valor Unit.</TableHead>
-                        <TableHead className="px-6 text-right text-xs font-bold uppercase">Total</TableHead>
-                        <TableHead className="px-6 text-right text-xs font-bold uppercase">Resp.</TableHead>
+                        <TableHead className="px-6 text-xs font-bold uppercase">
+                            Fecha
+                        </TableHead>
+                        <TableHead className="px-6 text-xs font-bold uppercase">
+                            Referencia
+                        </TableHead>
+                        {/* ✅ NUEVAS COLUMNAS */}
+                        <TableHead className="px-6 text-center text-xs font-bold uppercase">
+                            Operación
+                        </TableHead>
+                        <TableHead className="px-6 text-xs font-bold uppercase">
+                            Trayecto
+                        </TableHead>
+                        <TableHead className="px-6 text-right text-xs font-bold uppercase">
+                            Cant.
+                        </TableHead>
+                        <TableHead className="px-6 text-right text-xs font-bold uppercase">
+                            Costo Unit.
+                        </TableHead>
+                        <TableHead className="px-6 text-right text-xs font-bold uppercase">
+                            Total
+                        </TableHead>
+                        <TableHead className="px-6 text-right text-xs font-bold uppercase">
+                            Resp.
+                        </TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
                     {movements.map((move) => {
-                        const qty = Number(move.quantity || 0);
+                        // Nos aseguramos de trabajar con valores absolutos para la matemática
+                        const qty = Math.abs(Number(move.quantity || 0));
                         const unitValue = Number(move.unit_cost || 0);
-                        const totalValue = Math.abs(qty) * unitValue;
+                        const totalValue = qty * unitValue;
+
+                        // ✅ LÓGICA INTELIGENTE: ¿Es una salida de inventario?
+                        const isOutbound =
+                            move.type === 'OUT' ||
+                            move.type === 'sale' ||
+                            move.type === 'purchase_return';
 
                         const typeStyles: Record<string, string> = {
-                            purchase: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10',
+                            purchase:
+                                'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10',
+                            IN: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10',
                             sale: 'bg-blue-100 text-blue-700 dark:bg-blue-500/10',
-                            purchase_return: 'bg-purple-100 text-purple-700 dark:bg-purple-500/10',
+                            OUT: 'bg-red-100 text-red-700 dark:bg-red-500/10',
+                            purchase_return:
+                                'bg-purple-100 text-purple-700 dark:bg-purple-500/10',
                             return: 'bg-orange-100 text-orange-700 dark:bg-orange-500/10',
-                            adjustment: 'bg-amber-100 text-amber-700 dark:bg-amber-500/10',
+                            adjustment:
+                                'bg-amber-100 text-amber-700 dark:bg-amber-500/10',
                         };
+
+                        const operationName =
+                            move.type === 'IN'
+                                ? 'ENTRADA'
+                                : move.type === 'OUT'
+                                  ? 'SALIDA'
+                                  : move.type;
 
                         return (
                             <TableRow
@@ -782,35 +836,132 @@ function TransactionTable({ movements, emptyMessage, productCode }: { movements:
                                     if (!move.reference_id) return;
                                     const refType = move.reference_type || '';
 
-                                    // 1. Redirigir a Ventas
-                                    if (refType.includes('Sales') || ['sale', 'return'].includes(move.type)) {
-                                        router.visit(sales.show({ sale: move.reference_id }).url);
-                                    }
-                                    // 2. Redirigir a Compras
-                                    else if (refType.includes('Receipt') || ['purchase', 'purchase_return'].includes(move.type)) {
-                                        router.visit(receipts.show({ receipt: move.reference_id }).url);
-                                    }
-                                    // 3. Redirigir a Ajustes Manuales
-                                    else if (refType.includes('InventoryAdjustment') || move.type === 'adjustment') {
-                                        router.get(`/inventario/ajuste/movimientos?search=${productCode}`);
+                                    if (
+                                        refType.includes('Sales') ||
+                                        ['sale', 'return'].includes(move.type)
+                                    ) {
+                                        router.visit(
+                                            sales.show({
+                                                sale: move.reference_id,
+                                            }).url,
+                                        );
+                                    } else if (
+                                        refType.includes('Receipt') ||
+                                        [
+                                            'purchase',
+                                            'purchase_return',
+                                        ].includes(move.type)
+                                    ) {
+                                        router.visit(
+                                            receipts.show({
+                                                receipt: move.reference_id,
+                                            }).url,
+                                        );
+                                    } else if (
+                                        refType.includes(
+                                            'InventoryAdjustment',
+                                        ) ||
+                                        move.type === 'adjustment' ||
+                                        ['IN', 'OUT'].includes(move.type)
+                                    ) {
+                                        router.get(
+                                            `/inventario/ajuste/movimientos?search=${productCode}`,
+                                        );
                                     }
                                 }}
                             >
-                                <TableCell className="px-6 py-4 text-sm">{format(new Date(move.created_at), 'dd/MM/yyyy HH:mm')}</TableCell>
+                                <TableCell className="px-6 py-4 text-sm text-muted-foreground tabular-nums">
+                                    {format(
+                                        new Date(move.created_at),
+                                        'dd/MM/yyyy HH:mm',
+                                    )}
+                                </TableCell>
+
                                 <TableCell className="px-6 py-4">
                                     <div className="flex flex-col gap-1">
-                                        <span className={cn('w-fit rounded-md px-2 py-0.5 text-[10px] font-black uppercase', typeStyles[move.type] || 'bg-muted')}>{move.reference_label}</span>
-                                        <span className="font-mono text-[10px] text-muted-foreground">{move.notes}</span>
+                                        <span className="font-bold text-foreground">
+                                            {move.reference_label ||
+                                                move.reference
+                                                    ?.reference_code ||
+                                                move.reference?.po_code ||
+                                                'MOV-SISTEMA'}
+                                        </span>
+                                        <span className="line-clamp-1 font-mono text-[10px] text-muted-foreground">
+                                            {move.notes}
+                                        </span>
                                     </div>
                                 </TableCell>
-                                <TableCell className={cn('px-6 py-4 text-right font-bold', qty > 0 ? 'text-emerald-600' : 'text-red-600')}>
-                                    {qty > 0 ? `+${qty.toFixed(2)}` : qty.toFixed(2)}
+
+                                {/* ✅ NUEVA: Operación */}
+                                <TableCell className="px-6 py-4 text-center">
+                                    <span
+                                        className={cn(
+                                            'w-fit rounded-md px-2 py-0.5 text-[10px] font-black uppercase',
+                                            typeStyles[move.type] || 'bg-muted',
+                                        )}
+                                    >
+                                        {operationName}
+                                    </span>
                                 </TableCell>
-                                <TableCell className="px-6 py-4 text-right text-muted-foreground tabular-nums">S/ {unitValue.toFixed(2)}</TableCell>
-                                <TableCell className="px-6 py-4 text-right font-black tabular-nums">S/ {totalValue.toFixed(2)}</TableCell>
+
+                                {/* ✅ NUEVA: Trayecto (De / Para) */}
+                                <TableCell className="px-6 py-4">
+                                    <div className="flex flex-col gap-0.5 text-[10px] tracking-widest uppercase">
+                                        <span className="text-muted-foreground">
+                                            <span className="font-bold text-foreground">
+                                                De:
+                                            </span>{' '}
+                                            {move.location_source ||
+                                                (isOutbound
+                                                    ? 'Almacén/Stock'
+                                                    : 'Externo')}
+                                        </span>
+                                        <span className="text-muted-foreground">
+                                            <span className="font-bold text-foreground">
+                                                Para:
+                                            </span>{' '}
+                                            {move.location_dest ||
+                                                (!isOutbound
+                                                    ? 'Almacén/Stock'
+                                                    : 'Externo')}
+                                        </span>
+                                    </div>
+                                </TableCell>
+
+                                {/* ✅ CORREGIDO: Cantidad con colores y signos dinámicos */}
+                                <TableCell
+                                    className={cn(
+                                        'px-6 py-4 text-right font-black tabular-nums',
+                                        isOutbound
+                                            ? 'text-red-600 dark:text-red-400'
+                                            : 'text-emerald-600 dark:text-emerald-400',
+                                    )}
+                                >
+                                    {isOutbound ? '-' : '+'}
+                                    {qty.toFixed(2)}
+                                </TableCell>
+
+                                <TableCell className="px-6 py-4 text-right text-muted-foreground tabular-nums">
+                                    S/ {unitValue.toFixed(2)}
+                                </TableCell>
+
+                                {/* ✅ CORREGIDO: Total con colores y signos dinámicos */}
+                                <TableCell
+                                    className={cn(
+                                        'px-6 py-4 text-right font-bold tabular-nums',
+                                        isOutbound
+                                            ? 'text-red-600/80 dark:text-red-400/80'
+                                            : 'text-emerald-600/80 dark:text-emerald-400/80',
+                                    )}
+                                >
+                                    {isOutbound ? '- S/ ' : '+ S/ '}
+                                    {totalValue.toFixed(2)}
+                                </TableCell>
+
                                 <TableCell className="px-6 py-4 text-right">
                                     <span className="flex items-center justify-end gap-2 text-xs font-semibold text-muted-foreground uppercase">
-                                        <User2 className="h-3 w-3" /> {move.user?.name || 'Sist.'}
+                                        <User2 className="h-3 w-3" />{' '}
+                                        {move.user?.name || 'Sist.'}
                                     </span>
                                 </TableCell>
                             </TableRow>

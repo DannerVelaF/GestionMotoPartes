@@ -21,10 +21,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/inventario/ajuste/{id}/edit', 'editAdjustment')->name('inventory.adjustment.edit');
 
         // Acciones
-        Route::put('/inventario/ajuste/{id}', 'updateAdjustment');
-        Route::post('/inventario/ajuste/{id}/check', 'checkAdjustment');
-        Route::post('/inventario/ajuste/{id}/validate', 'validateAdjustment');
-        Route::post('/inventario/ajuste/{id}/note', 'addNote');
+        Route::put('/inventario/ajuste/{id}', 'updateAdjustment')->name('inventory.adjustment.update');
+        Route::post('/inventario/ajuste/{id}/check', 'checkAdjustment')->name('inventory.adjustment.check');
+        Route::post('/inventario/ajuste/{id}/validate', 'validateAdjustment')->name('inventory.adjustment.validate');
+        Route::post('/inventario/ajuste/{id}/note', 'addNote')->name('inventory.adjustment.note');
+        Route::post('/inventario/ajuste/{id}/devolver', 'createReturn')->name('inventory.adjustment.return');
     });
 
     Route::controller(InventorySettingsController::class)->group(function () {

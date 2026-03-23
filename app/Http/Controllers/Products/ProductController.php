@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Services\Products\ProductService;
 use App\Imports\ProductsImport;
 use App\Models\Brand;
+use App\Models\InventoryAdjustment;
 use App\Models\ProductCategory;
 use App\Models\Products;
 use App\Models\ProductType;
@@ -149,7 +150,7 @@ class ProductController extends Controller
     public function show($id)
     {
         $product = Products::with(['movements' => function ($query) {
-            $query->with(['user', 'reference'])
+            $query->with(['user', 'reference.locationSource', 'reference.locationDestination'])
                 ->orderBy('created_at', 'desc')
                 ->orderBy('id_movement', 'desc')
                 ->take(20);
@@ -167,16 +168,14 @@ class ProductController extends Controller
                 // 2. COMPRAS / RECIBOS
                 elseif ($move->reference_type === \App\Models\Receipt::class) {
                     $receipt = $move->reference;
-                    $tipo = ($receipt->document_type === 'nota_credito') ? 'Devolución' : 'Compra';
-                    $refLabel = $tipo . " " . ($receipt->receipt_code ?? "#{$move->reference_id}");
+                    $unitCostInSoles = $move->unit_cost;
 
                     if ($receipt->currency === 'USD' && $receipt->exchange_rate > 0) {
                         $unitCostInSoles = $move->unit_cost * $receipt->exchange_rate;
                     }
                 }
-                // 3. AJUSTES DE INVENTARIO (NUEVO)
-                elseif ($move->reference_type === \App\Models\InventoryAdjustment::class) {
-                    $refLabel = "Ajuste " . ($move->reference->adjustment_code ?? "#{$move->reference_id}");
+                elseif ($move->reference_type === InventoryAdjustment::class) {
+                    $refLabel = $move->reference->reference_code ?? "Ajuste #{$move->reference_id}";
                 }
             }
 
@@ -191,6 +190,12 @@ class ProductController extends Controller
                 'reference_id'    => $move->reference_id,
                 'created_at'      => $move->created_at,
                 'user'            => $move->user,
+                'location_source' => $move->reference && method_exists($move->reference, 'locationSource')
+                    ? $move->reference->locationSource?->name
+                    : null,
+                'location_dest'   => $move->reference && method_exists($move->reference, 'locationDestination')
+                    ? $move->reference->locationDestination?->name
+                    : null,
             ];
         });
 
@@ -216,17 +221,17 @@ class ProductController extends Controller
             ->select(
                 DB::raw('SUM(receipt_details.quantity) as total_qty'),
                 DB::raw('SUM(
-                    CASE
-                        WHEN receipts.currency = "USD" THEN (receipt_details.quantity * receipt_details.unit_price) * receipts.exchange_rate
-                        ELSE (receipt_details.quantity * receipt_details.unit_price)
-                    END
-                ) as total_investment'),
+                        CASE
+                            WHEN receipts.currency = "USD" THEN (receipt_details.quantity * receipt_details.unit_price) * receipts.exchange_rate
+                            ELSE (receipt_details.quantity * receipt_details.unit_price)
+                        END
+                    ) as total_investment'),
                 DB::raw('AVG(
-                    CASE
-                        WHEN receipts.currency = "USD" THEN receipt_details.unit_price * receipts.exchange_rate
-                        ELSE receipt_details.unit_price
-                    END
-                ) as avg_cost')
+                        CASE
+                            WHEN receipts.currency = "USD" THEN receipt_details.unit_price * receipts.exchange_rate
+                            ELSE receipt_details.unit_price
+                        END
+                    ) as avg_cost')
             )
             ->first();
 
@@ -262,6 +267,7 @@ class ProductController extends Controller
             'product_name'    => 'required|string|max:255',
             'product_code'    => ['required', 'string', 'max:100', Rule::unique('products', 'product_code')->ignore($product->id_product, 'id_product')],
             'sale_price'      => 'required|numeric|min:0',
+            'purchase_price'  => 'nullable|numeric|min:0',
             'id_category'     => 'required|exists:product_categories,id_product_category',
             'id_brand'        => 'required|exists:brands,id_brand',
             'id_product_type' => 'required|exists:product_types,id_product_type',
@@ -286,6 +292,8 @@ class ProductController extends Controller
             'status.required'          => 'El estado es obligatorio.',
             'image.max'                => 'La imagen no debe pesar más de 2MB.',
             'image.mimes'              => 'El formato debe ser jpeg, png, jpg o webp.',
+            'purchase_price.numeric' => 'El precio de compra debe ser un número.',
+            'purchase_price.min'     => 'El precio de compra no puede ser negativo.',
         ];
 
         $validatedData = $request->validate($rules, $messages);

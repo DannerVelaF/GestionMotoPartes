@@ -26,6 +26,9 @@ return new class extends Migration
 
             $table->timestamps();
 
+            $table->unsignedBigInteger("id_tax");
+            $table->foreign('id_tax')->references('id_tax')->on('taxes')->onDelete("cascade");
+
             $table->foreign('id_purchase_order')->references('id_purchase_order')->on('purchase_orders')->onDelete('cascade');
             $table->foreign('id_product')->references('id_product')->on('products');
         });

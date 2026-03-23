@@ -25,4 +25,8 @@ class PurchaseOrderDetail extends Model
     {
         return $this->belongsTo(Products::class, 'id_product', 'id_product');
     }
+    public function tax()
+    {
+        return $this->belongsTo(Taxes::class, 'id_tax');
+    }
 }

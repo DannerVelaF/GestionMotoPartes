@@ -5,6 +5,7 @@ use App\Http\Controllers\Sales\CustomerSearchController;
 use App\Http\Controllers\Receipt\ReceiptController;
 use App\Http\Controllers\Receipt\SupplierController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\TaxesController;
 
 Route::middleware("auth")->group(function () {
     Route::controller(SupplierController::class)->group(function () {
@@ -52,5 +53,12 @@ Route::middleware("auth")->group(function () {
         Route::get('/compras/ordenes/{id}/recepcion', 'prepareReception')->name('purchase-orders.reception');
         Route::get('/compras/{purchaseOrder}/print', [PurchaseOrdersController::class, 'print'])->name('purchase-orders.print');
         Route::post('/compras/ordenes/{id}/cancelar', [PurchaseOrdersController::class, 'cancel'])->name('purchase-orders.cancel');
+    });
+
+    Route::controller(TaxesController::class)->group(function () {
+        Route::get('/compras/configuracion/impuestos', 'index')->name('taxes.index');
+        Route::post('/compras/configuracion/impuestos', 'store')->name('taxes.store');
+        Route::put('/compras/configuracion/impuestos/{id}', 'update')->name('taxes.update');
+        Route::delete('/compras/configuracion/impuestos/{id}', 'destroy')->name('taxes.destroy');
     });
 });

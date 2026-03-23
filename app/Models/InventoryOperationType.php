@@ -17,6 +17,7 @@ class InventoryOperationType extends Model
         'default_location_source_id',
         'default_location_destination_id',
         'sequence_prefix',
+        'return_operation_type_id',
     ];
 
     /**
@@ -41,5 +42,10 @@ class InventoryOperationType extends Model
     public function adjustments()
     {
         return $this->hasMany(InventoryAdjustment::class, 'id_operation_type', 'id_operation_type');
+    }
+
+    public function returnType()
+    {
+        return $this->belongsTo(InventoryOperationType::class, 'return_operation_type_id', 'id_operation_type');
     }
 }

@@ -7,12 +7,12 @@ use App\Http\Services\BaseService;
 use App\Http\Services\Receipt\ReceiptService;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLog;
+use App\Models\Products; // ✅ Importado
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class PurchaseOrderService extends BaseService
 {
@@ -34,7 +34,6 @@ class PurchaseOrderService extends BaseService
                 $path = $data['file']->store('purchase_orders', 'public');
             }
 
-            // Generación de código si no viene uno
             if (empty($data['po_code'])) {
                 $prefix = $data['order_type'] === 'service' ? 'OS' : 'OC';
                 $currentYearMonth = now()->format('Ym');
@@ -49,13 +48,12 @@ class PurchaseOrderService extends BaseService
 
             $initialStatus = $data['status'] ?? 'draft';
 
-            // 1. Crear Cabecera con nuevos campos de auditoría
             $order = $this->repo->create([
                 'po_code'             => $poCode,
                 'order_type'          => $data['order_type'],
                 'id_supplier'         => $data['id_supplier'],
-                'id_user'             => $userId, // Creador
-                'requested_by'        => $initialStatus === 'sent' ? $userId : null, // Si nace como sent, él solicita
+                'id_user'             => $userId,
+                'requested_by'        => $initialStatus === 'sent' ? $userId : null,
                 'issue_date'          => Carbon::parse($data['issue_date']),
                 'expected_date'       => isset($data['expected_date']) ? Carbon::parse($data['expected_date']) : null,
                 'currency'            => $data['currency'],
@@ -66,7 +64,6 @@ class PurchaseOrderService extends BaseService
                 'attachment_path'     => $path,
             ]);
 
-            // --- LOG: CREACIÓN ---
             PurchaseOrderLog::create([
                 'id_purchase_order' => $order->id_purchase_order,
                 'id_user'           => $userId,
@@ -75,7 +72,7 @@ class PurchaseOrderService extends BaseService
                 'new_value'         => $initialStatus,
             ]);
 
-            // 2. Crear Detalles
+            // 2. Crear Detalles y Sincronizar Precios
             foreach ($data['details'] as $detail) {
                 $isService = $detail['is_service'] ?? ($data['order_type'] === 'service');
 
@@ -88,6 +85,11 @@ class PurchaseOrderService extends BaseService
                     'margin_percentage'    => $detail['margin_percentage'] ?? 0,
                     'suggested_sale_price' => $detail['suggested_sale_price'] ?? 0,
                 ]);
+
+                // ✅ Sincronización automática con el producto maestro
+                if (!$isService && !empty($detail['id_product'])) {
+                    $this->syncProductPrices($detail);
+                }
             }
 
             return $order;
@@ -104,14 +106,11 @@ class PurchaseOrderService extends BaseService
                 throw new \Exception("No se puede editar una orden que ya fue recibida.");
             }
 
-            // Lógica de auditoría de flujo
             $requestedBy = $order->requested_by;
-            // Si el estado cambia de draft a sent, registramos quién lo solicitó
             if ($order->status === 'draft' && $data['status'] === 'sent') {
                 $requestedBy = $userId;
             }
 
-            // Preparamos los datos para el fill
             $updateData = [
                 'id_supplier'         => $data['id_supplier'],
                 'order_type'          => $data['order_type'],
@@ -125,7 +124,6 @@ class PurchaseOrderService extends BaseService
                 'notes'               => $data['notes'] ?? null,
             ];
 
-            // Si incluyes fecha de llegada real en el update (ej. al recibir)
             if (isset($data['actual_arrival_date'])) {
                 $updateData['actual_arrival_date'] = Carbon::parse($data['actual_arrival_date']);
             }
@@ -137,45 +135,30 @@ class PurchaseOrderService extends BaseService
                 $order->attachment_path = $data['file']->store('purchase_orders', 'public');
             }
 
-            // --- SABUESO DE LOGS ---
+            // --- LOGS ---
             $dirtyFields = $order->getDirty();
             $originalFields = $order->getOriginal();
             $order->save();
 
-            $fieldNames = [
-                'status'        => 'Estado',
-                'expected_date' => 'Fecha Esperada',
-                'total_amount'  => 'Monto Total',
-                'currency'      => 'Moneda',
-                'order_type'    => 'Tipo de Orden'
-            ];
+            $fieldNames = ['status' => 'Estado', 'expected_date' => 'Fecha Esperada', 'total_amount' => 'Monto Total', 'currency' => 'Moneda', 'order_type' => 'Tipo de Orden'];
 
             foreach ($dirtyFields as $field => $newValue) {
                 if (array_key_exists($field, $fieldNames)) {
                     $oldValue = $originalFields[$field] ?? null;
-
-                    // Ignorar cambios triviales en números
-                    if (in_array($field, ['total_amount', 'exchange_rate'])) {
-                        if ((float)$oldValue === (float)$newValue) continue;
-                    }
-
-                    // Ignorar cambios triviales en fechas
-                    if (in_array($field, ['issue_date', 'expected_date']) && $oldValue && $newValue) {
-                        if (Carbon::parse($oldValue)->isSameDay(Carbon::parse($newValue))) continue;
-                    }
+                    if (in_array($field, ['total_amount', 'exchange_rate']) && (float)$oldValue === (float)$newValue) continue;
 
                     PurchaseOrderLog::create([
                         'id_purchase_order' => $order->id_purchase_order,
                         'id_user'           => $userId,
                         'action'            => $field === 'status' ? 'Cambio de Estado' : 'Modificación',
                         'field_changed'     => $fieldNames[$field],
-                        'old_value'         => $oldValue ? (string)$oldValue : 'Vacío',
-                        'new_value'         => (string)$newValue,
+                        'old_value'         => $oldValue ?: 'Vacío',
+                        'new_value'         => $newValue,
                     ]);
                 }
             }
 
-            // Registrar nota interna si existe
+            // Registrar nota interna
             if (!empty($data['internal_note'])) {
                 PurchaseOrderLog::create([
                     'id_purchase_order' => $order->id_purchase_order,
@@ -185,7 +168,7 @@ class PurchaseOrderService extends BaseService
                 ]);
             }
 
-            // Actualizar detalles
+            // Actualizar detalles y sincronizar precios
             $order->details()->delete();
             foreach ($data['details'] as $detail) {
                 $isService = $detail['is_service'] ?? ($data['order_type'] === 'service');
@@ -198,10 +181,30 @@ class PurchaseOrderService extends BaseService
                     'margin_percentage'    => $detail['margin_percentage'] ?? 0,
                     'suggested_sale_price' => $detail['suggested_sale_price'] ?? 0,
                 ]);
+
+                // ✅ Sincronizar precios al actualizar
+                if (!$isService && !empty($detail['id_product'])) {
+                    $this->syncProductPrices($detail);
+                }
             }
 
             return $order->refresh();
         });
+    }
+
+    /**
+     * ✅ MÉTODO DE SINCRONIZACIÓN
+     * Actualiza la ficha maestra del producto con los costos y precios negociados en la OC.
+     */
+    private function syncProductPrices(array $detail)
+    {
+        $product = Products::find($detail['id_product']);
+        if ($product) {
+            $product->update([
+                'purchase_price' => $detail['unit_cost'],
+                'sale_price'     => $detail['suggested_sale_price'] ?? $product->sale_price,
+            ]);
+        }
     }
 
     public function approveAndReceiveOrder($orderId, array $receiptData)
@@ -214,7 +217,6 @@ class PurchaseOrderService extends BaseService
                 throw new \Exception("Esta orden ya fue recibida anteriormente.");
             }
 
-            // 1. Armar la data para el ReceiptService
             $formattedReceiptData = [
                 'id_supplier'       => $order->id_supplier,
                 'document_type'     => $receiptData['document_type'],
@@ -239,18 +241,15 @@ class PurchaseOrderService extends BaseService
                 ];
             }
 
-            // 2. Crear Comprobante
             $receipt = $this->receiptService->createReceipt($formattedReceiptData);
 
-            // 3. Actualizar OC con datos de aprobación y llegada real
             $order->update([
                 'status'              => 'received',
                 'approved_by'         => $userId,
                 'approved_at'         => now(),
-                'actual_arrival_date' => $receiptData['issue_date'] // Se asume la fecha del comprobante como llegada
+                'actual_arrival_date' => $receiptData['issue_date']
             ]);
 
-            // --- LOG: RECEPCIÓN ---
             PurchaseOrderLog::create([
                 'id_purchase_order' => $order->id_purchase_order,
                 'id_user'           => $userId,
@@ -258,7 +257,7 @@ class PurchaseOrderService extends BaseService
                 'field_changed'     => 'Estado',
                 'old_value'         => 'sent',
                 'new_value'         => 'received',
-                'notes'             => "Aprobado por usuario y generado comprobante: {$receiptData['series']}-{$receiptData['number']}"
+                'notes'             => "Generado comprobante: {$receiptData['series']}-{$receiptData['number']}"
             ]);
 
             return $receipt;
@@ -272,7 +271,7 @@ class PurchaseOrderService extends BaseService
             $order = PurchaseOrder::findOrFail($orderId);
 
             if ($order->status !== 'sent') {
-                throw new \Exception("Solo se pueden aprobar órdenes que han sido enviadas.");
+                throw new \Exception("Solo se pueden aprobar órdenes enviadas.");
             }
 
             $order->update([
@@ -299,20 +298,16 @@ class PurchaseOrderService extends BaseService
     {
         return DB::transaction(function () use ($id) {
             $order = PurchaseOrder::findOrFail($id);
-
             if ($order->status === 'received') {
-                throw new \Exception("No se puede cancelar una orden que ya ha sido recibida completamente.");
+                throw new \Exception("No se puede cancelar una orden recibida.");
             }
-
             $order->update(['status' => 'cancelled']);
-
-            // Registrar en el log
             $order->logs()->create([
                 'id_user' => auth()->id(),
                 'action' => 'Orden Cancelada',
-                'notes' => 'El usuario canceló la orden de compra.'
+                'notes' => 'El usuario canceló la orden.'
             ]);
-
             return $order;
         });
-    }}
+    }
+}

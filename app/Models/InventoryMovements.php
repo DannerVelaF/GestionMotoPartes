@@ -12,9 +12,11 @@ class InventoryMovements extends Model
     protected $fillable = [
         'id_product',
         'type',
-        "id_user",
+        'id_user',
+        'kardex_date',
         'quantity',
         'unit_cost',
+        'total_cost',
         'balance',
         'reference_id',
         'reference_type',

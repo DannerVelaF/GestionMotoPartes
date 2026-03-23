@@ -56,8 +56,11 @@ class PurchaseOrdersController extends Controller
         return Inertia::render('Purchases/CreatePurchaseOrder', [
             'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')->orderBy('company_name')->get(),
             'products' => Products::where('status', 'active')
-                ->select('id_product', 'product_name', 'product_code', 'sale_price')
+                ->select('id_product', 'product_name', 'product_code', 'sale_price', 'purchase_price')
                 ->orderBy('product_name')->get(),
+            'taxes' => \App\Models\Taxes::where('is_active', true)
+                ->whereIn('scope', ['purchase', 'both'])
+                ->get(),
         ]);
     }
 
@@ -98,21 +101,25 @@ class PurchaseOrdersController extends Controller
     {
         $order = PurchaseOrder::with([
             'supplier:id_supplier,company_name,ruc',
-            'details.product:id_product,product_name,product_code,sale_price',
+            'details.product:id_product,product_name,product_code,sale_price,purchase_price',
+            'details.tax', // ✅ Cargar relación de impuesto
             'logs.user:id,name',
             'creator:id,name',
             'requester:id,name',
             'approver:id,name'
         ])
-            ->withCount(['receipts', 'inventoryAdjustments']) // Usar withCount para ambas relaciones
+            ->withCount(['receipts', 'inventoryAdjustments'])
             ->findOrFail($id);
 
         return Inertia::render('Purchases/EditPurchaseOrder', [
             'order' => $order,
             'suppliers' => Supplier::select('id_supplier', 'company_name', 'ruc')->orderBy('company_name')->get(),
             'products' => Products::where('status', 'active')
-                ->select('id_product', 'product_name', 'product_code', 'sale_price')
+                ->select('id_product', 'product_name', 'product_code', 'sale_price', 'purchase_price')
                 ->orderBy('product_name')->get(),
+            'taxes' => \App\Models\Tax::where('is_active', true)
+                ->whereIn('scope', ['purchase', 'both'])
+                ->get(),
             'documentTypes' => [
                 ['value' => 'Factura', 'label' => 'Factura'],
                 ['value' => 'Boleta', 'label' => 'Boleta'],
@@ -120,6 +127,7 @@ class PurchaseOrdersController extends Controller
             ]
         ]);
     }
+
     public function update(Request $request, $id)
     {
         // LOG 1: Ver qué llega exactamente del navegador
@@ -251,7 +259,7 @@ class PurchaseOrdersController extends Controller
         $order = PurchaseOrder::with(['details.product', 'supplier'])->findOrFail($id);
 
         // 2. Buscamos el tipo de operación de entrada (IN)
-        $operationType = \App\Models\InventoryOperationType::where('code', 'IN')->first();
+        $operationType = \App\Models\InventoryOperationType::where('sequence_prefix', 'WH/IN/')->first();
 
         if (!$operationType) {
             return back()->withErrors(['error' => 'No se encontró un Tipo de Operación con código IN configurado en el sistema.']);

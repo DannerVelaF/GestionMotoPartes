@@ -44,7 +44,7 @@ const mainNavItems: NavItem[] = [
     },
     {
         title: 'Inventario',
-        href: inventory.index.url(),
+        href: inventory.adjustments.index.url(),
         icon: PackageOpen,
     },
     {

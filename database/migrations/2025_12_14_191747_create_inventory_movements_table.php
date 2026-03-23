@@ -19,18 +19,15 @@ return new class extends Migration
             $table->foreign("id_user")->references("id")->on("users");
             $table->string('type');
 
-            // Cantidad: Positiva (entrada) o Negativa (salida)
-            $table->decimal('quantity', 10, 2);
+            $table->date('kardex_date');
 
-            // Costo unitario en el momento del movimiento (para valoración)
+            $table->decimal('quantity', 10, 2);
             $table->decimal('unit_cost', 10, 2)->default(0);
 
-            // Stock resultante después del movimiento (Snapshopt)
+            $table->decimal('total_cost', 10, 2)->default(0);
+
             $table->decimal('balance', 10, 2);
-
-            // Relación Polimórfica (Para saber si vino de un Receipt, Sale, o Ajuste Manual)
-            $table->nullableMorphs('reference'); // Crea reference_id y reference_type
-
+            $table->nullableMorphs('reference');
             $table->text('notes')->nullable();
 
             $table->timestamps();

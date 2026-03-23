@@ -16,10 +16,11 @@ class Products extends Model
         'product_name',
         'product_code',
         'status',
-        "stock",
+        'stock',
         'sale_price',
+        'purchase_price',
         'notes',
-        "url_image",
+        'url_image',
         'id_category',
         'id_brand',
         'id_product_type',
@@ -28,13 +29,11 @@ class Products extends Model
     /**
      * Los atributos que deben ser convertidos a tipos nativos.
      */
-    protected function casts(): array
-    {
-        return [
-            'status' => GenericStatus::class, // Convierte string a Enum automáticamente
-            'sale_price' => 'decimal:2',      // Asegura que siempre tenga 2 decimales
-        ];
-    }
+   protected $casts = [
+       'sale_price' => 'decimal:2',
+       'purchase_price' => 'decimal:2',
+       'stock' => 'decimal:2',
+   ];
 
     /*
     |--------------------------------------------------------------------------

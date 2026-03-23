@@ -156,7 +156,7 @@ export default function ListInventory({ inventory, filters }: Props) {
                         <Button
                             variant="default"
                             className="h-9 bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600"
-                            onClick={() => router.visit('/inventario/ajuste')}
+                            onClick={() => router.visit('/inventario/ajuste/nuevo')}
                         >
                             <Plus className="mr-2 h-4 w-4" />
                             Ajuste Manual

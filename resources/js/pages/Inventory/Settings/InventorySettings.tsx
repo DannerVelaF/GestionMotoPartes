@@ -49,14 +49,15 @@ import {
     Trash2,
     Truck,
     X,
+    Undo2
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 // --- COMPONENTE DE ALERTA ---
 function FloatingAlert({
-    message,
-    type = 'error',
-}: {
+                           message,
+                           type = 'error',
+                       }: {
     message?: any;
     type?: 'error' | 'success';
 }) {
@@ -163,6 +164,7 @@ export default function InventorySettings({ locations, operationTypes }: any) {
         sequence_prefix: 'WH/IN/',
         default_location_source_id: '',
         default_location_destination_id: '',
+        return_operation_type_id: '', // ✅ CORREGIDO
     });
 
     // Formularios de Edición
@@ -173,6 +175,7 @@ export default function InventorySettings({ locations, operationTypes }: any) {
         sequence_prefix: '',
         default_location_source_id: '',
         default_location_destination_id: '',
+        return_operation_type_id: '', // ✅ CORREGIDO
     });
 
     // --- MÉTODOS DE CREACIÓN ---
@@ -231,6 +234,8 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                 op.default_location_source_id?.toString() || '',
             default_location_destination_id:
                 op.default_location_destination_id?.toString() || '',
+            return_operation_type_id: // ✅ CORREGIDO
+                op.return_operation_type_id?.toString() || '',
         });
     };
 
@@ -240,7 +245,12 @@ export default function InventorySettings({ locations, operationTypes }: any) {
     };
 
     const submitEditOp = (id: number | string) => {
-        editOpForm.put(`/inventario/config/operation-types/${id}`, {
+        let payload = { ...editOpForm.data };
+        if (payload.return_operation_type_id === 'none') { // ✅ CORREGIDO
+            payload.return_operation_type_id = '';
+        }
+
+        router.put(`/inventario/config/operation-types/${id}`, payload, {
             preserveScroll: true,
             onSuccess: () => {
                 setEditingOpId(null);
@@ -685,6 +695,9 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                             <TableHead className="text-center text-[10px] font-black">
                                                 Trayectoria (DE → PARA)
                                             </TableHead>
+                                            <TableHead className="text-center text-[10px] font-black">
+                                                Devolución De
+                                            </TableHead>
                                             <TableHead className="w-24"></TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -876,6 +889,37 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                                 </Select>
                                                             </div>
                                                         </TableCell>
+                                                        <TableCell className="py-2">
+                                                            <Select
+                                                                value={editOpForm.data.return_operation_type_id || 'none'} // ✅ CORREGIDO
+                                                                onValueChange={(v) =>
+                                                                    editOpForm.setData(
+                                                                        'return_operation_type_id', // ✅ CORREGIDO
+                                                                        v === 'none' ? '' : v,
+                                                                    )
+                                                                }
+                                                            >
+                                                                <SelectTrigger className="h-8 w-[130px] border-transparent bg-transparent text-[9px] font-black uppercase">
+                                                                    <SelectValue placeholder="NINGUNO" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="none" className="text-[10px] font-bold uppercase italic text-muted-foreground">
+                                                                        Ninguno
+                                                                    </SelectItem>
+                                                                    {operationTypes
+                                                                        .filter((t: any) => t.id_operation_type !== op.id_operation_type)
+                                                                        .map((t: any) => (
+                                                                            <SelectItem
+                                                                                key={t.id_operation_type}
+                                                                                value={t.id_operation_type.toString()}
+                                                                                className="text-[10px] font-bold uppercase"
+                                                                            >
+                                                                                {t.name}
+                                                                            </SelectItem>
+                                                                        ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </TableCell>
                                                         <TableCell className="pr-6 text-right">
                                                             <div className="flex justify-end gap-1">
                                                                 <Button
@@ -925,18 +969,30 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                             <div className="flex items-center justify-center gap-2 text-[10px] font-black tracking-tighter uppercase opacity-80">
                                                                 <span>
                                                                     {op
-                                                                        .default_source
-                                                                        ?.name ||
+                                                                            .default_source
+                                                                            ?.name ||
                                                                         '—'}
                                                                 </span>
                                                                 <ArrowRight className="h-3 w-3 text-blue-500" />
                                                                 <span>
                                                                     {op
-                                                                        .default_destination
-                                                                        ?.name ||
+                                                                            .default_destination
+                                                                            ?.name ||
                                                                         '—'}
                                                                 </span>
                                                             </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-center">
+                                                            {op.return_type ? ( // ✅ CORREGIDO
+                                                                <div className="flex items-center justify-center gap-1">
+                                                                    <Undo2 className="h-3 w-3 text-amber-500" />
+                                                                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-200 uppercase">
+                                                                        {op.return_type.name} {/* ✅ CORREGIDO */}
+                                                                    </span>
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-muted-foreground opacity-50">—</span>
+                                                            )}
                                                         </TableCell>
                                                         <TableCell className="pr-6 text-right">
                                                             <div className="flex justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -1127,6 +1183,35 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                         </SelectContent>
                                                     </Select>
                                                 </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Select
+                                                    value={opForm.data.return_operation_type_id || 'none'} // ✅ CORREGIDO
+                                                    onValueChange={(v) =>
+                                                        opForm.setData(
+                                                            'return_operation_type_id', // ✅ CORREGIDO
+                                                            v === 'none' ? '' : v,
+                                                        )
+                                                    }
+                                                >
+                                                    <SelectTrigger className="h-8 w-[130px] border-transparent bg-transparent text-[9px] font-black uppercase">
+                                                        <SelectValue placeholder="NINGUNO" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="none" className="text-[10px] font-bold uppercase italic text-muted-foreground">
+                                                            Ninguno
+                                                        </SelectItem>
+                                                        {operationTypes.map((t: any) => (
+                                                            <SelectItem
+                                                                key={t.id_operation_type}
+                                                                value={t.id_operation_type.toString()}
+                                                                className="text-[10px] font-bold uppercase"
+                                                            >
+                                                                {t.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
                                             </TableCell>
                                             <TableCell className="pr-6 text-right">
                                                 <Button

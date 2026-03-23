@@ -11,13 +11,13 @@ use Inertia\Inertia;
 
 class InventorySettingsController extends Controller
 {
-  public function index()
-  {
-    return Inertia::render('Inventory/Settings/InventorySettings', [
-      'locations' => InventoryLocation::orderBy('id_location', 'desc')->get(),
-      'operationTypes' => InventoryOperationType::with(['defaultSource', 'defaultDestination'])->get(),
-    ]);
-  }
+    public function index()
+    {
+        return Inertia::render('Inventory/Settings/InventorySettings', [
+            'locations' => InventoryLocation::orderBy('id_location', 'desc')->get(),
+            'operationTypes' => InventoryOperationType::with(['defaultSource', 'defaultDestination', 'returnType'])->get(),
+        ]);
+    }
 
   public function storeLocation(Request $request)
   {
@@ -44,6 +44,7 @@ class InventorySettingsController extends Controller
 
       'default_location_source_id'      => 'required|exists:inventory_locations,id_location',
       'default_location_destination_id' => 'required|exists:inventory_locations,id_location',
+      'return_of_operation_type_id'     => 'nullable|exists:inventory_operation_types,id_operation_type',
     ], [
       'name.unique'            => 'Ya existe un tipo de operación con este nombre.',
       'sequence_prefix.unique' => 'Este prefijo ya está siendo utilizado por otra operación.',
@@ -109,6 +110,7 @@ class InventorySettingsController extends Controller
       'code'                            => 'required|string|max:10',
       'default_location_source_id'      => 'required|exists:inventory_locations,id_location',
       'default_location_destination_id' => 'required|exists:inventory_locations,id_location',
+      'return_of_operation_type_id'     => 'nullable|exists:inventory_operation_types,id_operation_type',
     ]);
 
     $opType = InventoryOperationType::findOrFail($id);

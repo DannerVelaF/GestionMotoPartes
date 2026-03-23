@@ -1,5 +1,15 @@
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -9,6 +19,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
@@ -16,7 +34,6 @@ import { format } from 'date-fns';
 import {
     AlertCircle,
     ArrowRight,
-    CalendarClock,
     CheckCircle2,
     History,
     MessageSquare,
@@ -28,8 +45,9 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-// --- TYPE DEFINITIONS ---
+// --- INTERFACES ---
 interface Product {
+    purchase_price: number | undefined;
     id_product: number;
     product_name: string;
     product_code: string;
@@ -42,24 +60,10 @@ interface Category {
     id_product_category: number;
     name_product_category: string;
 }
+
 interface Supplier {
     id_supplier: number;
     company_name: string;
-}
-
-interface PurchaseOrder {
-    id_purchase_order: number;
-    po_code: string;
-    id_supplier: number;
-}
-interface MovementItem {
-    id_product: number;
-    product_name: string;
-    product_code: string;
-    demand: number;
-    quantity: number;
-    unit_cost: number;
-    is_new?: boolean;
 }
 
 interface OperationType {
@@ -68,11 +72,22 @@ interface OperationType {
     code: string;
     default_location_source_id: number;
     default_location_destination_id: number;
+    return_operation_type_id?: number | null;
 }
 
 interface Location {
     id_location: number;
     name: string;
+}
+
+interface MovementItem {
+    id_product: number;
+    product_name: string;
+    product_code: string;
+    demand: number;
+    quantity: number;
+    unit_cost: number;
+    is_new?: boolean;
 }
 
 interface AdjustmentDetail {
@@ -95,6 +110,8 @@ interface PurchaseOrderDetail {
 
 interface PurchaseOrder {
     id_purchase_order: number;
+    po_code: string;
+    id_supplier: number;
     details: PurchaseOrderDetail[];
 }
 
@@ -132,12 +149,15 @@ interface Adjustment {
     details: AdjustmentDetail[];
     purchase_order?: PurchaseOrder;
     logs?: InventoryLog[];
+    source_document_id?: number;
+    source_type?: string;
 }
 
 interface PageProps {
     adjustment: Adjustment;
     products: Product[];
     categories: Category[];
+    sales?: any[];
     operationTypes?: OperationType[];
     locations?: Location[];
     purchaseOrder?: PurchaseOrder;
@@ -145,13 +165,29 @@ interface PageProps {
     purchaseOrders?: PurchaseOrder[];
 }
 
-// --- COMPONENTE DE ALERTA ---
+// ✅ CORRECCIÓN TS: Interfaz para el formulario
+interface InventoryForm {
+    kardex_date: string;
+    contact_name: string;
+    id_operation_type: string;
+    id_location_source: string;
+    id_location_destination: string;
+    id_supplier: string;
+    source_id: string;
+    source_type: string;
+    document_type: string;
+    document_number: string;
+    reason: string;
+    items: MovementItem[];
+}
+
+// ✅ CORRECCIÓN TS: Se agregaron tipos 'null' a las props
 function FloatingAlert({
-    message,
-    type = 'error',
-}: {
-    message?: string;
-    type?: 'error' | 'success';
+                           message,
+                           type = 'error',
+                       }: {
+    message?: string | null;
+    type?: 'error' | 'success' | null;
 }) {
     if (!message) return null;
     const isSuccess = type === 'success';
@@ -182,23 +218,19 @@ function FloatingAlert({
     );
 }
 
-// --- STYLES ---
 const odooInputClass =
     'h-8 border-transparent bg-transparent hover:border-border focus:bg-background focus:ring-1 focus:ring-emerald-500 transition-all';
 const tableInputClass =
     'h-8 w-full border-transparent bg-transparent text-center shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-emerald-500 tabular-nums dark:text-foreground dark:focus:bg-neutral-800';
 
-// ✅ CAMBIADO A EXPORT DEFAULT
 export default function InventoryAdjustmentForm({
-    adjustment,
-    products = [],
-    categories = [],
-    operationTypes = [],
-    locations = [],
-    suppliers = [],
-    purchaseOrders = [],
-    purchaseOrder, // Recibido aquí
-}: PageProps) {
+                                                    adjustment,
+                                                    products = [],
+                                                    operationTypes = [],
+                                                    locations = [],
+                                                    suppliers = [],
+                                                    purchaseOrders = [],
+                                                }: PageProps) {
     const { props } = usePage<any>();
 
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -207,6 +239,46 @@ export default function InventoryAdjustmentForm({
     const [isWritingNote, setIsWritingNote] = useState(false);
     const [noteText, setNoteText] = useState('');
     const [submittingNote, setSubmittingNote] = useState(false);
+
+    const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+    const [returnItems, setReturnItems] = useState<
+        { id_product: number; name: string; max: number; quantity: number }[]
+    >([]);
+
+    const openReturnModal = () => {
+        const items = adjustment.details
+            .map((d) => ({
+                id_product: d.id_product,
+                name: d.product?.product_name || 'Desconocido',
+                max: Number(d.quantity),
+                quantity: Number(d.quantity),
+            }))
+            .filter((i) => i.max > 0);
+
+        setReturnItems(items);
+        setIsReturnModalOpen(true);
+    };
+
+    const handleReturnQtyChange = (index: number, val: string) => {
+        let num = Number(val);
+        if (num < 0) num = 0;
+        if (num > returnItems[index].max) num = returnItems[index].max;
+
+        const newItems = [...returnItems];
+        newItems[index].quantity = num;
+        setReturnItems(newItems);
+    };
+
+    const submitReturn = () => {
+        router.post(
+            `/inventario/ajuste/${adjustment.id_adjustment}/devolver`,
+            { return_items: returnItems },
+            {
+                preserveScroll: true,
+                onSuccess: () => setIsReturnModalOpen(false),
+            },
+        );
+    };
 
     useEffect(() => {
         let msgToSet: string | null = null;
@@ -253,7 +325,6 @@ export default function InventoryAdjustmentForm({
         }));
     }, [adjustment]);
 
-    // Añadimos 'put' y 'isDirty' al destructuring
     const initialSupplierId = useMemo(() => {
         if (!adjustment?.contact_name) return '';
         const found = (suppliers || []).find(
@@ -262,86 +333,122 @@ export default function InventoryAdjustmentForm({
         return found ? String(found.id_supplier) : '';
     }, [adjustment?.contact_name, suppliers]);
 
-    // 2. Ahora inicializamos el formulario
-    const { data, setData, post, put, processing, isDirty } = useForm({
-        kardex_date:
-            adjustment?.kardex_date || format(new Date(), 'yyyy-MM-dd'),
-        contact_name: adjustment?.contact_name || '',
+    // ✅ CORRECCIÓN TS: Asignación explícita de interfaz al form
+    const { data, setData, post, put, processing, isDirty, setDefaults } =
+        useForm<InventoryForm>({
+            kardex_date:
+                adjustment?.kardex_date || format(new Date(), 'yyyy-MM-dd'),
+            contact_name: adjustment?.contact_name || '',
 
-        id_operation_type: adjustment?.operation_type?.id_operation_type
-            ? String(adjustment.operation_type.id_operation_type)
-            : adjustment?.id_operation_type
-              ? String(adjustment.id_operation_type)
-              : '',
+            id_operation_type: adjustment?.operation_type?.id_operation_type
+                ? String(adjustment.operation_type.id_operation_type)
+                : adjustment?.id_operation_type
+                    ? String(adjustment.id_operation_type)
+                    : '',
 
-        id_location_source: adjustment?.location_source?.id_location
-            ? String(adjustment.location_source.id_location)
-            : adjustment?.id_location_source
-              ? String(adjustment.id_location_source)
-              : '',
+            id_location_source: adjustment?.location_source?.id_location
+                ? String(adjustment.location_source.id_location)
+                : adjustment?.id_location_source
+                    ? String(adjustment.id_location_source)
+                    : '',
 
-        id_location_destination: adjustment?.location_destination?.id_location
-            ? String(adjustment.location_destination.id_location)
-            : adjustment?.id_location_destination
-              ? String(adjustment.id_location_destination)
-              : '',
+            id_location_destination: adjustment?.location_destination
+                ?.id_location
+                ? String(adjustment.location_destination.id_location)
+                : adjustment?.id_location_destination
+                    ? String(adjustment.id_location_destination)
+                    : '',
 
-        // ✅ CORRECCIÓN: Usamos el ID calculado para que el selector lo reconozca
-        id_supplier: initialSupplierId,
+            id_supplier: initialSupplierId,
+            source_id: adjustment?.source_document_id
+                ? String(adjustment.source_document_id)
+                : '',
+            source_type: adjustment?.source_document_type || '',
 
-        // ✅ CORRECCIÓN: Aseguramos que source_id coincida con la columna source_document_id de la DB
-        source_id: adjustment?.source_document_id
-            ? String(adjustment.source_document_id)
-            : '',
+            document_type: adjustment?.document_type || '',
+            document_number: adjustment?.document_number || '',
+            reason: adjustment?.reason || '',
+            items:
+                mappedItems.length > 0
+                    ? mappedItems
+                    : [
+                        {
+                            id_product: 0,
+                            product_name: '',
+                            product_code: '',
+                            demand: 0,
+                            quantity: 0,
+                            unit_cost: 0,
+                            is_new: true,
+                        },
+                    ],
+        });
 
-        document_type: adjustment?.document_type || '',
-        document_number: adjustment?.document_number || '',
-        reason: adjustment?.reason || '',
-        items: mappedItems,
-    });
+    // ✅ NUEVA VARIABLE: Determina si el documento tiene un origen (Compra o Venta)
+    const hasSourceDocument = !!data.source_id;
 
-    // ✅ DEFINICIÓN DE linkedPo PARA EVITAR ReferenceError
-    const linkedPo = adjustment?.purchase_order || purchaseOrder;
+    useEffect(() => {
+        if (adjustment) {
+            const freshData: InventoryForm = {
+                kardex_date:
+                    adjustment.kardex_date || format(new Date(), 'yyyy-MM-dd'),
+                contact_name: adjustment.contact_name || '',
+                id_operation_type: adjustment.id_operation_type
+                    ? String(adjustment.id_operation_type)
+                    : '',
+                id_location_source: adjustment.id_location_source
+                    ? String(adjustment.id_location_source)
+                    : '',
+                id_location_destination: adjustment.id_location_destination
+                    ? String(adjustment.id_location_destination)
+                    : '',
+                id_supplier: initialSupplierId,
+                source_id: adjustment.source_document_id
+                    ? String(adjustment.source_document_id)
+                    : '',
+                source_type: adjustment.source_document_type || '',
+                document_type: adjustment.document_type || '',
+                document_number: adjustment.document_number || '',
+                reason: adjustment.reason || '',
+                items:
+                    mappedItems.length > 0
+                        ? mappedItems
+                        : [
+                            {
+                                id_product: 0,
+                                product_name: '',
+                                product_code: '',
+                                demand: 0,
+                                quantity: 0,
+                                unit_cost: 0,
+                                is_new: true,
+                            },
+                        ],
+            };
+
+            setDefaults(freshData);
+            setData(freshData);
+        }
+    }, [adjustment, mappedItems, initialSupplierId]);
 
     const availableOptions = useMemo(() => {
-        if (linkedPo) {
-            return (linkedPo.details || [])
-                .filter(
-                    (pod) =>
-                        !data.items.some(
-                            (item) =>
-                                item.id_product === pod.id_product &&
-                                !item.is_new,
-                        ),
-                )
-                .map((pod) => ({
-                    value: String(pod.id_product),
-                    label: `[${pod.product_code}] ${pod.product_name} (Faltan: ${pod.quantity - pod.received_quantity})`,
-                    demand: pod.quantity - pod.received_quantity,
-                    unit_cost: pod.unit_cost || 0,
-                    product_name: pod.product_name,
-                    product_code: pod.product_code,
-                }));
-        } else {
-            return products
-                .filter(
-                    (p) =>
-                        !data.items.some(
-                            (item) =>
-                                item.id_product === p.id_product &&
-                                !item.is_new,
-                        ),
-                )
-                .map((p) => ({
-                    value: String(p.id_product),
-                    label: `[${p.product_code}] ${p.product_name}`,
-                    demand: 0,
-                    unit_cost: p.sale_price || 0,
-                    product_name: p.product_name,
-                    product_code: p.product_code,
-                }));
-        }
-    }, [linkedPo, data.items, products]);
+        return products
+            .filter(
+                (p) =>
+                    !data.items.some(
+                        (item) =>
+                            item.id_product === p.id_product && !item.is_new,
+                    ),
+            )
+            .map((p) => ({
+                value: String(p.id_product),
+                label: `[${p.product_code}] ${p.product_name}`,
+                demand: 0,
+                unit_cost: Number(p.purchase_price || p.sale_price || 0),
+                product_name: p.product_name,
+                product_code: p.product_code,
+            }));
+    }, [data.items, products]);
 
     const handleCheck = () => {
         const validItems = data.items.filter((item) => item.id_product !== 0);
@@ -370,9 +477,17 @@ export default function InventoryAdjustmentForm({
             return;
         }
 
+        const hasExcess = validItems.some(
+            (item) => item.demand > 0 && Number(item.quantity) > item.demand,
+        );
+        if (hasExcess) {
+            setLocalError('Algunas cantidades superan la demanda estipulada.');
+            return;
+        }
+
         setData('items', validItems);
 
-        post(`/inventario/ajuste/${adjustment.id_adjustment}/check`, {
+        post(`/inventario/ajuste/${adjustment?.id_adjustment}/check`, {
             preserveScroll: true,
         });
     };
@@ -397,21 +512,31 @@ export default function InventoryAdjustmentForm({
             return;
         }
 
+        const hasExcess = validItems.some(
+            (item) => item.demand > 0 && Number(item.quantity) > item.demand,
+        );
+        if (hasExcess) {
+            setLocalError('Algunas cantidades superan la demanda estipulada.');
+            return;
+        }
+
         setData('items', validItems);
 
-        post(`/inventario/ajuste/${adjustment.id_adjustment}/validate`, {
+        post(`/inventario/ajuste/${adjustment?.id_adjustment}/validate`, {
             preserveScroll: true,
-            onBefore: () =>
-                confirm(
-                    '¿Está seguro de que desea validar este movimiento? El stock se actualizará permanentemente según la Fecha Kardex indicada.',
-                ),
         });
     };
 
     const handleUpdate = () => {
-        put(`/inventario/ajuste/${adjustment.id_adjustment}`, {
-            preserveScroll: true,
-        });
+        if (!adjustment) {
+            post('/inventario/ajuste/guardar', {
+                preserveScroll: true,
+            });
+        } else {
+            put(`/inventario/ajuste/${adjustment.id_adjustment}`, {
+                preserveScroll: true,
+            });
+        }
     };
 
     const handleItemChange = (
@@ -421,7 +546,26 @@ export default function InventoryAdjustmentForm({
     ) => {
         const newItems = [...data.items];
         const item = newItems[index];
-        if (typeof item[field] === 'number') {
+
+        if (field === 'quantity') {
+            let num = Number(value);
+            if (num < 0) num = 0;
+
+            // Validación contra demanda solo si hay documento origen
+            if (hasSourceDocument && item.demand > 0 && num > item.demand) {
+                num = item.demand;
+                setLocalError(
+                    `La cantidad no puede superar la demanda estipulada (${item.demand}).`,
+                );
+            }
+
+            item.quantity = num;
+
+            // ✅ Sincronización automática: Si es manual, la demanda ES la cantidad
+            if (!hasSourceDocument) {
+                item.demand = num;
+            }
+        } else if (typeof item[field] === 'number') {
             (item[field] as number) = Number(value);
         } else {
             (item[field] as string) = String(value);
@@ -472,7 +616,7 @@ export default function InventoryAdjustmentForm({
     };
 
     const handleOperationChange = (opId: string) => {
-        const op = operationTypes.find(
+        const op = operationTypes?.find(
             (o) => String(o.id_operation_type) === opId,
         );
         setData((prev) => ({
@@ -488,7 +632,7 @@ export default function InventoryAdjustmentForm({
     };
 
     const saveNote = () => {
-        if (!noteText.trim()) return;
+        if (!noteText.trim() || !adjustment?.id_adjustment) return;
         setSubmittingNote(true);
         router.post(
             `/inventario/ajuste/${adjustment.id_adjustment}/note`,
@@ -504,11 +648,17 @@ export default function InventoryAdjustmentForm({
             },
         );
     };
+
     const sourceOptions = useMemo(() => {
-        const selectedOp = operationTypes.find(
-            (o) => String(o.id_operation_type) === data.id_operation_type,
+        const selectedOp = operationTypes?.find(
+            (o) =>
+                String(o.id_operation_type) === String(data.id_operation_type),
         );
         const opCode = selectedOp?.code || '';
+
+        const isReturn = operationTypes?.some(
+            (op) => op.return_operation_type_id === selectedOp?.id_operation_type,
+        );
 
         const ocList = (purchaseOrders || []).map((po) => ({
             value: String(po.id_purchase_order),
@@ -516,19 +666,24 @@ export default function InventoryAdjustmentForm({
             type: 'App\\Models\\PurchaseOrder',
         }));
 
-        const salesList = (props.sales || []).map((sale) => ({
+        const salesList = (props.sales || []).map((sale: any) => ({
             value: String(sale.id_sale),
             label: `Venta: ${sale.code_sales}`,
             type: 'App\\Models\\Sales',
         }));
 
-        // Si es Entrada, solo OCs. Si es Salida, solo Ventas.
-        // Si es otra cosa (como Saldos Iniciales) o está vacío, mostramos ambos.
-        if (opCode === 'IN') return ocList;
-        if (opCode === 'OUT') return salesList;
+        if (opCode === 'IN') return isReturn ? salesList : ocList;
+        if (opCode === 'OUT') return isReturn ? ocList : salesList;
 
         return [...ocList, ...salesList];
     }, [data.id_operation_type, purchaseOrders, props.sales, operationTypes]);
+
+    const canBeReturned = useMemo(() => {
+        if (adjustment?.status !== 'done') return false;
+
+        return !!adjustment?.operation_type?.return_operation_type_id;
+    }, [adjustment?.status, adjustment?.operation_type]);
+
     return (
         <AppLayout
             breadcrumbs={[
@@ -559,6 +714,17 @@ export default function InventoryAdjustmentForm({
                     </div>
                     <div className="flex items-center justify-between px-6 py-3">
                         <div className="flex items-center gap-2">
+                            {!adjustment && (
+                                <Button
+                                    onClick={handleUpdate}
+                                    disabled={processing}
+                                    className="h-8 bg-blue-600 px-6 font-bold text-white hover:bg-blue-700"
+                                >
+                                    <Save className="mr-2 h-4 w-4" />
+                                    Guardar Borrador
+                                </Button>
+                            )}
+
                             {adjustment?.status === 'draft' && (
                                 <Button
                                     onClick={handleCheck}
@@ -584,20 +750,35 @@ export default function InventoryAdjustmentForm({
                             )}
 
                             {adjustment?.status === 'done' && (
-                                <Button
-                                    onClick={handleUpdate}
-                                    disabled={processing || !isDirty}
-                                    variant={isDirty ? 'default' : 'secondary'}
-                                    className={cn(
-                                        'h-8 px-6 font-bold',
-                                        isDirty
-                                            ? 'bg-blue-600 text-white hover:bg-blue-700'
-                                            : 'text-muted-foreground',
+                                <>
+                                    {canBeReturned && (
+                                        <Button
+                                            onClick={openReturnModal}
+                                            variant="outline"
+                                            className="h-8 border-red-200 bg-red-50 font-bold text-red-700 hover:bg-red-100 hover:text-red-800"
+                                        >
+                                            <ArrowRight className="mr-2 h-4 w-4 rotate-180" />{' '}
+                                            Devolver
+                                        </Button>
                                     )}
-                                >
-                                    <Save className="mr-2 h-4 w-4" />
-                                    Guardar Cambios
-                                </Button>
+
+                                    <Button
+                                        onClick={handleUpdate}
+                                        disabled={processing || !isDirty}
+                                        variant={
+                                            isDirty ? 'default' : 'secondary'
+                                        }
+                                        className={cn(
+                                            'h-8 px-6 font-bold',
+                                            isDirty
+                                                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                                : 'text-muted-foreground',
+                                        )}
+                                    >
+                                        <Save className="mr-2 h-4 w-4" />
+                                        Guardar Cambios
+                                    </Button>
+                                </>
                             )}
 
                             <Button
@@ -612,7 +793,8 @@ export default function InventoryAdjustmentForm({
                             <div
                                 className={cn(
                                     'relative flex h-full items-center justify-center border-r border-border px-4 transition-colors',
-                                    adjustment?.status === 'draft'
+                                    adjustment?.status === 'draft' ||
+                                        !adjustment
                                         ? 'bg-blue-600/10 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
                                         : 'text-muted-foreground opacity-50',
                                 )}
@@ -651,23 +833,9 @@ export default function InventoryAdjustmentForm({
                                     <PackageCheck className="h-8 w-8 text-emerald-500" />
                                     <h1 className="text-3xl font-black tracking-tighter uppercase">
                                         {adjustment?.reference_code ||
-                                            'BORRADOR'}
+                                            'NUEVO MOVIMIENTO'}
                                     </h1>
                                 </div>
-                                {adjustment?.created_at && (
-                                    <div className="flex flex-col items-end text-[11px] text-muted-foreground">
-                                        <div className="flex items-center gap-1 font-bold tracking-widest uppercase">
-                                            <CalendarClock className="h-3 w-3" />
-                                            Fecha de Registro
-                                        </div>
-                                        <span>
-                                            {format(
-                                                new Date(adjustment.created_at),
-                                                'dd/MM/yyyy HH:mm',
-                                            )}
-                                        </span>
-                                    </div>
-                                )}
                             </div>
 
                             <div className="grid grid-cols-2 gap-x-16 gap-y-2">
@@ -685,28 +853,28 @@ export default function InventoryAdjustmentForm({
                                                     label: s.company_name,
                                                 }),
                                             )}
-                                            // Buscamos el ID basado en el nombre y aseguramos que sea String para que el componente lo reconozca
                                             value={String(
-                                                suppliers.find(
+                                                suppliers?.find(
                                                     (s) =>
                                                         s.company_name ===
                                                         data.contact_name,
                                                 )?.id_supplier || '',
                                             )}
                                             onChange={(v) => {
-                                                const supplier = suppliers.find(
-                                                    (s) =>
-                                                        String(
-                                                            s.id_supplier,
-                                                        ) === v,
-                                                );
+                                                const supplier =
+                                                    suppliers?.find(
+                                                        (s) =>
+                                                            String(
+                                                                s.id_supplier,
+                                                            ) === v,
+                                                    );
                                                 if (supplier) {
                                                     setData(
                                                         'contact_name',
                                                         supplier.company_name,
                                                     );
                                                 } else {
-                                                    setData('contact_name', ''); // Limpiar si se deselecciona
+                                                    setData('contact_name', '');
                                                 }
                                             }}
                                             className="w-full text-sm"
@@ -880,7 +1048,6 @@ export default function InventoryAdjustmentForm({
                                         </span>
                                         <SearchableSelect
                                             options={sourceOptions}
-                                            // Aseguramos que el ID sea string y comparamos con source_id o source_document_id
                                             value={String(data.source_id || '')}
                                             onChange={(v) => {
                                                 const selected =
@@ -895,14 +1062,13 @@ export default function InventoryAdjustmentForm({
                                                             selected.type,
                                                     }));
 
-                                                    // Si es una OC, intentamos traer el proveedor al campo Contacto
                                                     if (
                                                         selected.type.includes(
                                                             'PurchaseOrder',
                                                         )
                                                     ) {
                                                         const po =
-                                                            purchaseOrders.find(
+                                                            purchaseOrders?.find(
                                                                 (p) =>
                                                                     String(
                                                                         p.id_purchase_order,
@@ -910,7 +1076,7 @@ export default function InventoryAdjustmentForm({
                                                             );
                                                         if (po) {
                                                             const supplier =
-                                                                suppliers.find(
+                                                                suppliers?.find(
                                                                     (s) =>
                                                                         s.id_supplier ===
                                                                         po.id_supplier,
@@ -1013,7 +1179,8 @@ export default function InventoryAdjustmentForm({
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3 text-center font-black text-muted-foreground tabular-nums">
-                                                        {item.demand}
+                                                        {/* ✅ Ya no hay Input. Se muestra el valor de la demanda (que se sincroniza solo) */}
+                                                        {item.demand.toFixed(2)}
                                                     </td>
                                                     <td className="bg-emerald-50/20 px-4 py-2 dark:bg-emerald-950/10">
                                                         <Input
@@ -1049,23 +1216,17 @@ export default function InventoryAdjustmentForm({
                                                                 tableInputClass,
                                                                 'text-emerald-700 dark:text-emerald-400',
                                                             )}
-                                                            value={
-                                                                item.unit_cost
-                                                            }
+                                                            value={item.unit_cost}
                                                             onChange={(e) =>
-                                                                handleItemChange(
-                                                                    idx,
-                                                                    'unit_cost',
-                                                                    e.target
-                                                                        .value,
-                                                                )
+                                                                handleItemChange(idx, 'unit_cost', e.target.value)
                                                             }
                                                             min="0"
                                                             step="0.01"
+                                                            // ✅ REGLA: Si el estado es "Realizado" OR si es una SALIDA (OUT), bloquear.
+                                                            // Solo permitir editar en ENTRADAS (IN) mientras sea borrador.
                                                             readOnly={
-                                                                adjustment?.status ===
-                                                                    'done' ||
-                                                                item.is_new
+                                                                adjustment?.status === 'done' ||
+                                                                (adjustment?.operation_type?.code === 'OUT' && !item.is_new)
                                                             }
                                                         />
                                                     </td>
@@ -1100,7 +1261,7 @@ export default function InventoryAdjustmentForm({
                                                             onClick={addNewRow}
                                                             className="h-8 text-xs font-bold text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 dark:hover:bg-emerald-900/30"
                                                         >
-                                                            <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                                            <Plus className="mr-1.5 h-3.5 w-3.5" />{' '}
                                                             Agregar Producto
                                                         </Button>
                                                     </td>
@@ -1118,20 +1279,24 @@ export default function InventoryAdjustmentForm({
                             <span className="flex items-center gap-2 text-xs font-black tracking-widest text-muted-foreground uppercase">
                                 <History className="h-3.5 w-3.5" /> Historial
                             </span>
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setIsWritingNote(!isWritingNote)}
-                                className={cn(
-                                    'h-7 text-[10px] font-bold uppercase transition-colors',
-                                    isWritingNote
-                                        ? 'bg-muted text-foreground'
-                                        : 'text-muted-foreground hover:text-foreground',
-                                )}
-                            >
-                                <MessageSquare className="mr-1.5 h-3 w-3" />{' '}
-                                Registrar nota
-                            </Button>
+                            {adjustment?.id_adjustment && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() =>
+                                        setIsWritingNote(!isWritingNote)
+                                    }
+                                    className={cn(
+                                        'h-7 text-[10px] font-bold uppercase transition-colors',
+                                        isWritingNote
+                                            ? 'bg-muted text-foreground'
+                                            : 'text-muted-foreground hover:text-foreground',
+                                    )}
+                                >
+                                    <MessageSquare className="mr-1.5 h-3 w-3" />{' '}
+                                    Registrar nota
+                                </Button>
+                            )}
                         </div>
 
                         {isWritingNote && (
@@ -1259,6 +1424,85 @@ export default function InventoryAdjustmentForm({
                     </div>
                 </div>
             </div>
+            {/* MODAL DE DEVOLUCIÓN */}
+            <AlertDialog
+                open={isReturnModalOpen}
+                onOpenChange={setIsReturnModalOpen}
+            >
+                <AlertDialogContent className="max-w-2xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Devolver Productos</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Especifique la cantidad exacta que desea devolver de
+                            cada producto. Si no desea devolver un producto,
+                            escriba 0.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+
+                    <div className="max-h-[50vh] overflow-y-auto rounded-md border py-2">
+                        <Table>
+                            <TableHeader className="bg-muted/50">
+                                <TableRow>
+                                    <TableHead className="text-xs font-bold uppercase">
+                                        Producto
+                                    </TableHead>
+                                    <TableHead className="text-center text-xs font-bold uppercase">
+                                        Movido
+                                    </TableHead>
+                                    <TableHead className="text-center text-xs font-black text-red-600 uppercase">
+                                        A Devolver
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {returnItems.map((item, idx) => (
+                                    <TableRow key={item.id_product}>
+                                        <TableCell className="text-sm font-medium">
+                                            {item.name}
+                                        </TableCell>
+                                        <TableCell className="text-center text-muted-foreground tabular-nums">
+                                            {item.max}
+                                        </TableCell>
+                                        <TableCell className="bg-red-50/30">
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                max={item.max}
+                                                step="0.01"
+                                                value={item.quantity}
+                                                onChange={(e) =>
+                                                    handleReturnQtyChange(
+                                                        idx,
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                className="mx-auto w-24 border-red-200 text-center font-bold text-red-600 focus:border-red-500 focus:ring-red-500"
+                                            />
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+
+                    <AlertDialogFooter className="mt-4">
+                        <AlertDialogCancel
+                            onClick={() => setIsReturnModalOpen(false)}
+                        >
+                            Cancelar
+                        </AlertDialogCancel>
+                        <Button
+                            onClick={submitReturn}
+                            disabled={returnItems.every(
+                                (i) => i.quantity === 0,
+                            )}
+                            className="bg-red-600 font-bold text-white hover:bg-red-700"
+                        >
+                            Confirmar Devolución
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </AppLayout>
     );
 }

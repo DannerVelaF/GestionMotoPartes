@@ -1,5 +1,5 @@
+import { FloatingAlert } from '@/components/FloatingAlert'; // ✅ Usando el componente que creamos
 import { SearchableSelect } from '@/components/SearchableSelect';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -18,7 +18,9 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
+    Table,
     TableBody,
+    TableCell,
     TableHead,
     TableHeader,
     TableRow,
@@ -28,12 +30,11 @@ import { cn } from '@/lib/utils';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { format } from 'date-fns';
 import {
-    AlertCircle,
-    CheckCircle2,
     FileText,
     History,
     MessageSquare,
-    PackageOpen, Printer,
+    PackageOpen,
+    Printer,
     ShoppingBag,
     Trash2,
 } from 'lucide-react';
@@ -45,60 +46,63 @@ const cleanInputClass =
 const tableInputClass =
     'h-8 w-full border-transparent bg-transparent text-center shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-emerald-500 tabular-nums dark:text-foreground dark:focus:bg-neutral-800';
 
-const InputError = ({
-    message,
-    className,
-}: {
-    message?: string;
-    className?: string;
-}) => {
-    if (!message) return null;
-    return (
-        <p
-            className={cn(
-                'mt-1 animate-pulse text-[10px] font-bold text-red-500 uppercase',
-                className,
-            )}
-        >
-            {message}
-        </p>
-    );
-};
+// --- INTERFACES CORREGIDAS ---
+interface Supplier {
+    id_supplier: number;
+    company_name: string;
+    ruc: string;
+}
 
-function FloatingAlert({
-    message,
-    type = 'error',
-}: {
-    message?: string;
-    type?: 'error' | 'success';
-}) {
-    if (!message) return null;
-    const isSuccess = type === 'success';
-    return (
-        <div className="fixed top-6 right-6 z-[100] w-auto max-w-md animate-in fade-in slide-in-from-top-2">
-            <Alert
-                variant={isSuccess ? 'default' : 'destructive'}
-                className={cn(
-                    'border-2 shadow-xl',
-                    isSuccess
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/90 dark:text-emerald-100'
-                        : 'border-red-500 bg-white text-red-900 dark:border-red-800 dark:bg-red-950/90 dark:text-red-100',
-                )}
-            >
-                {isSuccess ? (
-                    <CheckCircle2 className="h-4 w-4" />
-                ) : (
-                    <AlertCircle className="h-4 w-4" />
-                )}
-                <AlertTitle className="ml-2 font-bold">
-                    {isSuccess ? '¡Éxito!' : 'Atención'}
-                </AlertTitle>
-                <AlertDescription className="ml-2 whitespace-pre-wrap">
-                    {message}
-                </AlertDescription>
-            </Alert>
-        </div>
-    );
+interface Product {
+    id_product: number;
+    product_name: string;
+    product_code: string | null;
+    sale_price: number;
+    purchase_price: number;
+}
+
+interface DetailRow {
+    id: number;
+    id_product: string;
+    description: string;
+    quantity: number;
+    received_quantity: number;
+    billed_quantity: number;
+    unit_cost: number;
+    margin_percentage: number;
+    suggested_sale_price: number;
+}
+
+interface OrderLog {
+    id: number;
+    action: string;
+    notes: string | null;
+    created_at: string;
+    user?: { name: string };
+}
+
+interface PurchaseOrder {
+    id_purchase_order: number;
+    po_code: string;
+    status: string;
+    order_type: string;
+    id_supplier: number;
+    currency: string;
+    exchange_rate: string;
+    issue_date: string;
+    expected_date: string | null;
+    notes: string | null;
+    details: any[];
+    logs: OrderLog[];
+    inventory_adjustments_count: number;
+    receipts_count: number;
+}
+
+interface Props {
+    order: PurchaseOrder;
+    suppliers: Supplier[];
+    products: Product[];
+    documentTypes: { value: string; label: string }[];
 }
 
 const FormFieldRow = ({
@@ -116,80 +120,19 @@ const FormFieldRow = ({
     </div>
 );
 
-// --- CUSTOM HOOK PARA REDIMENSIONAR COLUMNAS ---
-const useTableResize = (initialWidths: Record<string, number>) => {
-    const [widths, setWidths] = useState(initialWidths);
-    const [isResizing, setIsResizing] = useState<string | null>(null);
-    const startX = useRef(0);
-    const startWidth = useRef(0);
-
-    const onMouseDown = (e: React.MouseEvent, col: string) => {
-        setIsResizing(col);
-        startX.current = e.clientX;
-        startWidth.current = (
-            e.target as HTMLElement
-        ).parentElement!.offsetWidth;
-        e.preventDefault();
-    };
-
-    useEffect(() => {
-        const onMouseMove = (e: MouseEvent) => {
-            if (!isResizing) return;
-            const newWidth = Math.max(
-                50,
-                startWidth.current + (e.clientX - startX.current),
-            );
-            setWidths((prev) => ({ ...prev, [isResizing]: newWidth }));
-        };
-        const onMouseUp = () => setIsResizing(null);
-        if (isResizing) {
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
-        }
-        return () => {
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-        };
-    }, [isResizing]);
-
-    return { widths, onMouseDown, isResizing };
-};
-
-// --- INTERFACES ---
-interface Props {
-    order: any;
-    suppliers: any[];
-    products: any[];
-    documentTypes: { value: string; label: string }[];
-}
-
-interface DetailRow {
-    id: number;
-    id_product: string | null;
-    description: string;
-    quantity: number;
-    received_quantity: number;
-    billed_quantity: number;
-    unit_cost: number;
-    margin_percentage: number;
-    suggested_sale_price: number;
-}
-
 export default function EditPurchaseOrder({
     order,
     suppliers,
     products,
-    documentTypes,
 }: Props) {
-    const { props } = usePage();
-    const serverErrors: any = props.errors;
+    const { props } = usePage<any>();
+    const serverErrors = props.errors;
 
     const [formError, setFormError] = useState<string | null>(null);
-    const [localError, setLocalError] = useState<string | null>(null);
     const [isWritingNote, setIsWritingNote] = useState(false);
     const [isApproving, setIsApproving] = useState(false);
-    const printFrameRef = useRef<HTMLIFrameElement>(null); // ✅ AGREGA ESTA LÍNEA
-    // Modal de Facturación
+    const printFrameRef = useRef<HTMLIFrameElement>(null);
+
     const [showBillingModal, setShowBillingModal] = useState(false);
     const [billingData, setBillingData] = useState({
         type: 'Factura',
@@ -200,20 +143,8 @@ export default function EditPurchaseOrder({
     const isDraft = order.status === 'draft';
     const isApproved = order.status === 'approved';
     const isDone = order.status === 'received';
-    const isCancelled = order.status === 'cancelled'; // ✅ NUEVO
-    const showTracking = !isDraft && !isCancelled; // Ocultar tracking si está cancelada o es borrador
-
-    const { widths, onMouseDown, isResizing } = useTableResize({
-        product: 350,
-        qty: 90,
-        received: 90,
-        billed: 90,
-        cost: 110,
-        margin: 90,
-        sale_price: 110,
-        subtotal: 120,
-        action: 60,
-    });
+    const isCancelled = order.status === 'cancelled';
+    const showTracking = !isDraft && !isCancelled;
 
     const initialRows: DetailRow[] = order.details.map((line: any) => ({
         id: line.id_po_detail,
@@ -223,8 +154,8 @@ export default function EditPurchaseOrder({
         received_quantity: Number(line.received_quantity || 0),
         billed_quantity: Number(line.billed_quantity || 0),
         unit_cost: Number(line.unit_cost),
-        margin_percentage: Number(line.margin_percentage),
-        suggested_sale_price: Number(line.suggested_sale_price),
+        margin_percentage: Number(line.margin_percentage || 0),
+        suggested_sale_price: Number(line.suggested_sale_price || 0),
     }));
 
     const [rows, setRows] = useState<DetailRow[]>(initialRows);
@@ -263,7 +194,6 @@ export default function EditPurchaseOrder({
         setHasUnsavedChanges(isDirty || rowsChanged);
     }, [rows, isDirty]);
 
-    // ✅ LÓGICA DE BOTONES (CORREGIDA: DENTRO DEL COMPONENTE)
     const needsReception = useMemo(() => {
         if (isServiceOrder || !isApproved) return false;
         return rows.some((r) => r.received_quantity < r.quantity);
@@ -281,17 +211,19 @@ export default function EditPurchaseOrder({
             exchange_rate: val === 'PEN' ? '1.000' : '3.800',
         }));
 
-    const onFieldChange = (field: keyof typeof data, value: any) => {
-        setData(field, value);
-        if (errors[field]) clearErrors(field);
+    const onFieldChange = (field: string, value: any) => {
+        setData(field as any, value);
+        if (errors[field as keyof typeof errors]) clearErrors(field as any);
     };
 
-    const updateRow = (id: number, field: string, value: any) => {
+    // ✅ LÓGICA DE CÁLCULO DE PRECIOS Y MÁRGENES
+    const updateRow = (id: number, field: keyof DetailRow, value: any) => {
         if (isDone || isApproved) return;
         setRows((prev) =>
             prev.map((row) => {
                 if (row.id !== id) return row;
-                const newRow = { ...row, [field]: value };
+                const newRow = { ...row, [field]: value } as DetailRow;
+
                 if (field === 'unit_cost' || field === 'margin_percentage') {
                     const cost =
                         field === 'unit_cost' ? Number(value) : row.unit_cost;
@@ -301,15 +233,15 @@ export default function EditPurchaseOrder({
                             : row.margin_percentage;
                     if (cost > 0)
                         newRow.suggested_sale_price = parseFloat(
-                            (cost + cost * (margin / 100)).toFixed(2),
+                            (cost * (1 + margin / 100)).toFixed(2),
                         );
                 }
                 if (field === 'suggested_sale_price') {
                     const salePrice = Number(value);
-                    if (salePrice > 0 && row.unit_cost > 0) {
-                        const profit = salePrice - row.unit_cost;
+                    const cost = row.unit_cost;
+                    if (salePrice > 0 && cost > 0) {
                         newRow.margin_percentage = parseFloat(
-                            ((profit / row.unit_cost) * 100).toFixed(2),
+                            (((salePrice - cost) / cost) * 100).toFixed(2),
                         );
                     }
                 }
@@ -333,15 +265,13 @@ export default function EditPurchaseOrder({
         );
     };
 
-    const totalAmount = rows.reduce(
+    // ✅ LÓGICA DE TOTALES (SUBTOTAL + IGV)
+    const subTotal = rows.reduce(
         (acc, row) => acc + row.quantity * row.unit_cost,
         0,
     );
-    const hasDetailErrors = Object.keys(errors).some((key) =>
-        key.startsWith('details'),
-    );
-    const igvAmount = totalAmount - totalAmount / 1.18;
-    const subTotal = totalAmount - igvAmount;
+    const igvAmount = subTotal * 0.18;
+    const totalAmount = subTotal + igvAmount;
     const totalInSoles =
         data.currency === 'USD'
             ? totalAmount * Number(data.exchange_rate)
@@ -357,9 +287,6 @@ export default function EditPurchaseOrder({
             ? `[${p.product_code}] ${p.product_name}`
             : p.product_name,
     }));
-    const selectedProductIds = rows
-        .map((r) => r.id_product)
-        .filter((id) => id !== '');
 
     const submitForm = (targetStatus: 'draft' | 'sent') => {
         const dataToSend = {
@@ -373,11 +300,7 @@ export default function EditPurchaseOrder({
             exchange_rate: parseFloat(data.exchange_rate),
             total_amount: totalAmount,
             details: rows
-                .filter(
-                    (r) =>
-                        (!isServiceOrder && r.id_product) ||
-                        (isServiceOrder && r.description),
-                )
+                .filter((r) => (!isServiceOrder ? r.id_product : r.description))
                 .map((r) => ({
                     id_product: !isServiceOrder ? r.id_product : null,
                     description: isServiceOrder ? r.description : null,
@@ -389,16 +312,18 @@ export default function EditPurchaseOrder({
                     is_service: isServiceOrder,
                 })),
         };
-        router.post(`/compras/ordenes/${order.id_purchase_order}`, dataToSend, {
-            forceFormData: true,
-            preserveScroll: true,
-            onSuccess: () => {
-                setHasUnsavedChanges(false);
+        router.post(
+            `/compras/ordenes/${order.id_purchase_order}`,
+            dataToSend as any,
+            {
+                forceFormData: true,
+                preserveScroll: true,
+                onSuccess: () => setHasUnsavedChanges(false),
+                onError: (errs) => {
+                    if (errs.error) setFormError(errs.error as string);
+                },
             },
-            onError: (errs: any) => {
-                if (errs.error) setFormError(errs.error);
-            },
-        });
+        );
     };
 
     const handleApproveOrder = () => {
@@ -409,8 +334,8 @@ export default function EditPurchaseOrder({
             {
                 preserveScroll: true,
                 onSuccess: () => setIsApproving(false),
-                onError: (errs: any) => {
-                    if (errs.error) setFormError(errs.error);
+                onError: (errs) => {
+                    if (errs.error) setFormError(errs.error as string);
                     setIsApproving(false);
                 },
             },
@@ -427,43 +352,16 @@ export default function EditPurchaseOrder({
         router.get(`/recibos/nuevoRecibo?${params}`);
     };
 
-    const ResizableTh = ({
-        col,
-        label,
-        align = 'center',
-        className = '',
-    }: any) => (
-        <TableHead
-            style={{ width: widths[col], minWidth: 50 }}
-            className={cn(
-                `relative px-4 py-3 text-${align} text-[10px] font-bold uppercase`,
-                className,
-                isResizing === col && 'bg-muted/50',
-            )}
-        >
-            {label}
-            <div
-                className="absolute top-0 right-0 z-10 h-full w-2 cursor-col-resize touch-none hover:bg-emerald-500/50"
-                onMouseDown={(e) => onMouseDown(e, col)}
-            />
-        </TableHead>
-    );
     const handleCancelOrder = () => {
-        if (
-            confirm(
-                '¿Estás seguro de que deseas cancelar esta orden? Esta acción no se puede deshacer y bloqueará cualquier transacción futura.',
-            )
-        ) {
+        if (confirm('¿Estás seguro de que deseas cancelar esta orden?')) {
             router.post(
                 `/compras/ordenes/${order.id_purchase_order}/cancelar`,
                 {},
-                {
-                    preserveScroll: true,
-                    onSuccess: () => setIsWritingNote(false), // Opcional: cerrar notas
-                },
+                { preserveScroll: true },
             );
         }
     };
+
     return (
         <AppLayout
             breadcrumbs={[
@@ -472,15 +370,20 @@ export default function EditPurchaseOrder({
             ]}
         >
             <Head title={order.po_code} />
+
             <FloatingAlert
-                message={
-                    formError || localError || (serverErrors?.error as string)
-                }
+                message={formError || (props.flash?.error as string)}
                 type="error"
+                onClose={() => setFormError(null)}
+            />
+
+            <FloatingAlert
+                message={props.flash?.success as string}
+                type="success"
             />
 
             <div className="flex h-full flex-col overflow-hidden bg-background">
-                {/* TOOLBAR SUPERIOR */}
+                {/* TOOLBAR */}
                 <div className="flex shrink-0 flex-col border-b border-border bg-card">
                     <div className="flex items-center px-6 py-2 text-sm text-muted-foreground">
                         <span className="font-semibold text-emerald-600">
@@ -530,7 +433,7 @@ export default function EditPurchaseOrder({
                                     </Button>
                                 </>
                             )}
-                            {isApproved || isDone ? (
+                            {(isApproved || isDone) && (
                                 <>
                                     {needsReception && (
                                         <Button
@@ -558,12 +461,12 @@ export default function EditPurchaseOrder({
                                         </Button>
                                     )}
                                 </>
-                            ) : null}
+                            )}
                             {!isDone && !isCancelled && (
                                 <Button
                                     onClick={handleCancelOrder}
                                     variant="ghost"
-                                    className="h-8 text-red-600 hover:bg-red-50 hover:text-red-700 font-bold"
+                                    className="h-8 font-bold text-red-600 hover:bg-red-50"
                                 >
                                     Cancelar Orden
                                 </Button>
@@ -577,61 +480,25 @@ export default function EditPurchaseOrder({
                             </Button>
                         </div>
 
-                        {/* StatusBar Visual */}
                         <div className="flex items-center gap-4">
                             <button
                                 onClick={() => {
                                     if (printFrameRef.current) {
-                                        // Asignamos la ruta al iframe
                                         printFrameRef.current.src = `/compras/${order.id_purchase_order}/print`;
-
-                                        // Cuando termine de cargar, disparamos la impresión del contenido del iframe
                                         printFrameRef.current.onload = () => {
                                             printFrameRef.current?.contentWindow?.focus();
                                             printFrameRef.current?.contentWindow?.print();
                                         };
                                     }
                                 }}
-                                className="flex items-center gap-1.5 border-r border-border px-3 text-slate-600 transition-all hover:bg-muted/50 dark:text-slate-400"
+                                className="flex items-center gap-1.5 border-r border-border px-3 text-slate-600 transition-all hover:bg-muted/50"
                             >
                                 <Printer className="h-3.5 w-3.5" />
                                 <span className="text-[10px] font-semibold uppercase">
                                     Imprimir
                                 </span>
                             </button>
-
-                            {order.inventory_adjustments_count > 0 && (
-                                <button
-                                    onClick={() =>
-                                        router.get(
-                                            `/inventario/ajuste/movimientos?search=${order.po_code}`,
-                                        )
-                                    }
-                                    className="flex items-center gap-1.5 border-r border-border px-3 text-emerald-600 transition-all hover:bg-muted/50 dark:text-emerald-400"
-                                >
-                                    <PackageOpen className="h-3.5 w-3.5" />
-                                    <span className="text-[10px] font-semibold uppercase">
-                                        Recepciones (
-                                        {order.inventory_adjustments_count})
-                                    </span>
-                                </button>
-                            )}
-
-                            {order.receipts_count > 0 && (
-                                <button
-                                    onClick={() =>
-                                        router.get(
-                                            `/recibos?search=${order.po_code}`,
-                                        )
-                                    }
-                                    className="flex items-center gap-1.5 border-r border-border px-3 text-blue-600 transition-all hover:bg-muted/50 dark:text-blue-400"
-                                >
-                                    <FileText className="h-3.5 w-3.5" />{' '}
-                                    <span className="text-[10px] font-semibold uppercase">
-                                        Comprobantes ({order.receipts_count})
-                                    </span>
-                                </button>
-                            )}
+                            {/* StatusBar Indicators */}
                             <div className="flex h-8 items-center overflow-hidden rounded-sm border border-border bg-muted/30 text-[10px] font-bold uppercase">
                                 <div
                                     className={cn(
@@ -663,32 +530,16 @@ export default function EditPurchaseOrder({
                                 >
                                     Aprobada
                                 </div>
-                                {
-                                    !isCancelled &&
-                                    <div
-                                        className={cn(
-                                            'px-4 py-2',
-                                            isDone
-                                                ? 'bg-emerald-600/10 text-emerald-600'
-                                                : 'opacity-50',
-                                        )}
-                                    >
-                                        Completada
-                                    </div>
-                                }
-                                {
-                                    isCancelled &&
-                                    <div
-                                        className={cn(
-                                            'px-4 py-2',
-                                            isCancelled
-                                                ? 'bg-red-600/10 text-red-600'
-                                                : 'opacity-50',
-                                        )}
-                                    >
-                                        Cancelada
-                                    </div>
-                                }
+                                <div
+                                    className={cn(
+                                        'px-4 py-2',
+                                        isDone
+                                            ? 'bg-emerald-600/10 text-emerald-600'
+                                            : 'opacity-50',
+                                    )}
+                                >
+                                    Completada
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -711,7 +562,7 @@ export default function EditPurchaseOrder({
                                 </h1>
                             </div>
 
-                            {/* CABECERA */}
+                            {/* CABECERA FORMULARIO */}
                             <div className="grid grid-cols-1 gap-x-12 gap-y-2 pt-4 xl:grid-cols-2">
                                 <div className="space-y-1">
                                     <FormFieldRow label="Tipo de Orden">
@@ -829,7 +680,7 @@ export default function EditPurchaseOrder({
                                 </div>
                             </div>
 
-                            {/* TABLA */}
+                            {/* TABLA DE DETALLES */}
                             <div className="w-full pt-6">
                                 <div className="mb-4 border-b border-border text-sm font-bold text-muted-foreground">
                                     <span className="border-b-2 border-emerald-600 pb-2 text-foreground">
@@ -840,80 +691,127 @@ export default function EditPurchaseOrder({
                                 </div>
                                 <div
                                     className={cn(
-                                        'w-full overflow-x-auto rounded-sm border border-border bg-card shadow-sm',
+                                        'w-full overflow-hidden rounded-sm border border-border bg-card shadow-sm',
                                         hasDetailErrors && 'border-red-500',
                                     )}
                                 >
-                                    <table className="w-full table-fixed text-left text-sm">
+                                    <Table>
                                         <TableHeader className="bg-muted/30">
                                             <TableRow>
-                                                <ResizableTh
-                                                    col="product"
-                                                    label="Producto / Descripción"
-                                                    align="left"
-                                                    className="px-4"
-                                                />
-                                                <ResizableTh
-                                                    col="qty"
-                                                    label="Cantidad"
-                                                />
+                                                <TableHead className="w-[350px] px-4">
+                                                    Producto / Descripción
+                                                </TableHead>
+                                                <TableHead className="w-[100px] text-center">
+                                                    Cantidad
+                                                </TableHead>
                                                 {showTracking && (
                                                     <>
-                                                        <ResizableTh
-                                                            col="received"
-                                                            label="Recibida"
-                                                        />
-                                                        <ResizableTh
-                                                            col="billed"
-                                                            label="Facturada"
-                                                        />
+                                                        <TableHead className="w-[100px] text-center">
+                                                            Recibida
+                                                        </TableHead>
+                                                        <TableHead className="w-[100px] text-center">
+                                                            Facturada
+                                                        </TableHead>
                                                     </>
                                                 )}
-                                                <ResizableTh
-                                                    col="cost"
-                                                    label={`Costo (${symbol})`}
-                                                />
-                                                <ResizableTh
-                                                    col="subtotal"
-                                                    label="Subtotal"
-                                                    align="right"
-                                                />
+                                                <TableHead className="w-[120px] text-right">
+                                                    Costo ({symbol})
+                                                </TableHead>
+                                                {!isServiceOrder && (
+                                                    <>
+                                                        <TableHead className="w-[100px] text-center">
+                                                            % Margen
+                                                        </TableHead>
+                                                        <TableHead className="w-[120px] text-right">
+                                                            P. Venta
+                                                        </TableHead>
+                                                    </>
+                                                )}
+                                                <TableHead className="w-[120px] text-right">
+                                                    Subtotal
+                                                </TableHead>
                                                 {!(isDone || isApproved) && (
-                                                    <ResizableTh
-                                                        col="action"
-                                                        label=""
-                                                    />
+                                                    <TableHead className="w-[50px]"></TableHead>
                                                 )}
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody className="divide-y divide-border/50">
                                             {rows.map((row) => (
-                                                <tr
+                                                <TableRow
                                                     key={row.id}
-                                                    className="group hover:bg-muted/10"
+                                                    className="group"
                                                 >
-                                                    <td className="px-4 py-2">
+                                                    <TableCell className="px-2">
                                                         {!isServiceOrder ? (
                                                             <SearchableSelect
                                                                 options={
                                                                     productOptions
                                                                 }
                                                                 value={
-                                                                    row.id_product ||
-                                                                    ''
+                                                                    row.id_product
                                                                 }
-                                                                onChange={(v) =>
+                                                                onChange={(
+                                                                    v,
+                                                                ) => {
+                                                                    const p =
+                                                                        products.find(
+                                                                            (
+                                                                                p,
+                                                                            ) =>
+                                                                                String(
+                                                                                    p.id_product,
+                                                                                ) ===
+                                                                                v,
+                                                                        );
                                                                     updateRow(
                                                                         row.id,
                                                                         'id_product',
                                                                         v,
-                                                                    )
-                                                                }
+                                                                    );
+                                                                    updateRow(
+                                                                        row.id,
+                                                                        'description',
+                                                                        p?.product_name ||
+                                                                            '',
+                                                                    );
+                                                                    updateRow(
+                                                                        row.id,
+                                                                        'unit_cost',
+                                                                        p?.purchase_price ||
+                                                                            0,
+                                                                    );
+                                                                    updateRow(
+                                                                        row.id,
+                                                                        'suggested_sale_price',
+                                                                        p?.sale_price ||
+                                                                            0,
+                                                                    );
+                                                                    // Calcular margen inicial
+                                                                    if (
+                                                                        p &&
+                                                                        p.purchase_price >
+                                                                            0
+                                                                    ) {
+                                                                        const m =
+                                                                            ((p.sale_price -
+                                                                                p.purchase_price) /
+                                                                                p.purchase_price) *
+                                                                            100;
+                                                                        updateRow(
+                                                                            row.id,
+                                                                            'margin_percentage',
+                                                                            parseFloat(
+                                                                                m.toFixed(
+                                                                                    2,
+                                                                                ),
+                                                                            ),
+                                                                        );
+                                                                    }
+                                                                }}
                                                                 isDisabled={
                                                                     isDone ||
                                                                     isApproved
                                                                 }
-                                                                className="h-8 border-transparent shadow-none"
                                                             />
                                                         ) : (
                                                             <Input
@@ -932,11 +830,11 @@ export default function EditPurchaseOrder({
                                                                     isDone ||
                                                                     isApproved
                                                                 }
-                                                                className="h-8 border-transparent shadow-none"
+                                                                className="h-8 border-transparent"
                                                             />
                                                         )}
-                                                    </td>
-                                                    <td className="px-2 py-2">
+                                                    </TableCell>
+                                                    <TableCell>
                                                         <Input
                                                             type="number"
                                                             value={row.quantity}
@@ -944,8 +842,10 @@ export default function EditPurchaseOrder({
                                                                 updateRow(
                                                                     row.id,
                                                                     'quantity',
-                                                                    e.target
-                                                                        .value,
+                                                                    parseFloat(
+                                                                        e.target
+                                                                            .value,
+                                                                    ) || 0,
                                                                 )
                                                             }
                                                             disabled={
@@ -957,24 +857,25 @@ export default function EditPurchaseOrder({
                                                                 tableInputClass
                                                             }
                                                         />
-                                                    </td>
+                                                    </TableCell>
                                                     {showTracking && (
                                                         <>
-                                                            <td className="text-center align-middle font-bold text-emerald-600">
+                                                            <TableCell className="text-center font-bold text-emerald-600">
                                                                 {
                                                                     row.received_quantity
                                                                 }
-                                                            </td>
-                                                            <td className="text-center align-middle font-bold text-blue-600">
+                                                            </TableCell>
+                                                            <TableCell className="text-center font-bold text-blue-600">
                                                                 {
                                                                     row.billed_quantity
                                                                 }
-                                                            </td>
+                                                            </TableCell>
                                                         </>
                                                     )}
-                                                    <td className="px-2 py-2">
+                                                    <TableCell>
                                                         <Input
                                                             type="number"
+                                                            step="0.01"
                                                             value={
                                                                 row.unit_cost
                                                             }
@@ -982,8 +883,10 @@ export default function EditPurchaseOrder({
                                                                 updateRow(
                                                                     row.id,
                                                                     'unit_cost',
-                                                                    e.target
-                                                                        .value,
+                                                                    parseFloat(
+                                                                        e.target
+                                                                            .value,
+                                                                    ) || 0,
                                                                 )
                                                             }
                                                             disabled={
@@ -994,25 +897,87 @@ export default function EditPurchaseOrder({
                                                                 tableInputClass
                                                             }
                                                         />
-                                                    </td>
-                                                    <td className="px-4 py-2 text-right font-bold tabular-nums">
+                                                    </TableCell>
+                                                    {!isServiceOrder && (
+                                                        <>
+                                                            <TableCell>
+                                                                <Input
+                                                                    type="number"
+                                                                    step="0.1"
+                                                                    value={
+                                                                        row.margin_percentage
+                                                                    }
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) =>
+                                                                        updateRow(
+                                                                            row.id,
+                                                                            'margin_percentage',
+                                                                            parseFloat(
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            ) ||
+                                                                                0,
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        isDone ||
+                                                                        isApproved
+                                                                    }
+                                                                    className={
+                                                                        tableInputClass
+                                                                    }
+                                                                />
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    value={
+                                                                        row.suggested_sale_price
+                                                                    }
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) =>
+                                                                        updateRow(
+                                                                            row.id,
+                                                                            'suggested_sale_price',
+                                                                            parseFloat(
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            ) ||
+                                                                                0,
+                                                                        )
+                                                                    }
+                                                                    disabled={
+                                                                        isDone ||
+                                                                        isApproved
+                                                                    }
+                                                                    className={
+                                                                        tableInputClass
+                                                                    }
+                                                                />
+                                                            </TableCell>
+                                                        </>
+                                                    )}
+                                                    <TableCell className="text-right font-bold tabular-nums">
                                                         {symbol}{' '}
                                                         {(
                                                             row.quantity *
                                                             row.unit_cost
                                                         ).toFixed(2)}
-                                                    </td>
+                                                    </TableCell>
                                                     {!(
                                                         isDone || isApproved
                                                     ) && (
-                                                        <td className="text-center">
+                                                        <TableCell>
                                                             <Button
                                                                 variant="ghost"
                                                                 size="icon"
                                                                 className="h-7 w-7 text-red-500 opacity-0 group-hover:opacity-100"
                                                                 onClick={() =>
-                                                                    rows.length >
-                                                                        1 &&
                                                                     setRows(
                                                                         rows.filter(
                                                                             (
@@ -1026,31 +991,33 @@ export default function EditPurchaseOrder({
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
-                                                        </td>
+                                                        </TableCell>
                                                     )}
-                                                </tr>
+                                                </TableRow>
                                             ))}
                                         </TableBody>
-                                    </table>
+                                    </Table>
                                 </div>
 
                                 {/* TOTALES */}
                                 <div className="flex justify-end pt-6 pb-20">
                                     <div className="w-full max-w-sm space-y-2">
                                         <div className="flex justify-between border-b pb-2 text-sm text-muted-foreground">
-                                            <span>Subtotal</span>
+                                            <span>
+                                                Subtotal (Base Imponible)
+                                            </span>
                                             <span>
                                                 {symbol} {subTotal.toFixed(2)}
                                             </span>
                                         </div>
                                         <div className="flex justify-between border-b pb-2 text-sm text-muted-foreground">
-                                            <span>IGV Estimado (18%)</span>
+                                            <span>IGV (18%)</span>
                                             <span>
                                                 {symbol} {igvAmount.toFixed(2)}
                                             </span>
                                         </div>
                                         <div className="flex justify-between pt-2 text-xl font-black text-emerald-600">
-                                            <span>Total</span>
+                                            <span>Total Orden</span>
                                             <span>
                                                 {symbol}{' '}
                                                 {totalAmount.toFixed(2)}
@@ -1062,7 +1029,7 @@ export default function EditPurchaseOrder({
                         </div>
                     </div>
 
-                    {/* CHATTER */}
+                    {/* CHATTER / LOGS */}
                     <div className="relative hidden h-full w-[380px] shrink-0 flex-col border-l border-border bg-muted/10 xl:flex">
                         <div className="z-10 flex shrink-0 items-center gap-1 border-b border-border bg-card p-2 shadow-sm">
                             <Button
@@ -1107,7 +1074,7 @@ export default function EditPurchaseOrder({
                             </div>
                         )}
                         <div className="flex-1 space-y-6 overflow-y-auto p-6">
-                            {order.logs?.map((log: any) => (
+                            {order.logs?.map((log) => (
                                 <div
                                     key={log.id}
                                     className="relative border-l-2 pl-6 text-sm"
@@ -1140,7 +1107,7 @@ export default function EditPurchaseOrder({
                 </div>
             </div>
 
-            {/* DIALOG FACTURACIÓN */}
+            {/* MODAL FACTURACIÓN */}
             <Dialog open={showBillingModal} onOpenChange={setShowBillingModal}>
                 <DialogContent className="sm:max-w-[425px]">
                     <DialogHeader>
@@ -1225,6 +1192,7 @@ export default function EditPurchaseOrder({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
             <iframe
                 ref={printFrameRef}
                 style={{ display: 'none' }}
