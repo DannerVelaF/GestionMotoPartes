@@ -25,6 +25,7 @@ class Receipt extends Model
         "exchange_rate",
         "id_purchase_order",
         "glosa",
+        "status"
     ];
 
     protected function casts(): array

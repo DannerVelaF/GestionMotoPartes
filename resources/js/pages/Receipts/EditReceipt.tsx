@@ -1,3 +1,4 @@
+import { SearchableSelect } from '@/components/SearchableSelect';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
     AlertDialog,
@@ -10,13 +11,20 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import {
     Table,
     TableBody,
@@ -26,7 +34,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea'; // Importar Textarea
+import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
@@ -34,29 +42,32 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
     AlertCircle,
-    BookText,
+    ArrowRightLeft,
     Box,
     Briefcase,
+    CalendarIcon,
     CheckCircle2,
     Download,
     FileText,
     History,
-    Link as LinkIcon,
-    Lock,
     MessageSquare,
-    MoreVertical,
+    PackageCheck,
     Plus,
+    RotateCcw,
     Save,
     Trash2,
-    Truck,
+    Undo2,
     User,
 } from 'lucide-react';
-import { FormEventHandler, useEffect, useMemo, useState } from 'react';
+import React, { FormEventHandler, useEffect, useMemo, useState } from 'react';
 
+// --- ESTILOS REUTILIZABLES ---
 const cleanInputClass =
     'h-9 w-full rounded-none border-0 border-b border-muted bg-transparent px-0 text-sm shadow-none focus:ring-0 focus:border-blue-600 focus:outline-none transition-all font-medium dark:text-foreground dark:border-neutral-700 dark:focus:border-blue-500';
 const disabledInputClass =
     'h-9 w-full rounded-none border-0 border-b border-dashed border-muted-foreground/30 bg-transparent px-0 text-sm shadow-none focus:ring-0 cursor-not-allowed text-foreground font-semibold dark:border-neutral-700 dark:text-neutral-400';
+const tableInputClass =
+    'h-8 border-transparent bg-transparent text-right shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-blue-500 tabular-nums dark:text-foreground dark:focus:bg-neutral-800';
 
 function FloatingAlert({
     message,
@@ -74,8 +85,8 @@ function FloatingAlert({
                 className={cn(
                     'border-2 shadow-xl',
                     isSuccess
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-900 dark:border-emerald-600 dark:bg-emerald-950 dark:text-emerald-200'
-                        : 'border-red-500 bg-white text-red-900 dark:border-red-600 dark:bg-neutral-900 dark:text-red-200',
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-900'
+                        : 'border-red-500 bg-white text-red-900',
                 )}
             >
                 {isSuccess ? (
@@ -94,6 +105,15 @@ function FloatingAlert({
     );
 }
 
+const InputError = ({ message }: { message?: string }) => {
+    if (!message) return null;
+    return (
+        <p className="mt-1 animate-pulse text-[10px] font-bold text-red-500 uppercase">
+            {message}
+        </p>
+    );
+};
+
 const FormFieldRow = ({
     label,
     children,
@@ -109,15 +129,39 @@ const FormFieldRow = ({
     </div>
 );
 
-export default function EditReceipt({ receipt }: { receipt: any }) {
+interface PageProps {
+    receipt: any;
+    returnsCount?: number;
+    parentReference?: { id: number; code: string; url: string } | null;
+    masterDocument?: { type: string; code: string; url: string } | null;
+    products: any[];
+    documentTypes: any[];
+    suppliers: any[];
+}
+
+export default function EditReceipt({
+    receipt,
+    returnsCount = 0,
+    parentReference,
+    masterDocument,
+    products,
+    documentTypes,
+    suppliers,
+}: PageProps) {
     const { props } = usePage<any>();
-    const { flash = {}, errors: serverErrors } = props;
+    const { flash = {} } = props;
+
+    const isPublished = receipt.status === 'published';
 
     const [internalNote, setInternalNote] = useState('');
     const [showSuccess, setShowSuccess] = useState(false);
-    const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const [isWritingNote, setIsWritingNote] = useState(false);
+
+    // Modales
+    const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+    const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+    const [returnItems, setReturnItems] = useState<any[]>([]);
 
     const { data, setData, processing, isDirty, reset } = useForm({
         id_supplier: String(receipt.id_supplier),
@@ -127,7 +171,7 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
         series: receipt.series,
         number: receipt.number,
         issue_date: new Date(receipt.issue_date),
-        glosa: receipt.glosa || '', // ✅ Nuevo campo Glosa
+        glosa: receipt.glosa || '',
         file: null as File | null,
     });
 
@@ -158,21 +202,62 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
             ? totalAmount * Number(data.exchange_rate)
             : totalAmount;
 
+    // --- DEVOLUCIONES ---
+    const openReturnModal = () => {
+        const items = receipt.details
+            .map((d: any) => ({
+                id_product: d.id_product,
+                description: d.description,
+                display_name: d.product
+                    ? d.product.product_name
+                    : d.description,
+                max: Number(d.quantity),
+                return_quantity: Number(d.quantity),
+                unit_price: Number(d.unit_price),
+            }))
+            .filter((i: any) => i.max > 0);
+        setReturnItems(items);
+        setIsReturnModalOpen(true);
+    };
+
+    const handleReturnQtyChange = (index: number, val: string) => {
+        const newItems = [...returnItems];
+        let num = Number(val);
+        if (num < 0) num = 0;
+        if (num > newItems[index].max) num = newItems[index].max;
+        newItems[index].return_quantity = num;
+        setReturnItems(newItems);
+    };
+
+    const submitReturn = () => {
+        router.post(
+            `/recibos/${receipt.id_receipt}/devolver`,
+            { return_items: returnItems },
+            {
+                preserveScroll: true,
+                onSuccess: () => setIsReturnModalOpen(false),
+                onError: (err) => setFormError(Object.values(err)[0] as string),
+            },
+        );
+    };
+
+    // --- GUARDAR Y PUBLICAR ---
+    const handleCurrencyChange = (val: string) =>
+        setData((prev) => ({
+            ...prev,
+            currency: val,
+            exchange_rate: val === 'PEN' ? '1.000' : '3.800',
+        }));
+
+    const supplierOptions = suppliers.map((s: any) => ({
+        value: String(s.id_supplier),
+        label: s.company_name,
+    }));
+
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         setFormError(null);
 
-        // ✅ Usamos router.post pero pasamos un objeto con los datos procesados
-        // NO usamos JSON.stringify para que reset() funcione correctamente
-        const detailsPayload = rows.map((row: any) => ({
-            id_product: row.id_product || null,
-            description: row.id_product ? '' : row.display_name,
-            quantity: row.quantity,
-            unit_price: row.unit_price,
-            is_service: row.type === 'service',
-        }));
-
-        // Construimos el FormData manual para soportar el archivo y el método PUT
         const formData = new FormData();
         formData.append('_method', 'put');
         formData.append('id_supplier', data.id_supplier);
@@ -188,44 +273,51 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
         );
         if (data.file) formData.append('file', data.file);
 
-        // ✅ Enviamos los detalles como campos de array para que Laravel los entienda
-        detailsPayload.forEach((item, index) => {
+        rows.forEach((row: any, index: number) => {
             formData.append(
                 `details[${index}][id_product]`,
-                item.id_product || '',
+                row.id_product || '',
             );
             formData.append(
                 `details[${index}][description]`,
-                item.description || '',
+                row.id_product ? '' : row.display_name,
             );
             formData.append(
                 `details[${index}][quantity]`,
-                item.quantity.toString(),
+                row.quantity.toString(),
             );
             formData.append(
                 `details[${index}][unit_price]`,
-                item.unit_price.toString(),
+                row.unit_price.toString(),
             );
             formData.append(
                 `details[${index}][is_service]`,
-                item.is_service ? '1' : '0',
+                row.type === 'service' ? '1' : '0',
             );
         });
 
         router.post(`/recibos/${receipt.id_receipt}`, formData, {
             forceFormData: true,
+            preserveScroll: true,
             onSuccess: () => {
                 setShowSuccess(true);
-                // ✅ Esto ahora sí funcionará porque sincroniza el estado
                 reset();
             },
-            onError: (err) => {
-                console.error('Errores:', err);
-                setFormError('Error al procesar la actualización.');
-            },
+            onError: () => setFormError('Error al guardar los cambios.'),
         });
     };
 
+    const publishReceipt = () => {
+        router.post(
+            `/recibos/${receipt.id_receipt}/publish`,
+            {},
+            { preserveScroll: true },
+        );
+    };
+
+    const executeDelete = () => router.delete(`/recibos/${receipt.id_receipt}`);
+
+    // --- CHATTER ---
     const submitNote = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
@@ -241,14 +333,10 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                     setShowSuccess(true);
                 },
                 onError: (err: any) =>
-                    setFormError(
-                        err.internal_note || 'Error al guardar la nota',
-                    ),
+                    setFormError(err.internal_note || 'Error al guardar nota'),
             },
         );
     };
-
-    const executeDelete = () => router.delete(`/recibos/${receipt.id_receipt}`);
 
     useEffect(() => {
         if (flash?.success) {
@@ -267,7 +355,7 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
         >
             <Head title={receipt.receipt_code} />
             <FloatingAlert
-                message={flash.success || serverErrors.error}
+                message={flash.success || formError}
                 type={flash.success ? 'success' : 'error'}
             />
 
@@ -275,60 +363,179 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                 onSubmit={submit}
                 className="flex h-full flex-col overflow-hidden bg-background"
             >
-                <div className="sticky top-0 z-20 flex shrink-0 items-center justify-between border-b bg-card px-8 py-3 shadow-sm">
-                    <div className="flex items-center gap-4">
-                        <h1 className="flex items-center gap-2 font-mono text-lg font-bold tracking-tighter uppercase">
-                            <BookText className="h-5 w-5 text-blue-500" />{' '}
-                            {receipt.receipt_code}
-                        </h1>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8"
+                {/* TOOLBAR */}
+                <div className="sticky top-0 z-20 flex shrink-0 flex-col border-b border-border bg-card">
+                    <div className="flex items-center justify-between px-6 py-3">
+                        {/* Botones Izquierda */}
+                        <div className="flex items-center gap-2">
+                            {isDirty && (
+                                <span className="mr-2 animate-pulse text-[10px] font-black tracking-widest text-amber-500 uppercase">
+                                    Cambios sin guardar
+                                </span>
+                            )}
+
+                            {isPublished ? (
+                                receipt.document_type !== 'credit_note' && (
+                                    <Button
+                                        type="button"
+                                        onClick={openReturnModal}
+                                        className="h-8 bg-red-600 font-bold text-white shadow-md transition-colors hover:bg-red-700"
+                                    >
+                                        <Undo2 className="mr-2 h-4 w-4" /> Nota
+                                        de Crédito
+                                    </Button>
+                                )
+                            ) : (
+                                <>
+                                    <Button
+                                        type="submit"
+                                        disabled={!isDirty || processing}
+                                        className="h-8 bg-blue-600 font-bold text-white shadow-md transition-colors hover:bg-blue-700"
+                                    >
+                                        <Save className="mr-2 h-4 w-4" />{' '}
+                                        Guardar
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => reset()}
+                                        disabled={!isDirty}
+                                        className="h-8"
+                                    >
+                                        <RotateCcw className="mr-2 h-4 w-4" />{' '}
+                                        Descartar
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        onClick={publishReceipt}
+                                        disabled={isDirty || processing}
+                                        className="h-8 bg-emerald-600 font-bold text-white shadow-md transition-colors hover:bg-emerald-700"
+                                    >
+                                        <CheckCircle2 className="mr-2 h-4 w-4" />{' '}
+                                        Publicar
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        onClick={() =>
+                                            setIsDeleteAlertOpen(true)
+                                        }
+                                        className="h-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Botones Derecha: Smart Buttons + Estado */}
+                        <div className="flex items-center gap-3">
+                            <div className="flex gap-2">
+                                {/* Smart Button: OC o Venta */}
+                                {masterDocument && masterDocument.url && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() =>
+                                            router.get(masterDocument.url)
+                                        }
+                                        className="h-9 border-amber-200 bg-amber-50/30 px-3 hover:border-amber-300 hover:bg-amber-100"
+                                    >
+                                        <PackageCheck className="mr-2 h-4 w-4 text-amber-600" />
+                                        <div className="flex flex-col items-start text-left">
+                                            <span className="text-[8px] leading-none font-bold text-muted-foreground uppercase">
+                                                {masterDocument.type}
+                                            </span>
+                                            <span className="text-[10px] leading-tight font-black text-amber-700">
+                                                {masterDocument.code}
+                                            </span>
+                                        </div>
+                                    </Button>
+                                )}
+                                {/* Smart Button: Origen (Si es Devolución) */}
+                                {parentReference && parentReference.url && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() =>
+                                            router.get(parentReference.url)
+                                        }
+                                        className="h-9 border-emerald-200 bg-emerald-50/30 px-3 hover:border-emerald-300 hover:bg-emerald-100"
+                                    >
+                                        <Undo2 className="mr-2 h-4 w-4 text-emerald-600" />
+                                        <div className="flex flex-col items-start text-left">
+                                            <span className="text-[8px] leading-none font-bold text-muted-foreground uppercase">
+                                                Origen
+                                            </span>
+                                            <span className="text-[10px] leading-tight font-black text-emerald-700">
+                                                {parentReference.code}
+                                            </span>
+                                        </div>
+                                    </Button>
+                                )}
+                                {/* Smart Button: Hijos (Si tiene Devoluciones) */}
+                                {returnsCount > 0 && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() =>
+                                            router.get('/recibos', {
+                                                search: receipt.receipt_code,
+                                            })
+                                        }
+                                        className="h-9 border-blue-200 bg-blue-50/30 px-3 hover:border-blue-300 hover:bg-blue-100"
+                                    >
+                                        <History className="mr-2 h-4 w-4 text-blue-600" />
+                                        <div className="flex flex-col items-start text-left">
+                                            <span className="text-[8px] leading-none font-bold text-muted-foreground uppercase">
+                                                Notas Crédito
+                                            </span>
+                                            <span className="text-[10px] leading-tight font-black text-blue-700">
+                                                {returnsCount} Docs
+                                            </span>
+                                        </div>
+                                    </Button>
+                                )}
+                            </div>
+
+                            {/* Status Indicator */}
+                            <div className="flex h-9 items-center overflow-hidden rounded-md border border-border bg-muted/30 text-[10px] font-bold uppercase">
+                                <div
+                                    className={cn(
+                                        'flex h-full items-center px-4 transition-colors',
+                                        !isPublished
+                                            ? 'bg-blue-600/10 text-blue-600'
+                                            : 'text-muted-foreground opacity-50',
+                                    )}
                                 >
-                                    <MoreVertical className="h-5 w-5" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start">
-                                <DropdownMenuItem
-                                    onClick={() => setIsDeleteAlertOpen(true)}
-                                    className="cursor-pointer font-bold text-red-600"
+                                    Borrador
+                                </div>
+                                <div
+                                    className={cn(
+                                        'flex h-full items-center border-l border-border px-4 transition-colors',
+                                        isPublished
+                                            ? 'bg-emerald-600/10 text-emerald-600'
+                                            : 'text-muted-foreground opacity-50',
+                                    )}
                                 >
-                                    <Trash2 className="mr-2 h-4 w-4" /> Eliminar
-                                    Registro
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        {isDirty && (
-                            <span className="animate-pulse text-[10px] font-black tracking-widest text-amber-500 uppercase">
-                                Cambios sin guardar
-                            </span>
-                        )}
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={() => reset()}
-                            disabled={!isDirty}
-                        >
-                            Descartar
-                        </Button>
-                        <Button
-                            type="submit"
-                            disabled={!isDirty || processing}
-                            className="bg-blue-600 font-bold text-white shadow-md hover:bg-blue-700"
-                        >
-                            <Save className="mr-2 h-4 w-4" /> Guardar
-                        </Button>
+                                    Publicado
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div className="flex min-h-0 flex-1 overflow-hidden">
-                    <div className="custom-scrollbar flex-1 overflow-y-auto p-8">
-                        <div className="w-full space-y-10">
+                    {/* FORMULARIO IZQUIERDA */}
+                    <div className="custom-scrollbar flex-1 overflow-y-auto border-r border-border p-8">
+                        <div className="w-full space-y-8">
+                            <div className="flex items-center gap-3">
+                                <FileText className="h-8 w-8 text-blue-500 opacity-80" />
+                                <h1 className="text-3xl font-black tracking-tighter uppercase">
+                                    {receipt.receipt_code}
+                                </h1>
+                            </div>
+
                             <Tabs defaultValue="general" className="w-full">
                                 <TabsList className="mb-8 h-auto w-full shrink-0 justify-start rounded-none border-b bg-transparent p-0">
                                     <TabsTrigger
@@ -349,125 +556,222 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                                     value="general"
                                     className="animate-in space-y-12 duration-300 fade-in"
                                 >
-                                    <div className="grid grid-cols-1 gap-16 md:grid-cols-2">
-                                        <div className="space-y-6">
-                                            <h3 className="flex items-center gap-2 border-b pb-2 text-[10px] font-bold text-muted-foreground uppercase">
-                                                <Truck className="h-4 w-4" />{' '}
-                                                Datos Comerciales
-                                            </h3>
+                                    <div className="grid grid-cols-1 gap-x-20 gap-y-2 pt-4 xl:grid-cols-2">
+                                        <div className="space-y-1">
                                             <FormFieldRow label="Proveedor">
-                                                <Input
-                                                    value={
-                                                        receipt.supplier
-                                                            ?.company_name
-                                                    }
-                                                    disabled
-                                                    className={
-                                                        disabledInputClass
-                                                    }
-                                                />
-                                            </FormFieldRow>
-                                            <div className="grid grid-cols-2 gap-8">
-                                                <FormFieldRow label="Moneda">
-                                                    <Input
-                                                        value={data.currency}
-                                                        disabled
-                                                        className={
-                                                            disabledInputClass
-                                                        }
-                                                    />
-                                                </FormFieldRow>
-                                                <FormFieldRow label="T. Cambio">
+                                                {isPublished ? (
                                                     <Input
                                                         value={
-                                                            data.exchange_rate
+                                                            receipt.supplier
+                                                                ?.company_name
                                                         }
                                                         disabled
                                                         className={
                                                             disabledInputClass
                                                         }
                                                     />
-                                                </FormFieldRow>
-                                            </div>
-                                            {/* ✅ ORIGEN: Ahora muestra el código real de la orden */}
-                                            {receipt.id_purchase_order && (
-                                                <FormFieldRow label="Documento Origen">
-                                                    <div className="relative">
-                                                        <Input
-                                                            value={
-                                                                receipt
-                                                                    .purchase_order
-                                                                    ?.po_code ||
-                                                                'N/A'
-                                                            }
-                                                            disabled
-                                                            className={cn(
-                                                                disabledInputClass,
-                                                                'pl-6 font-mono font-bold text-blue-600 opacity-100',
-                                                            )}
-                                                        />
-                                                    </div>
-                                                </FormFieldRow>
-                                            )}
-                                        </div>
-                                        <div className="space-y-6">
-                                            <h3 className="flex items-center gap-2 border-b pb-2 text-[10px] font-bold text-muted-foreground uppercase">
-                                                <FileText className="h-4 w-4" />{' '}
-                                                Información Documento
-                                            </h3>
+                                                ) : (
+                                                    <SearchableSelect
+                                                        options={
+                                                            supplierOptions
+                                                        }
+                                                        value={data.id_supplier}
+                                                        onChange={(val) =>
+                                                            setData(
+                                                                'id_supplier',
+                                                                val,
+                                                            )
+                                                        }
+                                                    />
+                                                )}
+                                            </FormFieldRow>
+                                            <FormFieldRow label="Tipo Doc">
+                                                <Select
+                                                    value={data.document_type}
+                                                    onValueChange={(val) =>
+                                                        setData(
+                                                            'document_type',
+                                                            val,
+                                                        )
+                                                    }
+                                                    disabled={isPublished}
+                                                >
+                                                    <SelectTrigger
+                                                        className={
+                                                            isPublished
+                                                                ? disabledInputClass
+                                                                : cleanInputClass
+                                                        }
+                                                    >
+                                                        <SelectValue placeholder="Seleccionar..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {documentTypes.map(
+                                                            (dt: any) => (
+                                                                <SelectItem
+                                                                    key={
+                                                                        dt.value
+                                                                    }
+                                                                    value={
+                                                                        dt.value
+                                                                    }
+                                                                >
+                                                                    {dt.label}
+                                                                </SelectItem>
+                                                            ),
+                                                        )}
+                                                    </SelectContent>
+                                                </Select>
+                                            </FormFieldRow>
                                             <div className="grid grid-cols-2 gap-8">
                                                 <FormFieldRow label="Serie">
                                                     <Input
                                                         value={data.series}
+                                                        disabled={isPublished}
                                                         onChange={(e) =>
                                                             setData(
                                                                 'series',
                                                                 e.target.value.toUpperCase(),
                                                             )
                                                         }
-                                                        className={
-                                                            cleanInputClass
-                                                        }
+                                                        placeholder="F001"
+                                                        className={cn(
+                                                            isPublished
+                                                                ? disabledInputClass
+                                                                : cleanInputClass,
+                                                            'text-center font-bold',
+                                                        )}
                                                     />
                                                 </FormFieldRow>
                                                 <FormFieldRow label="Número">
                                                     <Input
                                                         value={data.number}
+                                                        disabled={isPublished}
                                                         onChange={(e) =>
                                                             setData(
                                                                 'number',
                                                                 e.target.value,
                                                             )
                                                         }
-                                                        className={
-                                                            cleanInputClass
-                                                        }
+                                                        placeholder="000123"
+                                                        className={cn(
+                                                            isPublished
+                                                                ? disabledInputClass
+                                                                : cleanInputClass,
+                                                            'font-bold',
+                                                        )}
                                                     />
                                                 </FormFieldRow>
                                             </div>
-                                            {/* ✅ FECHA: Ya no es editable */}
+                                        </div>
+
+                                        <div className="space-y-1">
                                             <FormFieldRow label="Fecha Emisión">
-                                                <div className="relative">
-                                                    <Input
-                                                        value={format(
-                                                            new Date(
-                                                                receipt.issue_date,
-                                                            ),
-                                                            'Pp',
-                                                            { locale: es },
-                                                        )}
-                                                        disabled
+                                                <Popover>
+                                                    <PopoverTrigger
+                                                        asChild
+                                                        disabled={isPublished}
+                                                    >
+                                                        <Button
+                                                            variant="outline"
+                                                            className={cn(
+                                                                isPublished
+                                                                    ? disabledInputClass
+                                                                    : cleanInputClass,
+                                                                'text-left',
+                                                            )}
+                                                        >
+                                                            <CalendarIcon className="mr-2 h-4 w-4 text-blue-600" />
+                                                            {format(
+                                                                data.issue_date,
+                                                                'PPP',
+                                                                { locale: es },
+                                                            )}
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent
+                                                        className="w-auto p-0"
+                                                        align="start"
+                                                    >
+                                                        <Calendar
+                                                            mode="single"
+                                                            selected={
+                                                                data.issue_date
+                                                            }
+                                                            onSelect={(d) =>
+                                                                d &&
+                                                                setData(
+                                                                    'issue_date',
+                                                                    d,
+                                                                )
+                                                            }
+                                                            disabled={(date) =>
+                                                                date >
+                                                                new Date()
+                                                            }
+                                                        />
+                                                    </PopoverContent>
+                                                </Popover>
+                                            </FormFieldRow>
+                                            <FormFieldRow label="Moneda">
+                                                <Select
+                                                    value={data.currency}
+                                                    onValueChange={
+                                                        handleCurrencyChange
+                                                    }
+                                                    disabled={isPublished}
+                                                >
+                                                    <SelectTrigger
                                                         className={
-                                                            disabledInputClass
+                                                            isPublished
+                                                                ? disabledInputClass
+                                                                : cleanInputClass
                                                         }
+                                                    >
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="PEN">
+                                                            Soles (PEN)
+                                                        </SelectItem>
+                                                        <SelectItem value="USD">
+                                                            Dólares (USD)
+                                                        </SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </FormFieldRow>
+                                            <FormFieldRow label="T. Cambio">
+                                                <div className="relative">
+                                                    <ArrowRightLeft className="absolute top-2.5 left-0 h-3.5 w-3.5 text-muted-foreground" />
+                                                    <Input
+                                                        type="number"
+                                                        step="0.001"
+                                                        value={
+                                                            data.exchange_rate
+                                                        }
+                                                        onChange={(e) =>
+                                                            setData(
+                                                                'exchange_rate',
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                        disabled={
+                                                            data.currency ===
+                                                                'PEN' ||
+                                                            isPublished
+                                                        }
+                                                        className={cn(
+                                                            isPublished
+                                                                ? disabledInputClass
+                                                                : cleanInputClass,
+                                                            'pl-8',
+                                                        )}
                                                     />
-                                                    <Lock className="absolute top-2.5 right-0 h-3.5 w-3.5 text-muted-foreground/30" />
                                                 </div>
                                             </FormFieldRow>
                                         </div>
                                     </div>
 
-                                    {/* ✅ CAMPO GLOSA */}
                                     <div className="space-y-4">
                                         <div className="flex items-center gap-2 border-b pb-2">
                                             <MessageSquare className="h-4 w-4 text-muted-foreground" />
@@ -478,88 +782,145 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                                         </div>
                                         <Textarea
                                             value={data.glosa}
+                                            disabled={isPublished}
                                             onChange={(e) =>
                                                 setData('glosa', e.target.value)
                                             }
-                                            placeholder="Describa brevemente el motivo o contenido de este comprobante..."
-                                            className="min-h-[80px] resize-none bg-muted/5 transition-colors focus:bg-background"
+                                            placeholder="Describa brevemente el motivo..."
+                                            className={cn(
+                                                'min-h-[80px] resize-none bg-muted/5 transition-colors focus:bg-background',
+                                                isPublished &&
+                                                    'cursor-not-allowed border-dashed opacity-70',
+                                            )}
                                         />
                                     </div>
 
-                                    <div className="space-y-4">
-                                        <h3 className="text-sm font-bold tracking-tight text-slate-800 uppercase dark:text-neutral-200">
-                                            Líneas del Comprobante
-                                        </h3>
-                                        <div className="overflow-hidden rounded-xl border bg-card shadow-sm dark:border-neutral-800">
+                                    <div className="pt-6 pb-12">
+                                        <div className="mb-4 border-b border-border text-sm font-bold text-muted-foreground">
+                                            <span className="border-b-2 border-blue-600 pb-2 tracking-widest text-foreground uppercase">
+                                                Detalle del Comprobante
+                                            </span>
+                                        </div>
+                                        <div className="overflow-hidden rounded-sm border bg-card shadow-sm">
                                             <Table className="w-full table-fixed">
-                                                <TableHeader className="bg-muted/30 dark:bg-neutral-900">
+                                                <TableHeader className="bg-muted/30">
                                                     <TableRow>
-                                                        <TableHead className="w-[80px] text-center text-[10px] font-bold uppercase">
-                                                            Tipo
+                                                        <TableHead className="w-[55%] px-4 text-[10px] font-bold uppercase">
+                                                            Producto /
+                                                            Descripción
                                                         </TableHead>
-                                                        <TableHead className="px-4 text-[10px] font-bold uppercase">
-                                                            Descripción /
-                                                            Producto
-                                                        </TableHead>
-                                                        <TableHead className="w-[100px] text-center text-[10px] font-bold uppercase">
+                                                        <TableHead className="w-[15%] text-center text-[10px] font-bold uppercase">
                                                             Cant.
                                                         </TableHead>
-                                                        <TableHead className="w-[120px] text-center text-[10px] font-bold uppercase">
-                                                            Precio Unit.
+                                                        <TableHead className="w-[15%] px-4 text-center text-[10px] font-bold uppercase">
+                                                            Costo Unit ({symbol}
+                                                            )
                                                         </TableHead>
-                                                        <TableHead className="w-[150px] pr-8 text-right text-[10px] font-bold uppercase">
+                                                        <TableHead className="w-[15%] px-4 text-right text-[10px] font-bold uppercase">
                                                             Subtotal
                                                         </TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody className="divide-y divide-border/50">
-                                                    {rows.map(
-                                                        (
-                                                            row: any,
-                                                            i: number,
-                                                        ) => (
-                                                            <TableRow
-                                                                key={i}
-                                                                className="transition-colors hover:bg-muted/10"
-                                                            >
-                                                                <TableCell className="text-center">
+                                                    {rows.map((row, i) => (
+                                                        <TableRow
+                                                            key={i}
+                                                            className="transition-colors hover:bg-muted/5"
+                                                        >
+                                                            <TableCell className="px-4 py-2">
+                                                                <div className="flex items-center gap-3">
                                                                     {row.type ===
                                                                     'product' ? (
-                                                                        <Box className="mx-auto h-4 w-4 text-blue-500" />
+                                                                        <Box className="h-4 w-4 shrink-0 text-blue-500" />
                                                                     ) : (
-                                                                        <Briefcase className="mx-auto h-4 w-4 text-purple-500" />
+                                                                        <Briefcase className="h-4 w-4 shrink-0 text-purple-500" />
                                                                     )}
-                                                                </TableCell>
-                                                                <TableCell className="px-4 font-medium">
-                                                                    {
-                                                                        row.display_name
-                                                                    }
-                                                                </TableCell>
-                                                                <TableCell className="text-center font-mono">
-                                                                    {
+                                                                    <span className="truncate text-sm font-medium">
+                                                                        {
+                                                                            row.display_name
+                                                                        }
+                                                                    </span>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="px-2 py-2">
+                                                                <Input
+                                                                    type="number"
+                                                                    value={
                                                                         row.quantity
                                                                     }
-                                                                </TableCell>
-                                                                <TableCell className="text-center font-mono">
-                                                                    {symbol}{' '}
-                                                                    {row.unit_price.toFixed(
-                                                                        2,
+                                                                    disabled={
+                                                                        isPublished
+                                                                    }
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) =>
+                                                                        updateRow(
+                                                                            row.id,
+                                                                            'quantity',
+                                                                            parseFloat(
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            ) ||
+                                                                                0,
+                                                                        )
+                                                                    }
+                                                                    min="0"
+                                                                    step="0.01"
+                                                                    className={cn(
+                                                                        isPublished
+                                                                            ? disabledInputClass
+                                                                            : tableInputClass,
+                                                                        'text-center',
                                                                     )}
-                                                                </TableCell>
-                                                                <TableCell className="pr-8 text-right font-bold tabular-nums">
-                                                                    {symbol}{' '}
-                                                                    {row.subtotal.toFixed(
-                                                                        2,
+                                                                />
+                                                            </TableCell>
+                                                            <TableCell className="px-4 py-2">
+                                                                <Input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    value={
+                                                                        row.unit_price
+                                                                    }
+                                                                    disabled={
+                                                                        isPublished
+                                                                    }
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) =>
+                                                                        updateRow(
+                                                                            row.id,
+                                                                            'unit_price',
+                                                                            parseFloat(
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            ) ||
+                                                                                0,
+                                                                        )
+                                                                    }
+                                                                    min="0"
+                                                                    className={cn(
+                                                                        isPublished
+                                                                            ? disabledInputClass
+                                                                            : tableInputClass,
+                                                                        'text-blue-600',
                                                                     )}
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        ),
-                                                    )}
+                                                                />
+                                                            </TableCell>
+                                                            <TableCell className="pr-4 text-right text-sm font-bold tabular-nums">
+                                                                {symbol}{' '}
+                                                                {row.subtotal.toFixed(
+                                                                    2,
+                                                                )}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
                                                 </TableBody>
                                             </Table>
                                         </div>
                                         <div className="flex justify-end pt-4 pb-10">
-                                            <div className="w-full max-w-sm space-y-2 rounded-xl border bg-muted/10 p-5 shadow-inner dark:border-neutral-800">
+                                            <div className="w-full max-w-xs space-y-2 rounded-xl border bg-muted/10 p-5 shadow-inner">
                                                 <div className="flex justify-between text-xs font-medium text-muted-foreground uppercase">
                                                     <span>Base Imponible</span>
                                                     <span className="font-mono">
@@ -576,21 +937,13 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                                                         {igvAmount.toFixed(2)}
                                                     </span>
                                                 </div>
-                                                <div className="flex justify-between border-t border-blue-200 pt-3 text-lg font-black tracking-tighter text-blue-600 uppercase dark:border-neutral-700">
+                                                <div className="flex justify-between border-t border-blue-200 pt-3 text-lg font-black tracking-tighter text-blue-600 uppercase">
                                                     <span>Total</span>
                                                     <span className="tabular-nums">
                                                         {symbol}{' '}
                                                         {totalAmount.toFixed(2)}
                                                     </span>
                                                 </div>
-                                                {data.currency === 'USD' && (
-                                                    <div className="mt-2 text-right text-[10px] font-bold tracking-widest text-emerald-600 uppercase">
-                                                        Equiv. S/{' '}
-                                                        {totalInSoles.toFixed(
-                                                            2,
-                                                        )}
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -600,7 +953,7 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                                     value="files"
                                     className="animate-in duration-300 fade-in"
                                 >
-                                    <div className="rounded-2xl border-2 border-dashed p-12 text-center transition-colors hover:border-blue-400 hover:bg-blue-50/10 dark:border-neutral-800">
+                                    <div className="rounded-2xl border-2 border-dashed p-12 text-center transition-colors hover:border-blue-400 hover:bg-blue-50/10">
                                         <FileText className="mx-auto mb-4 h-12 w-12 text-blue-500/50" />
                                         {receipt.receipt_path ? (
                                             <div className="space-y-4">
@@ -623,50 +976,55 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                                                             Descargar
                                                         </a>
                                                     </Button>
-                                                    <div className="relative">
-                                                        <Button
-                                                            type="button"
-                                                            className="bg-blue-600 text-white"
-                                                        >
-                                                            <Plus className="mr-2 h-4 w-4" />{' '}
-                                                            Reemplazar
-                                                        </Button>
-                                                        <input
-                                                            type="file"
-                                                            className="absolute inset-0 cursor-pointer opacity-0"
-                                                            onChange={(e) =>
-                                                                setData(
-                                                                    'file',
-                                                                    e.target
-                                                                        .files?.[0] ||
-                                                                        null,
-                                                                )
-                                                            }
-                                                        />
-                                                    </div>
+                                                    {!isPublished && (
+                                                        <div className="relative">
+                                                            <Button
+                                                                type="button"
+                                                                className="bg-blue-600 text-white"
+                                                            >
+                                                                <Plus className="mr-2 h-4 w-4" />{' '}
+                                                                Reemplazar
+                                                            </Button>
+                                                            <input
+                                                                type="file"
+                                                                className="absolute inset-0 cursor-pointer opacity-0"
+                                                                onChange={(e) =>
+                                                                    setData(
+                                                                        'file',
+                                                                        e.target
+                                                                            .files?.[0] ||
+                                                                            null,
+                                                                    )
+                                                                }
+                                                            />
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         ) : (
                                             <div className="relative inline-block">
                                                 <Button
                                                     type="button"
+                                                    disabled={isPublished}
                                                     className="bg-blue-600 font-bold text-white"
                                                 >
                                                     <Plus className="mr-2 h-4 w-4" />{' '}
                                                     Subir Archivo
                                                 </Button>
-                                                <input
-                                                    type="file"
-                                                    className="absolute inset-0 cursor-pointer opacity-0"
-                                                    onChange={(e) =>
-                                                        setData(
-                                                            'file',
-                                                            e.target
-                                                                .files?.[0] ||
-                                                                null,
-                                                        )
-                                                    }
-                                                />
+                                                {!isPublished && (
+                                                    <input
+                                                        type="file"
+                                                        className="absolute inset-0 cursor-pointer opacity-0"
+                                                        onChange={(e) =>
+                                                            setData(
+                                                                'file',
+                                                                e.target
+                                                                    .files?.[0] ||
+                                                                    null,
+                                                            )
+                                                        }
+                                                    />
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -675,8 +1033,8 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                         </div>
                     </div>
 
-                    <div className="flex h-full w-[380px] shrink-0 flex-col border-l border-border bg-muted/10">
-                        {/* CABECERA DEL HISTORIAL (FIJA) */}
+                    {/* ✅ CHATTER Y LOGS */}
+                    <div className="flex h-full w-[380px] shrink-0 flex-col bg-muted/10">
                         <div className="flex shrink-0 items-center justify-between border-b border-border bg-card p-4 shadow-sm">
                             <span className="flex items-center gap-2 text-xs font-black tracking-widest text-muted-foreground uppercase">
                                 <History className="h-3.5 w-3.5" /> Historial
@@ -689,8 +1047,8 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                                 className={cn(
                                     'h-7 text-[10px] font-bold uppercase transition-all',
                                     isWritingNote
-                                        ? 'bg-muted text-foreground'
-                                        : 'text-muted-foreground hover:text-foreground',
+                                        ? 'bg-muted'
+                                        : 'text-muted-foreground',
                                 )}
                             >
                                 <MessageSquare className="mr-1.5 h-3 w-3" />{' '}
@@ -698,11 +1056,10 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                             </Button>
                         </div>
 
-                        {/* ÁREA DE TEXTAREA (SOLO APARECE AL DAR CLICK) */}
                         {isWritingNote && (
                             <div className="shrink-0 animate-in border-b border-border bg-background p-4 slide-in-from-top-2">
                                 <textarea
-                                    className="w-full resize-none rounded-md border-border bg-transparent p-3 text-sm focus:ring-1 focus:ring-blue-500"
+                                    className="w-full resize-none rounded-md border border-border bg-transparent p-3 text-sm placeholder:text-muted-foreground focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                                     rows={4}
                                     value={internalNote}
                                     onChange={(e) =>
@@ -716,6 +1073,7 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                                         type="button"
                                         size="sm"
                                         variant="ghost"
+                                        className="h-7 text-xs"
                                         onClick={() => setIsWritingNote(false)}
                                     >
                                         Cancelar
@@ -725,7 +1083,7 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                                         size="sm"
                                         onClick={submitNote}
                                         disabled={!internalNote.trim()}
-                                        className="bg-blue-600 text-white transition-colors hover:bg-blue-700"
+                                        className="h-7 bg-blue-600 text-xs font-bold text-white transition-colors hover:bg-blue-700"
                                     >
                                         Guardar
                                     </Button>
@@ -733,49 +1091,49 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                             </div>
                         )}
 
-                        {/* ✅ CONTENEDOR DE LOGS CON ALTO FIJO Y SCROLL */}
                         <div className="custom-scrollbar max-h-[calc(100vh-120px)] flex-1 space-y-6 overflow-y-auto p-6">
-                            {receipt.logs?.map((log: any) => (
-                                <div
-                                    key={log.id_receipt_log || log.id}
-                                    className="relative border-l-2 border-border pl-6"
-                                >
-                                    <div className="absolute top-0 -left-[11px] flex h-5 w-5 items-center justify-center rounded-full border-2 border-border bg-background">
-                                        {log.action === 'Nota' ? (
-                                            <MessageSquare className="h-2.5 w-2.5 text-blue-500" />
-                                        ) : (
-                                            <History className="h-2.5 w-2.5 text-muted-foreground" />
-                                        )}
-                                    </div>
-                                    <div className="mb-1 flex items-center justify-between text-[10px] font-bold">
-                                        <span className="mr-2 flex items-center gap-1 truncate tracking-tight uppercase">
-                                            <User className="h-2.5 w-2.5" />{' '}
-                                            {log.user?.name || 'Sistema'}
-                                        </span>
-                                        <span className="shrink-0 font-mono text-muted-foreground">
-                                            {format(
-                                                new Date(log.created_at),
-                                                'dd/MM HH:mm',
-                                            )}
-                                        </span>
-                                    </div>
-
-                                    {/* ✅ CAJA DE TEXTO CON BREAK-ALL PARA EVITAR DESBORDE HORIZONTAL */}
+                            {receipt.logs?.length > 0 ? (
+                                receipt.logs.map((log: any) => (
                                     <div
-                                        className={cn(
-                                            'mt-1 w-full overflow-hidden rounded-md border p-2 shadow-sm',
-                                            log.action === 'Nota' ||
-                                                log.action === 'Actualización'
-                                                ? 'border-border bg-white dark:bg-neutral-800'
-                                                : 'border-transparent bg-transparent text-muted-foreground italic',
-                                        )}
+                                        key={log.id_receipt_log || log.id}
+                                        className="relative ml-2 border-l-2 border-border pl-6 text-sm"
                                     >
-                                        <p className="text-xs leading-relaxed break-all whitespace-pre-wrap">
-                                            {log.notes || log.action}
-                                        </p>
+                                        <div className="absolute top-0 -left-[11px] flex h-5 w-5 items-center justify-center rounded-full border-2 border-border bg-background">
+                                            {log.action === 'Nota' ? (
+                                                <MessageSquare className="h-2.5 w-2.5 text-blue-500" />
+                                            ) : (
+                                                <History className="h-2.5 w-2.5 text-muted-foreground" />
+                                            )}
+                                        </div>
+                                        <div className="mb-1 flex items-center justify-between">
+                                            <span className="mr-2 flex items-center gap-1 truncate text-[10px] font-bold tracking-tight text-foreground uppercase">
+                                                <User className="h-3 w-3" />{' '}
+                                                {log.user?.name || 'Sistema'}
+                                            </span>
+                                            <span className="shrink-0 text-[10px] text-muted-foreground">
+                                                {format(
+                                                    new Date(log.created_at),
+                                                    'dd/MM/yyyy HH:mm',
+                                                )}
+                                            </span>
+                                        </div>
+                                        <div
+                                            className={cn(
+                                                'mt-1 w-full overflow-hidden rounded-md border p-3 shadow-sm',
+                                                log.action === 'Nota' ||
+                                                    log.action ===
+                                                        'Actualización'
+                                                    ? 'border-border bg-white dark:bg-neutral-800'
+                                                    : 'border-transparent bg-transparent text-muted-foreground italic',
+                                            )}
+                                        >
+                                            <p className="text-xs leading-relaxed break-all whitespace-pre-wrap">
+                                                {log.notes || log.action}
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
-                            )) || (
+                                ))
+                            ) : (
                                 <div className="flex h-full flex-col items-center justify-center py-20 opacity-20">
                                     <History className="mb-2 h-10 w-10" />
                                     <p className="text-[10px] font-bold tracking-widest uppercase">
@@ -788,6 +1146,87 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                 </div>
             </form>
 
+            {/* MODALES: DEVOLUCIÓN */}
+            <AlertDialog
+                open={isReturnModalOpen}
+                onOpenChange={setIsReturnModalOpen}
+            >
+                <AlertDialogContent className="max-w-2xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                            <Undo2 className="h-5 w-5 text-red-500" /> Generar
+                            Nota de Crédito
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Especifique la cantidad a devolver de cada ítem.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+
+                    <div className="my-4 max-h-[50vh] overflow-y-auto rounded-md border">
+                        <Table>
+                            <TableHeader className="bg-muted/50">
+                                <TableRow>
+                                    <TableHead className="text-xs font-bold uppercase">
+                                        Producto/Servicio
+                                    </TableHead>
+                                    <TableHead className="w-24 text-center text-xs font-bold uppercase">
+                                        Facturado
+                                    </TableHead>
+                                    <TableHead className="w-32 text-center text-xs font-black text-red-600 uppercase">
+                                        A Devolver
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {returnItems.map((item, idx) => (
+                                    <TableRow key={idx}>
+                                        <TableCell className="text-sm font-medium">
+                                            {item.display_name}
+                                        </TableCell>
+                                        <TableCell className="text-center text-muted-foreground tabular-nums">
+                                            {item.max}
+                                        </TableCell>
+                                        <TableCell className="bg-red-50/30 p-2">
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                max={item.max}
+                                                step="0.01"
+                                                value={item.return_quantity}
+                                                onChange={(e) =>
+                                                    handleReturnQtyChange(
+                                                        idx,
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                className="mx-auto h-8 w-20 border-red-200 text-center font-bold text-red-600 focus:border-red-500"
+                                            />
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel
+                            onClick={() => setIsReturnModalOpen(false)}
+                        >
+                            Cancelar
+                        </AlertDialogCancel>
+                        <Button
+                            onClick={submitReturn}
+                            disabled={returnItems.every(
+                                (i) => i.return_quantity === 0,
+                            )}
+                            className="bg-red-600 font-bold text-white hover:bg-red-700"
+                        >
+                            Confirmar Nota de Crédito
+                        </Button>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* MODALES: ELIMINAR */}
             <AlertDialog
                 open={isDeleteAlertOpen}
                 onOpenChange={setIsDeleteAlertOpen}
@@ -798,8 +1237,8 @@ export default function EditReceipt({ receipt }: { receipt: any }) {
                             ¿Eliminar comprobante?
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                            Se revertirá el stock y se perderá el vínculo
-                            contable.
+                            Se revertirá el monto facturado en la Orden y se
+                            perderá el vínculo contable.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

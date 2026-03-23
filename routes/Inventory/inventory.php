@@ -8,10 +8,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::controller(InventoryMovementsController::class)->group(function () {
         Route::get('/inventario', 'index')->name('inventory.index');
         Route::get('/inventario/movimientos', 'movements')->name('inventory.movements');
-
+        Route::get('/inventario/kardex/exportar', 'exportKardex')->name('inventory.export');
         // 1. Mueve el LISTADO arriba para que no choque con nada
         Route::get('/inventario/ajuste/movimientos', 'adjustments')->name('inventory.adjustments.index');
-
+        Route::delete('/inventario/ajuste/bulk-delete', 'bulkAdjustments')->name('inventory.adjustment.bulk-delete');
         // 2. Rutas de CREACIÓN
         Route::get('/inventario/ajuste/nuevo', 'createAdjustment')->name('inventory.adjustment.create'); // Sugerencia: añadir /nuevo
         Route::post('/inventario/ajuste/guardar', 'storeAdjustment')->name('inventory.adjustment.store');

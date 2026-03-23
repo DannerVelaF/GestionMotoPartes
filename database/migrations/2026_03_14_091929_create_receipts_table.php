@@ -39,7 +39,7 @@ return new class extends Migration
 
             $table->enum('currency', ['PEN', 'USD'])->default('PEN');
             $table->decimal('exchange_rate', 10, 4)->default(1.0000);
-
+            $table->enum('status', ['draft', 'published', 'cancelled'])->default('draft');
             $table->timestamps();
         });
     }

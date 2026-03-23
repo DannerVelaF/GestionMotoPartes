@@ -504,7 +504,16 @@ class ReceiptController extends Controller
             ]
         ]);
     }
-
+    public function publish($id)
+    {
+        try {
+            $this->service->publishReceipt($id);
+            return back()->with('success', 'Comprobante publicado. La Orden de Compra ha sido actualizada.');
+        } catch (\Exception $e) {
+            Log::error("Error al publicar recibo: " . $e->getMessage());
+            return back()->withErrors(['error' => $e->getMessage()]);
+        }
+    }
     public function marginReport(Request $request)
     {
         // CORRECCIÓN DE FECHAS

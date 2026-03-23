@@ -27,14 +27,18 @@ Route::middleware("auth")->group(function () {
         Route::post('/recibos', 'store')->name('receipts.store');
         Route::get('/recibos/{receipt}', 'show')->name('receipts.show');
         Route::put('/recibos/{receipt}', 'update')->name('receipts.update');
-        Route::post('/recibos/{receipt}/nota', [ReceiptController::class, 'addNote'])->name('receipts.note');
+        Route::post('/recibos/{receipt}/nota', 'addNote')->name('receipts.note');
         Route::delete("/recibos/bulk-delete", 'bulkDestroy')->name('receipts.bulk-destroy');
         Route::delete("/recibos/{receipt}", "destroy")->name("receipts.destroy");
-        Route::post('/receipts/{receipt}/return', [ReceiptController::class, 'returnReceipt'])
-            ->name('receipts.return');
+
+        // ✅ RUTAS NUEVAS PARA PUBLICAR Y DEVOLUCIONES (Ajustadas al frontend)
+        Route::post('/recibos/{receipt}/publish', 'publish')->name('receipts.publish');
+        Route::post('/recibos/{receipt}/devolver', 'returnReceipt')->name('receipts.return');
+
+        // Reportes
         Route::get('/recibos/reportes/impuestos',  'taxReport')->name('reports-receipts.tax');
         Route::get('/recibos/reportes/impuestosExcel',  'exportTaxExcel')->name('reports-receipts.taxExcel');
-        Route::get('/recibos/reportes/distribucion', [ReceiptController::class, 'expenseDistributionReport'])->name('receipts.reports.distribution');
+        Route::get('/recibos/reportes/distribucion', 'expenseDistributionReport')->name('receipts.reports.distribution');
         Route::get('/recibos/reportes/margen',  'marginReport')->name('reports-receipts.margin');
         Route::get('/recibos/reportes/proveedores',  'supplierReport')->name('reports-receipts.suppliers');
         Route::get('/recibos/reportes/variacionCosto',  'variationReport')->name('reports-receipts.variation');

@@ -218,22 +218,41 @@ class InventoryMovementsController extends Controller
     {
         $all = $request->boolean('all');
         $ids = $request->input('ids');
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $currency = $request->input('currency', 'PEN');
 
-        $query = InventoryMovements::with('product');
+        $query = \App\Models\InventoryMovements::with([
+            'product',
+            'reference.source',
+            'user'
+        ]);
 
-        if (!$all) {
+        if (!$all && !empty($ids)) {
             $query->whereIn('id_product', $ids);
         }
 
-        $movements = $query->orderBy('id_product')
-            ->orderBy('created_at', 'asc')
-            ->orderBy('id_movement', 'asc')
-            ->get();
+        if ($startDate) {
+            $query->whereDate('kardex_date', '>=', $startDate);
+        }
+        if ($endDate) {
+            $query->whereDate('kardex_date', '<=', $endDate);
+        }
 
-        $config = BusinessConfig::first();
+        // ✅ CORRECCIÓN CRÍTICA: Ordenamiento estricto
+        $movements = $query->orderBy('id_product')      // 1° Agrupa por producto
+        ->orderBy('kardex_date', 'asc')             // 2° Ordena por Fecha Kardex (Contable)
+        ->orderBy('created_at', 'asc')              // 3° Si es el mismo día, usa la hora de registro
+        ->orderBy('id_movement', 'asc')             // 4° Si se registraron al mismo segundo, usa el ID
+        ->get();
+
+        $config = \App\Models\BusinessConfig::first();
         $companyName = $config ? $config->company_name : 'Empresa';
 
-        return Excel::download(new KardexExport($movements, $companyName), "kardex_" . now()->format('Ymd') . ".xlsx");
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\KardexExport($movements, $companyName, $startDate, $endDate, $currency),
+            "kardex_{$currency}_" . now()->format('Ymd_His') . ".xlsx"
+        );
     }
 
     public function createAdjustment()
@@ -245,7 +264,10 @@ class InventoryMovementsController extends Controller
                 ->orderBy('product_name')->get(),
             'suppliers'      => \App\Models\Supplier::select('id_supplier', 'company_name', 'ruc')
                 ->orderBy('company_name')->get(),
-            'purchaseOrders' => \App\Models\PurchaseOrder::select('id_purchase_order', 'po_code', 'id_supplier')
+            'purchaseOrders' => \App\Models\PurchaseOrder::whereHas('details', function($q) {
+                $q->whereColumn('received_quantity', '<', 'quantity');
+            })
+                ->select('id_purchase_order', 'po_code', 'id_supplier')
                 ->orderBy('created_at', 'desc')->take(50)->get(),
             'operationTypes' => \App\Models\InventoryOperationType::all(),
             'locations'      => \App\Models\InventoryLocation::all(),
@@ -337,16 +359,53 @@ class InventoryMovementsController extends Controller
             'logs.user'
         ])->findOrFail($id);
 
+        // ✅ 1. BOTÓN DEVOLUCIONES: Contar cuántas devoluciones nacieron de este ajuste
+        $returnsCount = InventoryAdjustment::where('source_document_id', $id)
+            ->where('source_document_type', InventoryAdjustment::class)
+            ->count();
+
+        // ✅ 2. BOTÓN ORIGEN: Si este documento ES una devolución, obtener datos del PADRE
+        $parentReference = null;
+        if ($adjustment->source_document_type === InventoryAdjustment::class) {
+            $parent = InventoryAdjustment::find($adjustment->source_document_id);
+            if ($parent) {
+                $parentReference = [
+                    'id' => $parent->id_adjustment,
+                    'code' => $parent->reference_code
+                ];
+            }
+        }
+
+        // ✅ 3. BOTÓN DOCUMENTO MAESTRO: Si viene de una OC o Venta
+        $masterDocument = null;
+        if ($adjustment->source_document_id && $adjustment->source_document_type) {
+            if ($adjustment->source_document_type === \App\Models\PurchaseOrder::class) {
+                $masterDocument = [
+                    'type' => 'OC',
+                    'code' => $adjustment->source->po_code ?? 'Ver OC',
+                    'url'  => "/compras/ordenes/{$adjustment->source_document_id}"
+                ];
+            } elseif ($adjustment->source_document_type === \App\Models\Sales::class) {
+                $masterDocument = [
+                    'type' => 'VENTA',
+                    'code' => $adjustment->source->code_sales ?? 'Ver Venta',
+                    'url'  => "/ventas/pedido/{$adjustment->source_document_id}"
+                ];
+            }
+        }
+
         return Inertia::render('Inventory/InventoryAdjustmentForm', [
-            'adjustment'     => $adjustment,
-            'products'       => \App\Models\Products::where('status', 'active')
+            'adjustment'      => $adjustment,
+            'returnsCount'    => $returnsCount,
+            'parentReference' => $parentReference,
+            'masterDocument'  => $masterDocument,
+            'products'        => \App\Models\Products::where('status', 'active')
                 ->select('id_product', 'product_name', 'product_code', 'stock', "sale_price", "purchase_price")->get(),
-            'suppliers'      => \App\Models\Supplier::select('id_supplier', 'company_name', 'ruc')->get(),
-            'purchaseOrders' => \App\Models\PurchaseOrder::select('id_purchase_order', 'po_code', 'id_supplier')
+            'suppliers'       => \App\Models\Supplier::select('id_supplier', 'company_name', 'ruc')->get(),
+            'purchaseOrders'  => \App\Models\PurchaseOrder::select('id_purchase_order', 'po_code', 'id_supplier')
                 ->orderBy('created_at', 'desc')->take(50)->get(),
-            'categories'     => \App\Models\ProductCategory::where('status', 'active')->get(),
-            'operationTypes' => \App\Models\InventoryOperationType::all(),
-            'locations'      => \App\Models\InventoryLocation::all(),
+            'operationTypes'  => \App\Models\InventoryOperationType::all(),
+            'locations'       => \App\Models\InventoryLocation::all(),
         ]);
     }
 
@@ -445,7 +504,7 @@ class InventoryMovementsController extends Controller
             // ✅ 2. SI TODO ESTÁ PERFECTO, EMPEZAMOS A GUARDAR EN LA BD
             $this->syncAdjustmentDetails($adjustment, $items);
 
-            $kardexDate = $request->input('kardex_date', now()->format('Y-m-d'));
+            $kardexDate = $request->input('kardex_date', $adjustment->kardex_date);
 
             foreach ($items as $item) {
                 $qtyDone = (float) ($item['quantity'] ?? 0);
@@ -555,7 +614,6 @@ class InventoryMovementsController extends Controller
     }
     public function createReturn(Request $request, $id)
     {
-        // ✅ 1. Validamos que nos envíen el array de productos a devolver
         $request->validate([
             'return_items'              => 'required|array',
             'return_items.*.id_product' => 'required|integer',
@@ -566,37 +624,34 @@ class InventoryMovementsController extends Controller
             $originalAdjustment = InventoryAdjustment::with(['details', 'operationType.returnType'])->findOrFail($id);
 
             if ($originalAdjustment->status !== 'done') {
-                return back()->withErrors(['error' => 'Solo se pueden devolver movimientos que ya están Realizados.']);
+                return back()->withErrors(['error' => 'Solo se pueden devolver movimientos realizados.']);
             }
 
-            $returnOperationType = $originalAdjustment->operationType->returnType;
+            $returnOp = $originalAdjustment->operationType->returnType;
+            if (!$returnOp) return back()->withErrors(['error' => 'No hay operación de devolución configurada.']);
 
-            if (!$returnOperationType) {
-                return back()->withErrors(['error' => 'Este tipo de operación no tiene configurada una operación de devolución.']);
+            $itemsToReturn = collect($request->return_items)->filter(fn($i) => (float)$i['quantity'] > 0);
+            if ($itemsToReturn->isEmpty()) return back()->withErrors(['error' => 'Cantidad debe ser mayor a 0.']);
+
+            // Generar código
+            $prefix = $returnOperationType->sequence_prefix ?? 'RET/';
+            $parentCode = $originalAdjustment->reference_code;
+
+            if (str_starts_with($parentCode, $prefix)) {
+                $lastAdjustment = InventoryAdjustment::where('reference_code', 'like', $prefix . '%')->orderBy('id_adjustment', 'desc')->first();
+                $nextId = $lastAdjustment ? $lastAdjustment->id_adjustment + 1 : 1;
+                $referenceCode = $prefix . str_pad($nextId, 5, '0', STR_PAD_LEFT);
+            } else {
+                $referenceCode = $prefix . $parentCode;
             }
-
-            // ✅ 2. Filtramos para asegurarnos de que al menos van a devolver 1 producto mayor a 0
-            $itemsToReturn = collect($request->return_items)->filter(function ($item) {
-                return (float)$item['quantity'] > 0;
-            });
-
-            if ($itemsToReturn->isEmpty()) {
-                return back()->withErrors(['error' => 'Debe especificar al menos una cantidad mayor a 0 para devolver.']);
-            }
-
-            $prefix = $returnOperationType->sequence_prefix ? $returnOperationType->sequence_prefix : 'RET/';
-
-            $lastAdjustment = InventoryAdjustment::where('id_operation_type', $returnOperationType->id_operation_type)
-                ->orderBy('id_adjustment', 'desc')
-                ->first();
-
-            $nextId = $lastAdjustment ? $lastAdjustment->id_adjustment + 1 : 1;
-            $separator = str_ends_with($prefix, '/') || str_ends_with($prefix, '-') ? '' : '/';
-            $referenceCode = $prefix . $separator . str_pad($nextId, 5, '0', STR_PAD_LEFT);
 
             $newAdjustment = new InventoryAdjustment();
+            $newAdjustment->reference_code = $referenceCode;
+
+            // ✅ CREACIÓN CON RELACIÓN CORRECOTA
+            $newAdjustment = new InventoryAdjustment();
             $newAdjustment->reference_code          = $referenceCode;
-            $newAdjustment->id_operation_type       = $returnOperationType->id_operation_type;
+            $newAdjustment->id_operation_type       = $returnOp->id_operation_type;
             $newAdjustment->id_location_source      = $originalAdjustment->id_location_destination;
             $newAdjustment->id_location_destination = $originalAdjustment->id_location_source;
             $newAdjustment->kardex_date             = now()->format('Y-m-d');
@@ -607,38 +662,29 @@ class InventoryMovementsController extends Controller
             $newAdjustment->exchange_rate           = $originalAdjustment->exchange_rate;
             $newAdjustment->status                  = 'draft';
             $newAdjustment->id_user                 = Auth::id() ?? 1;
-            $newAdjustment->source_document_id      = $originalAdjustment->source_document_id;
-            $newAdjustment->source_document_type    = $originalAdjustment->source_document_type;
+
+            // 🔗 VÍNCULO AL PADRE (Ajuste) en lugar de heredar el abuelo (OC)
+            $newAdjustment->source_document_id      = $originalAdjustment->id_adjustment;
+            $newAdjustment->source_document_type    = \App\Models\InventoryAdjustment::class;
+
             $newAdjustment->save();
 
-            InventoryLog::create([
-                'id_adjustment' => $newAdjustment->id_adjustment,
-                'id_user'       => Auth::id() ?? 1,
-                'action'        => 'Documento Creado',
-                'field_changed' => 'Estado',
-                'new_value'     => 'Borrador',
-                'notes'         => 'Creado a partir de la devolución de ' . $originalAdjustment->reference_code
-            ]);
-
-            // ✅ 3. Solo copiamos los productos que el usuario seleccionó en el modal
             foreach ($itemsToReturn as $itemData) {
-                // Buscamos el detalle original para copiar su costo unitario
                 $originalDetail = $originalAdjustment->details->where('id_product', $itemData['id_product'])->first();
-
                 if ($originalDetail) {
                     $newAdjustment->details()->create([
                         'id_product' => $itemData['id_product'],
-                        'demand'     => $itemData['quantity'], // La demanda ahora es lo que el usuario digitó en el modal
+                        'demand'     => $itemData['quantity'],
                         'quantity'   => 0,
                         'unit_cost'  => $originalDetail->unit_cost,
                     ]);
                 }
             }
 
-            return redirect()->route('inventory.adjustment.edit', $newAdjustment->id_adjustment)
-                ->with('success', 'Borrador de devolución creado. Confirme las cantidades a devolver.');
+            return redirect()->route('inventory.adjustment.edit', $newAdjustment->id_adjustment);
         });
     }
+
     public function addNote(Request $request, $id)
     {
         $request->validate(['internal_note' => 'required|string']);
@@ -727,9 +773,49 @@ class InventoryMovementsController extends Controller
                     }
                 }
                 $adjustment->save();
+
+                // ✅ CORRECCIÓN: Si cambió la fecha Kardex, la propagamos a los movimientos
+                if (array_key_exists('kardex_date', $changes)) {
+                    \App\Models\InventoryMovements::where('reference_type', get_class($adjustment))
+                        ->where('reference_id', $adjustment->id_adjustment)
+                        ->update(['kardex_date' => $adjustment->kardex_date]);
+                }
             }
-            return back()->with('success', 'Actualizado correctamente.');
+            return back()->with('success', 'Actualizado correctamente. Se ha sincronizado el Kardex.');
         }
-        return back()->withErrors(['error' => 'No se puede editar.']);
+        return back()->withErrors(['error' => 'No se puede editar un documento que no está realizado.']);
+    }
+
+    public function bulkAdjustments(Request $request)
+    {
+        // 1. Validamos que nos envíen un array de IDs
+        $request->validate([
+            'ids'   => 'required|array',
+            'ids.*' => 'integer|exists:inventory_adjustments,id_adjustment',
+        ]);
+
+        $ids = $request->input('ids');
+
+        $toDelete = \App\Models\InventoryAdjustment::whereIn('id_adjustment', $ids)
+            ->where('status', '!=', 'done')
+            ->get();
+
+        if ($toDelete->isEmpty()) {
+            return back()->withErrors([
+                'error' => 'No se encontraron movimientos en borrador válidos para eliminar.'
+            ]);
+        }
+
+        $count = $toDelete->count();
+
+        foreach ($toDelete as $adj) {
+            $adj->details()->delete();
+            $adj->logs()->delete();
+
+            $adj->delete();
+        }
+
+        return redirect()->route('inventory.adjustments.index')
+            ->with('success', "Se eliminaron {$count} movimientos correctamente.");
     }
 }

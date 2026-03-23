@@ -21,9 +21,11 @@ import {
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
+import { KardexExportModal } from '@/pages/Inventory/Reports/KardexExportModal';
 import { Head, router } from '@inertiajs/react';
 import { format } from 'date-fns';
 import {
+    AlertCircle,
     ChevronLeft,
     ChevronRight,
     Plus,
@@ -31,7 +33,7 @@ import {
     Trash2,
     X,
 } from 'lucide-react';
-import { KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useDebounce } from 'use-debounce';
 
 interface Props {
@@ -47,6 +49,7 @@ interface Props {
         prev_page_url: string | null;
     };
     filters: { search?: string; per_page?: string };
+    products?: any[]; // ✅ Agregado para recibir los productos y pasarlos al modal
 }
 
 const breadcrumbs = [
@@ -54,7 +57,11 @@ const breadcrumbs = [
     { title: 'Movimientos', href: '#' },
 ];
 
-export default function AdjustmentsList({ adjustments, filters }: Props) {
+export default function AdjustmentsList({
+    adjustments,
+    filters,
+    products = [],
+}: Props) {
     const [selected, setSelected] = useState<number[]>([]);
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [debouncedSearch] = useDebounce(searchTerm, 400);
@@ -64,6 +71,17 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
     const [isEditingPerPage, setIsEditingPerPage] = useState(false);
     const perPageInputRef = useRef<HTMLInputElement>(null);
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+
+    // ✅ Validación: Solo se puede borrar si hay algo seleccionado y TODOS son 'draft'
+    const canDeleteSelected = useMemo(() => {
+        if (selected.length === 0) return false;
+        return selected.every((id) => {
+            const item = adjustments.data.find(
+                (adj) => adj.id_adjustment === id,
+            );
+            return item?.status === 'draft';
+        });
+    }, [selected, adjustments.data]);
 
     useEffect(() => {
         if (debouncedSearch !== (filters.search || '')) {
@@ -121,10 +139,11 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
     };
 
     const confirmBulkDelete = () => {
-        if (selected.length > 0) setIsDeleteAlertOpen(true);
+        if (canDeleteSelected) setIsDeleteAlertOpen(true);
     };
 
     const executeBulkDelete = () => {
+        // ✅ Llamada a la nueva ruta bulk-delete vinculada al método bulkAdjustments
         router.delete('/inventario/ajuste/bulk-delete', {
             data: { ids: selected },
             preserveScroll: true,
@@ -137,9 +156,7 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
 
     const selectedCount = selected.length;
 
-    // ✅ Renderizado extraído de la paginación para mantenerlo siempre visible
     const renderPagination = () => {
-
         return (
             <div className="flex items-center gap-2 border-l border-border/50 pl-4 text-sm whitespace-nowrap text-muted-foreground tabular-nums">
                 <span className="flex items-center gap-1">
@@ -204,11 +221,13 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
             >
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                            ¿Estás seguro de eliminar?
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
                             Se eliminarán <strong>{selectedCount}</strong>{' '}
-                            movimientos en borrador seleccionados. (Los
-                            movimientos ya realizados no se pueden eliminar).
+                            movimientos en borrador seleccionados. Esta acción
+                            no se puede deshacer.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -217,27 +236,25 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
                             onClick={executeBulkDelete}
                             className="bg-red-600 text-white hover:bg-red-700"
                         >
-                            Sí, eliminar
+                            Sí, eliminar borradores
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
 
             <div className="flex h-full flex-1 flex-col overflow-hidden bg-background">
-                {/* --- TOOLBAR SUPERIOR ESTILO LISTORDERS --- */}
                 <div
                     className={cn(
                         'flex items-center justify-between border-b px-6 py-3 transition-colors duration-300',
                         selectedCount > 0
-                            ? 'bg-emerald-50 dark:bg-emerald-900/20'
+                            ? 'bg-blue-50/50 dark:bg-blue-900/10'
                             : 'bg-background',
                     )}
                 >
-                    {/* LADO IZQUIERDO: Título y Acciones */}
                     <div className="flex items-center gap-4">
                         {selectedCount > 0 ? (
                             <div className="flex animate-in items-center gap-4 fade-in slide-in-from-top-1">
-                                <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-400">
+                                <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-1 text-blue-800 dark:border-blue-800/50 dark:bg-blue-900/20 dark:text-blue-400">
                                     <span className="font-bold">
                                         {selectedCount}
                                     </span>
@@ -248,22 +265,31 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="ml-2 h-5 w-5 rounded-full hover:bg-emerald-200 dark:hover:bg-emerald-800"
+                                        className="ml-2 h-5 w-5 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800"
                                         onClick={() => setSelected([])}
                                     >
                                         <X className="h-3 w-3" />
                                     </Button>
                                 </div>
-                                <div className="h-4 w-px bg-emerald-300 dark:bg-emerald-700" />
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={confirmBulkDelete}
-                                    className="h-6 px-2 text-[10px] font-bold text-red-600 hover:bg-red-100 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/30"
-                                >
-                                    <Trash2 className="mr-1.5 h-3 w-3" />{' '}
-                                    Eliminar
-                                </Button>
+                                <div className="h-4 w-px bg-border" />
+
+                                {canDeleteSelected ? (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={confirmBulkDelete}
+                                        className="h-8 px-3 text-xs font-bold text-red-600 hover:bg-red-100 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-900/30"
+                                    >
+                                        <Trash2 className="mr-2 h-3.5 w-3.5" />
+                                        Eliminar Borradores
+                                    </Button>
+                                ) : (
+                                    <div className="flex items-center gap-2 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-600 dark:border-amber-800 dark:bg-amber-950/30">
+                                        <AlertCircle className="h-3 w-3" />
+                                        No puedes eliminar movimientos
+                                        realizados
+                                    </div>
+                                )}
                             </div>
                         ) : (
                             <div className="flex animate-in items-center gap-4 fade-in slide-in-from-bottom-1">
@@ -283,7 +309,6 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
                         )}
                     </div>
 
-                    {/* LADO DERECHO: Buscador y Paginación */}
                     <div className="flex items-center gap-4">
                         {selectedCount === 0 && (
                             <div className="relative w-64 animate-in fade-in slide-in-from-bottom-1">
@@ -299,18 +324,15 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
                                 />
                             </div>
                         )}
-
-                        {/* ✅ La paginación siempre se renderiza aquí */}
                         {renderPagination()}
                     </div>
                 </div>
 
-                {/* --- TABLA CONTENIDO --- */}
-                <div className="flex-1 overflow-auto bg-muted/5 p-4 md:p-8">
+                <div className="flex-1 overflow-auto bg-muted/5 p-4 md:p-8 dark:bg-neutral-950">
                     <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm dark:border-neutral-800 dark:bg-neutral-900/20">
                         <Table>
                             <TableHeader className="bg-muted/30">
-                                <TableRow className="border-b hover:bg-transparent">
+                                <TableRow className="border-b text-[10px] font-bold tracking-wider text-muted-foreground uppercase hover:bg-transparent">
                                     <TableHead className="w-12 px-4">
                                         <Checkbox
                                             onCheckedChange={handleSelectAll}
@@ -321,25 +343,13 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
                                             }
                                         />
                                     </TableHead>
-                                    <TableHead className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                        Referencia
-                                    </TableHead>
-                                    <TableHead className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                        De
-                                    </TableHead>
-                                    <TableHead className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                        Para
-                                    </TableHead>
-                                    <TableHead className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                        Contacto
-                                    </TableHead>
-                                    <TableHead className="text-[10px] font-bold tracking-wider text-emerald-600 uppercase dark:text-emerald-400">
-                                        Doc. Origen
-                                    </TableHead>
-                                    <TableHead className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
-                                        Fecha
-                                    </TableHead>
-                                    <TableHead className="text-center text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                                    <TableHead>Referencia</TableHead>
+                                    <TableHead>De</TableHead>
+                                    <TableHead>Para</TableHead>
+                                    <TableHead>Contacto</TableHead>
+                                    <TableHead>Doc. Origen</TableHead>
+                                    <TableHead>Fecha</TableHead>
+                                    <TableHead className="text-center">
                                         Estado
                                     </TableHead>
                                 </TableRow>
@@ -348,7 +358,13 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
                                 {adjustments.data.map((adj: any) => (
                                     <TableRow
                                         key={adj.id_adjustment}
-                                        className="group cursor-pointer border-b border-border/50 transition-colors hover:bg-muted/40"
+                                        className={cn(
+                                            'group cursor-pointer border-b border-border/50 transition-colors hover:bg-muted/40',
+                                            selected.includes(
+                                                adj.id_adjustment,
+                                            ) &&
+                                                'bg-blue-50/50 dark:bg-blue-900/10',
+                                        )}
                                         onClick={() =>
                                             router.get(
                                                 `/inventario/ajuste/${adj.id_adjustment}/edit`,
@@ -370,35 +386,29 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
                                                 }
                                             />
                                         </TableCell>
-                                        <TableCell className="font-bold tracking-tight text-foreground">
+                                        <TableCell className="font-bold tracking-tight whitespace-nowrap text-foreground">
                                             {adj.reference_code}
                                         </TableCell>
-
-                                        <TableCell className="text-xs font-medium text-muted-foreground">
+                                        <TableCell className="text-xs font-medium text-muted-foreground uppercase">
                                             {adj.location_source?.name ||
                                                 adj.location_origin ||
                                                 'Externo'}
                                         </TableCell>
-                                        <TableCell className="text-xs font-medium text-muted-foreground">
+                                        <TableCell className="text-xs font-medium text-muted-foreground uppercase">
                                             {adj.location_destination?.name ||
                                                 adj.location_destination_name ||
                                                 'Almacén/Stock'}
                                         </TableCell>
-
-                                        <TableCell className="text-xs font-medium">
+                                        <TableCell className="max-w-[150px] truncate text-xs font-medium">
                                             {adj.contact_name || '—'}
                                         </TableCell>
-
-                                        <TableCell className="text-xs font-bold text-emerald-700 dark:text-emerald-500">
+                                        <TableCell className="text-xs font-bold text-blue-600 dark:text-blue-400">
                                             {adj.source?.po_code ||
                                                 adj.source?.code_sales ||
-                                                adj.reason?.match(
-                                                    /OC-\d+/,
-                                                )?.[0] ||
+                                                adj.document_number ||
                                                 '—'}
                                         </TableCell>
-
-                                        <TableCell className="text-xs text-muted-foreground tabular-nums">
+                                        <TableCell className="text-xs whitespace-nowrap text-muted-foreground tabular-nums">
                                             {format(
                                                 new Date(adj.created_at),
                                                 'dd/MM/yyyy HH:mm',
@@ -435,6 +445,9 @@ export default function AdjustmentsList({ adjustments, filters }: Props) {
                     </div>
                 </div>
             </div>
+
+            {/* ✅ MODAL DE KARDEX AÑADIDO AQUÍ */}
+            <KardexExportModal allProducts={products} />
         </AppLayout>
     );
 }

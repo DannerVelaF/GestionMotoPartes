@@ -29,6 +29,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
+import { KardexExportModal } from '@/pages/Inventory/Reports/KardexExportModal'; // ✅ Importación añadida
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
     AlertCircle,
@@ -48,16 +49,16 @@ import {
     SlidersHorizontal,
     Trash2,
     Truck,
+    Undo2,
     X,
-    Undo2
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 // --- COMPONENTE DE ALERTA ---
 function FloatingAlert({
-                           message,
-                           type = 'error',
-                       }: {
+    message,
+    type = 'error',
+}: {
     message?: any;
     type?: 'error' | 'success';
 }) {
@@ -105,7 +106,12 @@ function FloatingAlert({
     );
 }
 
-export default function InventorySettings({ locations, operationTypes }: any) {
+export default function InventorySettings({
+    locations,
+    operationTypes,
+    products = [],
+}: any) {
+    // ✅ Añadido 'products' a los props
     const { props } = usePage<any>();
 
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -234,7 +240,8 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                 op.default_location_source_id?.toString() || '',
             default_location_destination_id:
                 op.default_location_destination_id?.toString() || '',
-            return_operation_type_id: // ✅ CORREGIDO
+            // ✅ CORREGIDO
+            return_operation_type_id:
                 op.return_operation_type_id?.toString() || '',
         });
     };
@@ -246,7 +253,8 @@ export default function InventorySettings({ locations, operationTypes }: any) {
 
     const submitEditOp = (id: number | string) => {
         let payload = { ...editOpForm.data };
-        if (payload.return_operation_type_id === 'none') { // ✅ CORREGIDO
+        if (payload.return_operation_type_id === 'none') {
+            // ✅ CORREGIDO
             payload.return_operation_type_id = '';
         }
 
@@ -314,7 +322,7 @@ export default function InventorySettings({ locations, operationTypes }: any) {
     return (
         <AppLayout
             breadcrumbs={[
-                { title: 'Inventario', href: '/inventario' },
+                { title: 'Inventario', href: '/inventario/ajuste/movimientos' },
                 { title: 'Configuracion', href: '#' },
             ]}
         >
@@ -756,7 +764,8 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                                     >
                                                                         <div className="flex items-center gap-2">
                                                                             <ArrowDownLeft className="h-3.5 w-3.5" />{' '}
-                                                                            IN / Entradas
+                                                                            IN /
+                                                                            Entradas
                                                                         </div>
                                                                     </SelectItem>
                                                                     <SelectItem
@@ -765,7 +774,9 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                                     >
                                                                         <div className="flex items-center gap-2">
                                                                             <ArrowUpRight className="h-3.5 w-3.5" />{' '}
-                                                                            OUT / Salidas
+                                                                            OUT
+                                                                            /
+                                                                            Salidas
                                                                         </div>
                                                                     </SelectItem>
                                                                     <SelectItem
@@ -774,7 +785,9 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                                     >
                                                                         <div className="flex items-center gap-2">
                                                                             <RefreshCcw className="h-3.5 w-3.5" />{' '}
-                                                                            INT / Interna
+                                                                            INT
+                                                                            /
+                                                                            Interna
                                                                         </div>
                                                                     </SelectItem>
                                                                     <SelectItem
@@ -783,7 +796,9 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                                     >
                                                                         <div className="flex items-center gap-2">
                                                                             <SlidersHorizontal className="h-3.5 w-3.5" />{' '}
-                                                                            ADJ / Ajuste
+                                                                            ADJ
+                                                                            /
+                                                                            Ajuste
                                                                         </div>
                                                                     </SelectItem>
                                                                 </SelectContent>
@@ -891,11 +906,21 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                         </TableCell>
                                                         <TableCell className="py-2">
                                                             <Select
-                                                                value={editOpForm.data.return_operation_type_id || 'none'} // ✅ CORREGIDO
-                                                                onValueChange={(v) =>
+                                                                value={
+                                                                    editOpForm
+                                                                        .data
+                                                                        .return_operation_type_id ||
+                                                                    'none'
+                                                                } // ✅ CORREGIDO
+                                                                onValueChange={(
+                                                                    v,
+                                                                ) =>
                                                                     editOpForm.setData(
                                                                         'return_operation_type_id', // ✅ CORREGIDO
-                                                                        v === 'none' ? '' : v,
+                                                                        v ===
+                                                                            'none'
+                                                                            ? ''
+                                                                            : v,
                                                                     )
                                                                 }
                                                             >
@@ -903,20 +928,37 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                                     <SelectValue placeholder="NINGUNO" />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
-                                                                    <SelectItem value="none" className="text-[10px] font-bold uppercase italic text-muted-foreground">
+                                                                    <SelectItem
+                                                                        value="none"
+                                                                        className="text-[10px] font-bold text-muted-foreground uppercase italic"
+                                                                    >
                                                                         Ninguno
                                                                     </SelectItem>
                                                                     {operationTypes
-                                                                        .filter((t: any) => t.id_operation_type !== op.id_operation_type)
-                                                                        .map((t: any) => (
-                                                                            <SelectItem
-                                                                                key={t.id_operation_type}
-                                                                                value={t.id_operation_type.toString()}
-                                                                                className="text-[10px] font-bold uppercase"
-                                                                            >
-                                                                                {t.name}
-                                                                            </SelectItem>
-                                                                        ))}
+                                                                        .filter(
+                                                                            (
+                                                                                t: any,
+                                                                            ) =>
+                                                                                t.id_operation_type !==
+                                                                                op.id_operation_type,
+                                                                        )
+                                                                        .map(
+                                                                            (
+                                                                                t: any,
+                                                                            ) => (
+                                                                                <SelectItem
+                                                                                    key={
+                                                                                        t.id_operation_type
+                                                                                    }
+                                                                                    value={t.id_operation_type.toString()}
+                                                                                    className="text-[10px] font-bold uppercase"
+                                                                                >
+                                                                                    {
+                                                                                        t.name
+                                                                                    }
+                                                                                </SelectItem>
+                                                                            ),
+                                                                        )}
                                                                 </SelectContent>
                                                             </Select>
                                                         </TableCell>
@@ -969,15 +1011,15 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                             <div className="flex items-center justify-center gap-2 text-[10px] font-black tracking-tighter uppercase opacity-80">
                                                                 <span>
                                                                     {op
-                                                                            .default_source
-                                                                            ?.name ||
+                                                                        .default_source
+                                                                        ?.name ||
                                                                         '—'}
                                                                 </span>
                                                                 <ArrowRight className="h-3 w-3 text-blue-500" />
                                                                 <span>
                                                                     {op
-                                                                            .default_destination
-                                                                            ?.name ||
+                                                                        .default_destination
+                                                                        ?.name ||
                                                                         '—'}
                                                                 </span>
                                                             </div>
@@ -986,12 +1028,19 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                             {op.return_type ? ( // ✅ CORREGIDO
                                                                 <div className="flex items-center justify-center gap-1">
                                                                     <Undo2 className="h-3 w-3 text-amber-500" />
-                                                                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 dark:bg-amber-950 dark:text-amber-200 uppercase">
-                                                                        {op.return_type.name} {/* ✅ CORREGIDO */}
+                                                                    <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 uppercase dark:bg-amber-950 dark:text-amber-200">
+                                                                        {
+                                                                            op
+                                                                                .return_type
+                                                                                .name
+                                                                        }{' '}
+                                                                        {/* ✅ CORREGIDO */}
                                                                     </span>
                                                                 </div>
                                                             ) : (
-                                                                <span className="text-muted-foreground opacity-50">—</span>
+                                                                <span className="text-muted-foreground opacity-50">
+                                                                    —
+                                                                </span>
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="pr-6 text-right">
@@ -1186,11 +1235,17 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                             </TableCell>
                                             <TableCell>
                                                 <Select
-                                                    value={opForm.data.return_operation_type_id || 'none'} // ✅ CORREGIDO
+                                                    value={
+                                                        opForm.data
+                                                            .return_operation_type_id ||
+                                                        'none'
+                                                    } // ✅ CORREGIDO
                                                     onValueChange={(v) =>
                                                         opForm.setData(
                                                             'return_operation_type_id', // ✅ CORREGIDO
-                                                            v === 'none' ? '' : v,
+                                                            v === 'none'
+                                                                ? ''
+                                                                : v,
                                                         )
                                                     }
                                                 >
@@ -1198,18 +1253,25 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                                                         <SelectValue placeholder="NINGUNO" />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="none" className="text-[10px] font-bold uppercase italic text-muted-foreground">
+                                                        <SelectItem
+                                                            value="none"
+                                                            className="text-[10px] font-bold text-muted-foreground uppercase italic"
+                                                        >
                                                             Ninguno
                                                         </SelectItem>
-                                                        {operationTypes.map((t: any) => (
-                                                            <SelectItem
-                                                                key={t.id_operation_type}
-                                                                value={t.id_operation_type.toString()}
-                                                                className="text-[10px] font-bold uppercase"
-                                                            >
-                                                                {t.name}
-                                                            </SelectItem>
-                                                        ))}
+                                                        {operationTypes.map(
+                                                            (t: any) => (
+                                                                <SelectItem
+                                                                    key={
+                                                                        t.id_operation_type
+                                                                    }
+                                                                    value={t.id_operation_type.toString()}
+                                                                    className="text-[10px] font-bold uppercase"
+                                                                >
+                                                                    {t.name}
+                                                                </SelectItem>
+                                                            ),
+                                                        )}
                                                     </SelectContent>
                                                 </Select>
                                             </TableCell>
@@ -1234,6 +1296,9 @@ export default function InventorySettings({ locations, operationTypes }: any) {
                     </Tabs>
                 </div>
             </div>
+
+            {/* ✅ MODAL DE KARDEX AÑADIDO AQUÍ */}
+            <KardexExportModal allProducts={products} />
         </AppLayout>
     );
 }

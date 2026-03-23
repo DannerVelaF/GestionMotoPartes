@@ -41,9 +41,11 @@ import {
     Plus,
     Save,
     Trash2,
+    Undo2,
     User,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { KardexExportModal } from '@/pages/Inventory/Reports/KardexExportModal';
 
 // --- INTERFACES ---
 interface Product {
@@ -155,14 +157,15 @@ interface Adjustment {
 
 interface PageProps {
     adjustment: Adjustment;
+    returnsCount: number;      // Añadido
+    parentReference: { id: number; code: string } | null; // Añadido
     products: Product[];
     categories: Category[];
-    sales?: any[];
     operationTypes?: OperationType[];
     locations?: Location[];
-    purchaseOrder?: PurchaseOrder;
     suppliers?: Supplier[];
     purchaseOrders?: PurchaseOrder[];
+    masterDocument;
 }
 
 // ✅ CORRECCIÓN TS: Interfaz para el formulario
@@ -183,9 +186,9 @@ interface InventoryForm {
 
 // ✅ CORRECCIÓN TS: Se agregaron tipos 'null' a las props
 function FloatingAlert({
-                           message,
-                           type = 'error',
-                       }: {
+    message,
+    type = 'error',
+}: {
     message?: string | null;
     type?: 'error' | 'success' | null;
 }) {
@@ -224,13 +227,16 @@ const tableInputClass =
     'h-8 w-full border-transparent bg-transparent text-center shadow-none hover:bg-muted/50 focus:bg-background focus:ring-1 focus:ring-emerald-500 tabular-nums dark:text-foreground dark:focus:bg-neutral-800';
 
 export default function InventoryAdjustmentForm({
-                                                    adjustment,
-                                                    products = [],
-                                                    operationTypes = [],
-                                                    locations = [],
-                                                    suppliers = [],
-                                                    purchaseOrders = [],
-                                                }: PageProps) {
+    adjustment,
+    returnsCount = 0, // Valor por defecto
+    parentReference = null,
+    masterDocument = null,
+    products = [],
+    operationTypes = [],
+    locations = [],
+    suppliers = [],
+    purchaseOrders = [],
+}: PageProps) {
     const { props } = usePage<any>();
 
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -241,6 +247,8 @@ export default function InventoryAdjustmentForm({
     const [submittingNote, setSubmittingNote] = useState(false);
 
     const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false); // ✅ NUEVO ESTADO: Modal de eliminar
+
     const [returnItems, setReturnItems] = useState<
         { id_product: number; name: string; max: number; quantity: number }[]
     >([]);
@@ -278,6 +286,17 @@ export default function InventoryAdjustmentForm({
                 onSuccess: () => setIsReturnModalOpen(false),
             },
         );
+    };
+
+    // ✅ NUEVA FUNCIÓN: Eliminar ajuste individual
+    const handleDeleteAdjustment = () => {
+        router.delete(`/inventario/ajuste/bulk-delete`, {
+            data: { ids: [adjustment.id_adjustment] },
+            onSuccess: () => {
+                setIsDeleteModalOpen(false);
+                router.visit('/inventario/ajuste/movimientos');
+            },
+        });
     };
 
     useEffect(() => {
@@ -343,21 +362,21 @@ export default function InventoryAdjustmentForm({
             id_operation_type: adjustment?.operation_type?.id_operation_type
                 ? String(adjustment.operation_type.id_operation_type)
                 : adjustment?.id_operation_type
-                    ? String(adjustment.id_operation_type)
-                    : '',
+                  ? String(adjustment.id_operation_type)
+                  : '',
 
             id_location_source: adjustment?.location_source?.id_location
                 ? String(adjustment.location_source.id_location)
                 : adjustment?.id_location_source
-                    ? String(adjustment.id_location_source)
-                    : '',
+                  ? String(adjustment.id_location_source)
+                  : '',
 
             id_location_destination: adjustment?.location_destination
                 ?.id_location
                 ? String(adjustment.location_destination.id_location)
                 : adjustment?.id_location_destination
-                    ? String(adjustment.id_location_destination)
-                    : '',
+                  ? String(adjustment.id_location_destination)
+                  : '',
 
             id_supplier: initialSupplierId,
             source_id: adjustment?.source_document_id
@@ -372,41 +391,57 @@ export default function InventoryAdjustmentForm({
                 mappedItems.length > 0
                     ? mappedItems
                     : [
-                        {
-                            id_product: 0,
-                            product_name: '',
-                            product_code: '',
-                            demand: 0,
-                            quantity: 0,
-                            unit_cost: 0,
-                            is_new: true,
-                        },
-                    ],
+                          {
+                              id_product: 0,
+                              product_name: '',
+                              product_code: '',
+                              demand: 0,
+                              quantity: 0,
+                              unit_cost: 0,
+                              is_new: true,
+                          },
+                      ],
         });
 
     // ✅ NUEVA VARIABLE: Determina si el documento tiene un origen (Compra o Venta)
     const hasSourceDocument = !!data.source_id;
+    const goToParent = () => {
+        if (parentReference) {
+            router.get(`/inventario/ajuste/${parentReference.id}/edit`);
+        }
+    };
 
+    const viewReturns = () => {
+        // Redirige a la lista de movimientos filtrando por la referencia de este documento
+        router.get('/inventario/ajuste/movimientos', {
+            search: adjustment.reference_code,
+        });
+    };
     useEffect(() => {
         if (adjustment) {
             const freshData: InventoryForm = {
                 kardex_date:
                     adjustment.kardex_date || format(new Date(), 'yyyy-MM-dd'),
                 contact_name: adjustment.contact_name || '',
+
                 id_operation_type: adjustment.id_operation_type
                     ? String(adjustment.id_operation_type)
                     : '',
+
                 id_location_source: adjustment.id_location_source
                     ? String(adjustment.id_location_source)
                     : '',
+
                 id_location_destination: adjustment.id_location_destination
                     ? String(adjustment.id_location_destination)
                     : '',
+
                 id_supplier: initialSupplierId,
                 source_id: adjustment.source_document_id
                     ? String(adjustment.source_document_id)
                     : '',
                 source_type: adjustment.source_document_type || '',
+
                 document_type: adjustment.document_type || '',
                 document_number: adjustment.document_number || '',
                 reason: adjustment.reason || '',
@@ -414,16 +449,16 @@ export default function InventoryAdjustmentForm({
                     mappedItems.length > 0
                         ? mappedItems
                         : [
-                            {
-                                id_product: 0,
-                                product_name: '',
-                                product_code: '',
-                                demand: 0,
-                                quantity: 0,
-                                unit_cost: 0,
-                                is_new: true,
-                            },
-                        ],
+                              {
+                                  id_product: 0,
+                                  product_name: '',
+                                  product_code: '',
+                                  demand: 0,
+                                  quantity: 0,
+                                  unit_cost: 0,
+                                  is_new: true,
+                              },
+                          ],
             };
 
             setDefaults(freshData);
@@ -657,7 +692,8 @@ export default function InventoryAdjustmentForm({
         const opCode = selectedOp?.code || '';
 
         const isReturn = operationTypes?.some(
-            (op) => op.return_operation_type_id === selectedOp?.id_operation_type,
+            (op) =>
+                op.return_operation_type_id === selectedOp?.id_operation_type,
         );
 
         const ocList = (purchaseOrders || []).map((po) => ({
@@ -687,7 +723,7 @@ export default function InventoryAdjustmentForm({
     return (
         <AppLayout
             breadcrumbs={[
-                { title: 'Inventario', href: '/inventario' },
+                { title: 'Inventario', href: '/inventario/ajuste/movimientos' },
                 {
                     title: adjustment?.reference_code || 'Nuevo Movimiento',
                     href: '#',
@@ -698,6 +734,34 @@ export default function InventoryAdjustmentForm({
 
             <FloatingAlert message={localError} type="error" />
             <FloatingAlert message={successMessage} type="success" />
+
+            {/* ✅ NUEVO: DIÁLOGO DE ELIMINACIÓN */}
+            <AlertDialog
+                open={isDeleteModalOpen}
+                onOpenChange={setIsDeleteModalOpen}
+            >
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            ¿Desea eliminar este borrador?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción eliminará permanentemente la referencia{' '}
+                            <strong>{adjustment?.reference_code}</strong>. Esta
+                            operación no se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeleteAdjustment}
+                            className="bg-red-600 text-white hover:bg-red-700"
+                        >
+                            Eliminar definitivamente
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <div className="flex h-full flex-col overflow-hidden bg-background">
                 {/* TOOLBAR SUPERIOR */}
@@ -726,15 +790,30 @@ export default function InventoryAdjustmentForm({
                             )}
 
                             {adjustment?.status === 'draft' && (
-                                <Button
-                                    onClick={handleCheck}
-                                    disabled={
-                                        processing || data.items.length === 0
-                                    }
-                                    className="h-8 bg-blue-600 px-6 font-bold text-white hover:bg-blue-700"
-                                >
-                                    Comprobar
-                                </Button>
+                                <>
+                                    <Button
+                                        onClick={handleCheck}
+                                        disabled={
+                                            processing ||
+                                            data.items.length === 0
+                                        }
+                                        className="h-8 bg-blue-600 px-6 font-bold text-white hover:bg-blue-700"
+                                    >
+                                        Comprobar
+                                    </Button>
+
+                                    {/* ✅ NUEVO: Botón Eliminar en el Toolbar (solo para draft) */}
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() =>
+                                            setIsDeleteModalOpen(true)
+                                        }
+                                        className="h-8 text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/30"
+                                    >
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        Eliminar
+                                    </Button>
+                                </>
                             )}
 
                             {adjustment?.status === 'ready' && (
@@ -789,7 +868,61 @@ export default function InventoryAdjustmentForm({
                                 Volver
                             </Button>
                         </div>
-                        <div className="ml-2 flex h-8 items-center overflow-hidden rounded-sm border border-border bg-muted/30 text-[10px] font-bold tracking-wider uppercase">
+
+                        <div className="flex h-8 items-center overflow-hidden rounded-sm border border-border bg-muted/30 text-[10px] font-bold tracking-wider uppercase">
+                            {parentReference && (
+                                <Button
+                                    variant="outline"
+                                    onClick={goToParent}
+                                    className="group h-12 min-w-[120px] flex-col items-start gap-0 border-emerald-200 bg-background px-4 shadow-sm transition-all hover:border-emerald-300 hover:bg-emerald-50"
+                                >
+                                    <span className="text-[9px] leading-tight font-bold text-muted-foreground uppercase group-hover:text-emerald-600">
+                                        Origen
+                                    </span>
+                                    <span className="flex items-center gap-1.5 text-xs font-black tracking-tight text-emerald-700">
+                                        <Undo2 className="h-3.5 w-3.5 stroke-[3px]" />
+                                        {parentReference.code}
+                                    </span>
+                                </Button>
+                            )}
+
+                            {/* --- SMART BUTTON: DEVOLUCIONES --- */}
+                            {returnsCount > 0 && (
+                                <Button
+                                    variant="outline"
+                                    onClick={viewReturns}
+                                    className="group h-12 min-w-[120px] flex-col items-start gap-0 border-blue-200 bg-background px-4 shadow-sm transition-all hover:border-blue-300 hover:bg-blue-50"
+                                >
+                                    <span className="text-[9px] leading-tight font-bold text-muted-foreground uppercase group-hover:text-blue-600">
+                                        Devoluciones
+                                    </span>
+                                    <span className="flex items-center gap-1.5 text-xs font-black tracking-tight text-blue-700">
+                                        <History className="h-3.5 w-3.5 stroke-[3px]" />
+                                        {returnsCount}{' '}
+                                        {returnsCount === 1
+                                            ? 'Movimiento'
+                                            : 'Movimientos'}
+                                    </span>
+                                </Button>
+                            )}
+
+                            {masterDocument && (
+                                <Button
+                                    variant="outline"
+                                    onClick={() =>
+                                        router.get(masterDocument.url)
+                                    }
+                                    className="group h-12 min-w-[120px] flex-col items-start gap-0 border-amber-200 bg-background px-4 shadow-sm transition-all hover:border-amber-300 hover:bg-amber-50"
+                                >
+                                    <span className="text-[9px] leading-tight font-bold text-muted-foreground uppercase group-hover:text-amber-600">
+                                        {masterDocument.type}
+                                    </span>
+                                    <span className="flex items-center gap-1.5 text-xs font-black tracking-tight text-amber-700">
+                                        <PackageCheck className="h-3.5 w-3.5 stroke-[3px]" />
+                                        {masterDocument.code}
+                                    </span>
+                                </Button>
+                            )}
                             <div
                                 className={cn(
                                     'relative flex h-full items-center justify-center border-r border-border px-4 transition-colors',
@@ -1216,17 +1349,29 @@ export default function InventoryAdjustmentForm({
                                                                 tableInputClass,
                                                                 'text-emerald-700 dark:text-emerald-400',
                                                             )}
-                                                            value={item.unit_cost}
+                                                            value={
+                                                                item.unit_cost
+                                                            }
                                                             onChange={(e) =>
-                                                                handleItemChange(idx, 'unit_cost', e.target.value)
+                                                                handleItemChange(
+                                                                    idx,
+                                                                    'unit_cost',
+                                                                    e.target
+                                                                        .value,
+                                                                )
                                                             }
                                                             min="0"
                                                             step="0.01"
                                                             // ✅ REGLA: Si el estado es "Realizado" OR si es una SALIDA (OUT), bloquear.
                                                             // Solo permitir editar en ENTRADAS (IN) mientras sea borrador.
                                                             readOnly={
-                                                                adjustment?.status === 'done' ||
-                                                                (adjustment?.operation_type?.code === 'OUT' && !item.is_new)
+                                                                adjustment?.status ===
+                                                                    'done' ||
+                                                                (adjustment
+                                                                    ?.operation_type
+                                                                    ?.code ===
+                                                                    'OUT' &&
+                                                                    !item.is_new)
                                                             }
                                                         />
                                                     </td>
@@ -1503,6 +1648,7 @@ export default function InventoryAdjustmentForm({
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            <KardexExportModal allProducts={products} />
         </AppLayout>
     );
 }
