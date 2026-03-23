@@ -19,7 +19,8 @@ class PurchaseOrderDetail extends Model
         'unit_cost',
         'subtotal',
         'margin_percentage',
-        'suggested_sale_price'
+        'suggested_sale_price',
+        "id_tax"
     ];
     public function product()
     {

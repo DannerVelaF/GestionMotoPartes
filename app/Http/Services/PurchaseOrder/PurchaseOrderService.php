@@ -7,7 +7,7 @@ use App\Http\Services\BaseService;
 use App\Http\Services\Receipt\ReceiptService;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderLog;
-use App\Models\Products; // ✅ Importado
+use App\Models\Products;
 use Carbon\Carbon;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
@@ -58,7 +58,7 @@ class PurchaseOrderService extends BaseService
                 'expected_date'       => isset($data['expected_date']) ? Carbon::parse($data['expected_date']) : null,
                 'currency'            => $data['currency'],
                 'exchange_rate'       => $data['exchange_rate'],
-                'total_amount'        => $data['total_amount'] ?? collect($data['details'])->sum('subtotal'),
+                'total_amount'        => $data['total_amount'],
                 'status'              => $initialStatus,
                 'notes'               => $data['notes'] ?? null,
                 'attachment_path'     => $path,
@@ -72,7 +72,7 @@ class PurchaseOrderService extends BaseService
                 'new_value'         => $initialStatus,
             ]);
 
-            // 2. Crear Detalles y Sincronizar Precios
+            // 2. Crear Detalles asignando el ID del Impuesto
             foreach ($data['details'] as $detail) {
                 $isService = $detail['is_service'] ?? ($data['order_type'] === 'service');
 
@@ -81,12 +81,12 @@ class PurchaseOrderService extends BaseService
                     'description'          => $isService ? ($detail['description'] ?? 'Servicio') : null,
                     'quantity'             => $detail['quantity'],
                     'unit_cost'            => $detail['unit_cost'],
+                    'id_tax'               => $detail['id_tax'],
                     'subtotal'             => $detail['subtotal'],
                     'margin_percentage'    => $detail['margin_percentage'] ?? 0,
                     'suggested_sale_price' => $detail['suggested_sale_price'] ?? 0,
                 ]);
 
-                // ✅ Sincronización automática con el producto maestro
                 if (!$isService && !empty($detail['id_product'])) {
                     $this->syncProductPrices($detail);
                 }
@@ -112,16 +112,16 @@ class PurchaseOrderService extends BaseService
             }
 
             $updateData = [
-                'id_supplier'         => $data['id_supplier'],
-                'order_type'          => $data['order_type'],
-                'requested_by'        => $requestedBy,
-                'issue_date'          => Carbon::parse($data['issue_date']),
-                'expected_date'       => isset($data['expected_date']) ? Carbon::parse($data['expected_date']) : null,
-                'total_amount'        => collect($data['details'])->sum('subtotal'),
-                'currency'            => $data['currency'],
-                'exchange_rate'       => $data['exchange_rate'],
-                'status'              => $data['status'] ?? $order->status,
-                'notes'               => $data['notes'] ?? null,
+                'id_supplier'   => $data['id_supplier'],
+                'order_type'    => $data['order_type'],
+                'requested_by'  => $requestedBy,
+                'issue_date'    => Carbon::parse($data['issue_date']),
+                'expected_date' => isset($data['expected_date']) ? Carbon::parse($data['expected_date']) : null,
+                'total_amount'  => $data['total_amount'],
+                'currency'      => $data['currency'],
+                'exchange_rate' => $data['exchange_rate'],
+                'status'        => $data['status'] ?? $order->status,
+                'notes'         => $data['notes'] ?? null,
             ];
 
             if (isset($data['actual_arrival_date'])) {
@@ -135,40 +135,9 @@ class PurchaseOrderService extends BaseService
                 $order->attachment_path = $data['file']->store('purchase_orders', 'public');
             }
 
-            // --- LOGS ---
-            $dirtyFields = $order->getDirty();
-            $originalFields = $order->getOriginal();
             $order->save();
 
-            $fieldNames = ['status' => 'Estado', 'expected_date' => 'Fecha Esperada', 'total_amount' => 'Monto Total', 'currency' => 'Moneda', 'order_type' => 'Tipo de Orden'];
-
-            foreach ($dirtyFields as $field => $newValue) {
-                if (array_key_exists($field, $fieldNames)) {
-                    $oldValue = $originalFields[$field] ?? null;
-                    if (in_array($field, ['total_amount', 'exchange_rate']) && (float)$oldValue === (float)$newValue) continue;
-
-                    PurchaseOrderLog::create([
-                        'id_purchase_order' => $order->id_purchase_order,
-                        'id_user'           => $userId,
-                        'action'            => $field === 'status' ? 'Cambio de Estado' : 'Modificación',
-                        'field_changed'     => $fieldNames[$field],
-                        'old_value'         => $oldValue ?: 'Vacío',
-                        'new_value'         => $newValue,
-                    ]);
-                }
-            }
-
-            // Registrar nota interna
-            if (!empty($data['internal_note'])) {
-                PurchaseOrderLog::create([
-                    'id_purchase_order' => $order->id_purchase_order,
-                    'id_user'           => $userId,
-                    'action'            => 'Nota',
-                    'notes'             => $data['internal_note']
-                ]);
-            }
-
-            // Actualizar detalles y sincronizar precios
+            // Actualizar detalles (Borrar y re-crear es más limpio para sincronizar cambios)
             $order->details()->delete();
             foreach ($data['details'] as $detail) {
                 $isService = $detail['is_service'] ?? ($data['order_type'] === 'service');
@@ -177,12 +146,12 @@ class PurchaseOrderService extends BaseService
                     'description'          => $isService ? ($detail['description'] ?? 'Servicio') : null,
                     'quantity'             => $detail['quantity'],
                     'unit_cost'            => $detail['unit_cost'],
+                    'id_tax'               => $detail['id_tax'], // ✅ CORREGIDO: Se mantiene el impuesto al actualizar
                     'subtotal'             => $detail['subtotal'],
                     'margin_percentage'    => $detail['margin_percentage'] ?? 0,
                     'suggested_sale_price' => $detail['suggested_sale_price'] ?? 0,
                 ]);
 
-                // ✅ Sincronizar precios al actualizar
                 if (!$isService && !empty($detail['id_product'])) {
                     $this->syncProductPrices($detail);
                 }
@@ -192,10 +161,6 @@ class PurchaseOrderService extends BaseService
         });
     }
 
-    /**
-     * ✅ MÉTODO DE SINCRONIZACIÓN
-     * Actualiza la ficha maestra del producto con los costos y precios negociados en la OC.
-     */
     private function syncProductPrices(array $detail)
     {
         $product = Products::find($detail['id_product']);
@@ -205,63 +170,6 @@ class PurchaseOrderService extends BaseService
                 'sale_price'     => $detail['suggested_sale_price'] ?? $product->sale_price,
             ]);
         }
-    }
-
-    public function approveAndReceiveOrder($orderId, array $receiptData)
-    {
-        return DB::transaction(function () use ($orderId, $receiptData) {
-            $userId = Auth::id() ?? 1;
-            $order = PurchaseOrder::findOrFail($orderId);
-
-            if ($order->status === 'received') {
-                throw new \Exception("Esta orden ya fue recibida anteriormente.");
-            }
-
-            $formattedReceiptData = [
-                'id_supplier'       => $order->id_supplier,
-                'document_type'     => $receiptData['document_type'],
-                'currency'          => $order->currency,
-                'exchange_rate'     => $order->exchange_rate,
-                'series'            => $receiptData['series'],
-                'number'            => $receiptData['number'],
-                'issue_date'        => $receiptData['issue_date'],
-                'id_purchase_order' => $order->id_purchase_order,
-                'details'           => []
-            ];
-
-            foreach ($order->details as $detail) {
-                $isService = empty($detail->id_product);
-                $formattedReceiptData['details'][] = [
-                    'is_service'  => $isService,
-                    'id_product'  => $detail->id_product,
-                    'description' => $detail->description,
-                    'quantity'    => $detail->quantity,
-                    'unit_price'  => $detail->unit_cost,
-                    'sale_price'  => $detail->suggested_sale_price,
-                ];
-            }
-
-            $receipt = $this->receiptService->createReceipt($formattedReceiptData);
-
-            $order->update([
-                'status'              => 'received',
-                'approved_by'         => $userId,
-                'approved_at'         => now(),
-                'actual_arrival_date' => $receiptData['issue_date']
-            ]);
-
-            PurchaseOrderLog::create([
-                'id_purchase_order' => $order->id_purchase_order,
-                'id_user'           => $userId,
-                'action'            => 'Recepción y Aprobación',
-                'field_changed'     => 'Estado',
-                'old_value'         => 'sent',
-                'new_value'         => 'received',
-                'notes'             => "Generado comprobante: {$receiptData['series']}-{$receiptData['number']}"
-            ]);
-
-            return $receipt;
-        });
     }
 
     public function approveOrder($orderId)
@@ -303,7 +211,7 @@ class PurchaseOrderService extends BaseService
             }
             $order->update(['status' => 'cancelled']);
             $order->logs()->create([
-                'id_user' => auth()->id(),
+                'id_user' => Auth::id(),
                 'action' => 'Orden Cancelada',
                 'notes' => 'El usuario canceló la orden.'
             ]);

@@ -464,7 +464,7 @@ class InventoryMovementsController extends Controller
                 if ($allReceived) {
                     $purchaseOrder->update(['status' => 'received']);
                 } else {
-                    $purchaseOrder->update(['status' => 'sent']);
+                    $purchaseOrder->update(['status' => 'approved']);
                 }
             }
 

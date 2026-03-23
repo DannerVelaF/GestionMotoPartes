@@ -37,6 +37,7 @@ import {
     Printer,
     ShoppingBag,
     Trash2,
+    Truck
 } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -64,6 +65,7 @@ interface Product {
 interface DetailRow {
     id: number;
     id_product: string;
+    id_tax: string;
     description: string;
     quantity: number;
     received_quantity: number;
@@ -97,12 +99,18 @@ interface PurchaseOrder {
     inventory_adjustments_count: number;
     receipts_count: number;
 }
-
+interface Tax {
+    id_tax: number;
+    name: string;
+    percentage: number;
+    scope: string;
+}
 interface Props {
     order: PurchaseOrder;
     suppliers: Supplier[];
     products: Product[];
     documentTypes: { value: string; label: string }[];
+    taxes: Tax[];
 }
 
 const FormFieldRow = ({
@@ -124,10 +132,17 @@ export default function EditPurchaseOrder({
     order,
     suppliers,
     products,
+    taxes
 }: Props) {
-    const { props } = usePage<any>();
-    const serverErrors = props.errors;
+    useEffect(() => {
+        const handleFocus = () => {
+            router.reload({ only: ['order'] }); // Solo recarga el objeto de la orden
+        };
 
+        window.addEventListener('focus', handleFocus);
+        return () => window.removeEventListener('focus', handleFocus);
+    }, []);
+    const { props } = usePage<any>();
     const [formError, setFormError] = useState<string | null>(null);
     const [isWritingNote, setIsWritingNote] = useState(false);
     const [isApproving, setIsApproving] = useState(false);
@@ -149,6 +164,11 @@ export default function EditPurchaseOrder({
     const initialRows: DetailRow[] = order.details.map((line: any) => ({
         id: line.id_po_detail,
         id_product: line.id_product ? String(line.id_product) : '',
+        id_tax: line.id_tax
+            ? String(line.id_tax)
+            : taxes
+                  .find((t) => Number(t.percentage) === 18)
+                  ?.id_tax.toString() || '',
         description: line.description || '',
         quantity: Number(line.quantity),
         received_quantity: Number(line.received_quantity || 0),
@@ -163,11 +183,8 @@ export default function EditPurchaseOrder({
     const {
         data,
         setData,
-        post,
-        processing,
         errors,
         clearErrors,
-        transform,
         isDirty,
     } = useForm({
         id_supplier: String(order.id_supplier),
@@ -186,13 +203,11 @@ export default function EditPurchaseOrder({
 
     const isServiceOrder = data.order_type === 'service';
     const symbol = data.currency === 'USD' ? '$' : 'S/';
-    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-
-    useEffect(() => {
+    const hasUnsavedChanges = useMemo(() => {
         const rowsChanged =
             JSON.stringify(rows) !== JSON.stringify(initialRows);
-        setHasUnsavedChanges(isDirty || rowsChanged);
-    }, [rows, isDirty]);
+        return isDirty || rowsChanged;
+    }, [rows, isDirty, initialRows]);
 
     const needsReception = useMemo(() => {
         if (isServiceOrder || !isApproved) return false;
@@ -276,7 +291,9 @@ export default function EditPurchaseOrder({
         data.currency === 'USD'
             ? totalAmount * Number(data.exchange_rate)
             : totalAmount;
-
+    const hasDetailErrors = Object.keys(errors).some((key) =>
+        key.startsWith('details'),
+    );
     const supplierOptions = suppliers.map((s) => ({
         value: String(s.id_supplier),
         label: s.company_name,
@@ -303,22 +320,28 @@ export default function EditPurchaseOrder({
                 .filter((r) => (!isServiceOrder ? r.id_product : r.description))
                 .map((r) => ({
                     id_product: !isServiceOrder ? r.id_product : null,
+                    id_tax: r.id_tax,
                     description: isServiceOrder ? r.description : null,
                     quantity: r.quantity,
                     unit_cost: r.unit_cost,
                     margin_percentage: r.margin_percentage,
                     suggested_sale_price: r.suggested_sale_price,
                     subtotal: r.quantity * r.unit_cost,
-                    is_service: isServiceOrder,
+                    is_service: isServiceOrder ? 1 : 0,
                 })),
         };
+
+        setFormError(null);
+
         router.post(
             `/compras/ordenes/${order.id_purchase_order}`,
             dataToSend as any,
             {
                 forceFormData: true,
                 preserveScroll: true,
-                onSuccess: () => setHasUnsavedChanges(false),
+                onSuccess: () => {
+                    setIsWritingNote(false);
+                },
                 onError: (errs) => {
                     if (errs.error) setFormError(errs.error as string);
                 },
@@ -361,7 +384,23 @@ export default function EditPurchaseOrder({
             );
         }
     };
+    useEffect(() => {
+        const updatedRows: DetailRow[] = order.details.map((line: any) => ({
+            id: line.id_po_detail,
+            id_product: line.id_product ? String(line.id_product) : '',
+            id_tax: line.id_tax ? String(line.id_tax) :
+                (taxes.find((t) => Number(t.percentage) === 18)?.id_tax.toString() || ''),
+            description: line.description || '',
+            quantity: Number(line.quantity),
+            received_quantity: Number(line.received_quantity || 0),
+            billed_quantity: Number(line.billed_quantity || 0),
+            unit_cost: Number(line.unit_cost),
+            margin_percentage: Number(line.margin_percentage || 0),
+            suggested_sale_price: Number(line.suggested_sale_price || 0),
+        }));
 
+        setRows(updatedRows);
+    }, [order.details, taxes]);
     return (
         <AppLayout
             breadcrumbs={[
@@ -491,13 +530,44 @@ export default function EditPurchaseOrder({
                                         };
                                     }
                                 }}
-                                className="flex items-center gap-1.5 border-r border-border px-3 text-slate-600 transition-all hover:bg-muted/50"
+                                className="flex h-12 items-center gap-1.5 border-r border-border px-3 text-slate-600 transition-all hover:bg-muted/50"
                             >
                                 <Printer className="h-3.5 w-3.5" />
                                 <span className="text-[10px] font-semibold uppercase">
                                     Imprimir
                                 </span>
                             </button>
+                            <button
+                                onClick={() =>
+                                    router.get(
+                                        '/inventario/ajuste/movimientos',
+                                        { search: order.po_code },
+                                    )
+                                }
+                                className="flex h-12 items-center gap-1.5 border-r border-border px-3 text-slate-600 transition-all hover:bg-muted/50"
+                            >
+                                <Truck className="h-3.5 w-3.5 text-emerald-600" />
+                                <span className="text-[10px] font-semibold uppercase">
+                                    {order.inventory_adjustments_count || 0}{' '}
+                                    Recepciones
+                                </span>
+                            </button>
+
+                            {/* Botón Facturas (Diseño igual al de imprimir) */}
+                            <button
+                                onClick={() =>
+                                    router.get('/recibos', {
+                                        search: order.po_code,
+                                    })
+                                }
+                                className="flex h-12 items-center gap-1.5 border-r border-border px-3 text-slate-600 transition-all hover:bg-muted/50"
+                            >
+                                <FileText className="h-3.5 w-3.5 text-blue-600" />
+                                <span className="text-[10px] font-semibold uppercase">
+                                    {order.receipts_count || 0} Facturas
+                                </span>
+                            </button>
+
                             {/* StatusBar Indicators */}
                             <div className="flex h-8 items-center overflow-hidden rounded-sm border border-border bg-muted/30 text-[10px] font-bold uppercase">
                                 <div
@@ -717,6 +787,9 @@ export default function EditPurchaseOrder({
                                                 <TableHead className="w-[120px] text-right">
                                                     Costo ({symbol})
                                                 </TableHead>
+                                                <TableHead className="w-[120px] text-center">
+                                                    Impuesto
+                                                </TableHead>
                                                 {!isServiceOrder && (
                                                     <>
                                                         <TableHead className="w-[100px] text-center">
@@ -898,6 +971,47 @@ export default function EditPurchaseOrder({
                                                             }
                                                         />
                                                     </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <Select
+                                                            value={row.id_tax}
+                                                            onValueChange={(
+                                                                v,
+                                                            ) =>
+                                                                updateRow(
+                                                                    row.id,
+                                                                    'id_tax',
+                                                                    v,
+                                                                )
+                                                            }
+                                                            disabled={
+                                                                isDone ||
+                                                                isApproved
+                                                            }
+                                                        >
+                                                            <SelectTrigger className="flex h-8 w-full justify-center border-transparent bg-transparent text-[11px] font-bold focus:ring-0">
+                                                                <div className="flex-1 text-center">
+                                                                    <SelectValue />
+                                                                </div>
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {taxes.map(
+                                                                    (t) => (
+                                                                        <SelectItem
+                                                                            key={
+                                                                                t.id_tax
+                                                                            }
+                                                                            value={t.id_tax.toString()}
+                                                                            className="flex justify-center text-center text-[10px] font-bold uppercase"
+                                                                        >
+                                                                            {
+                                                                                t.name
+                                                                            }
+                                                                        </SelectItem>
+                                                                    ),
+                                                                )}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </TableCell>
                                                     {!isServiceOrder && (
                                                         <>
                                                             <TableCell>
@@ -1023,6 +1137,20 @@ export default function EditPurchaseOrder({
                                                 {totalAmount.toFixed(2)}
                                             </span>
                                         </div>
+                                        {data.currency !== 'PEN' && (
+                                            <div className="flex animate-in justify-between pt-1 text-xs font-bold text-blue-600 fade-in slide-in-from-right-2">
+                                                <span>
+                                                    Equivalente en Soles (T.C.{' '}
+                                                    {parseFloat(
+                                                        data.exchange_rate,
+                                                    ).toFixed(3)}
+                                                    )
+                                                </span>
+                                                <span>
+                                                    S/ {totalInSoles.toFixed(2)}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>

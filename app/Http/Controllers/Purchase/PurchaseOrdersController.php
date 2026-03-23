@@ -84,13 +84,15 @@ class PurchaseOrdersController extends Controller
             'details.*.quantity'   => 'required|numeric|min:0.01',
             'details.*.unit_cost'  => 'required|numeric|min:0',
             'details.*.subtotal'   => 'required|numeric|min:0',
+            'details.*.id_tax'     => 'required|exists:taxes,id_tax',
             'details.*.margin_percentage' => 'nullable|numeric',
             'details.*.suggested_sale_price' => 'nullable|numeric',
         ]);
 
         try {
             $order = $this->service->createOrder($validated);
-            return redirect()->route('purchase-orders.show', ['purchaseOrder' => $order->id_purchase_order])->with('success', 'Orden creada correctamente.');
+            return redirect()->route('purchase-orders.show', ['purchaseOrder' => $order->id_purchase_order])
+                ->with('success', 'Orden creada correctamente.');
         } catch (\Exception $e) {
             Log::error('Error creating PO: ' . $e->getMessage());
             return back()->withErrors(['error' => 'Error al guardar: ' . $e->getMessage()]);
@@ -117,7 +119,7 @@ class PurchaseOrdersController extends Controller
             'products' => Products::where('status', 'active')
                 ->select('id_product', 'product_name', 'product_code', 'sale_price', 'purchase_price')
                 ->orderBy('product_name')->get(),
-            'taxes' => \App\Models\Tax::where('is_active', true)
+            'taxes' => \App\Models\Taxes::where('is_active', true)
                 ->whereIn('scope', ['purchase', 'both'])
                 ->get(),
             'documentTypes' => [
@@ -151,12 +153,13 @@ class PurchaseOrdersController extends Controller
                 'exchange_rate' => 'required|numeric|min:0.0001',
                 'file'          => 'nullable|file|mimes:pdf,jpg,png,jpeg|max:5120',
                 'details'       => 'required|array|min:1',
-                'details.*.id_product' => 'nullable|exists:products,id_product',
-                'details.*.description' => 'nullable|string',
+                'details.*.is_service' => 'boolean',
+                'details.*.id_product' => 'nullable|required_if:details.*.is_service,false|exists:products,id_product',
+                'details.*.description' => 'nullable|required_if:details.*.is_service,true|string|max:255',
                 'details.*.quantity'   => 'required|numeric|min:0.01',
                 'details.*.unit_cost'  => 'required|numeric|min:0',
                 'details.*.subtotal'   => 'required|numeric|min:0',
-                // Agregamos estos por si el Service los usa al actualizar
+                'details.*.id_tax'     => 'required|exists:taxes,id_tax',
                 'details.*.margin_percentage' => 'nullable|numeric',
                 'details.*.suggested_sale_price' => 'nullable|numeric',
             ]);
