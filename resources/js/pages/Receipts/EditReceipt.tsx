@@ -58,6 +58,7 @@ import {
     Trash2,
     Undo2,
     User,
+    X,
 } from 'lucide-react';
 import React, { FormEventHandler, useEffect, useMemo, useState } from 'react';
 
@@ -303,7 +304,16 @@ export default function EditReceipt({
                 setShowSuccess(true);
                 reset();
             },
-            onError: () => setFormError('Error al guardar los cambios.'),
+            onError: (errors) => {
+                if (errors.error) {
+                    setFormError(errors.error);
+                } else {
+                    const firstError = Object.values(errors)[0];
+                    setFormError(
+                        firstError || 'Error inesperado en el servidor.',
+                    );
+                }
+            },
         });
     };
 
@@ -391,7 +401,8 @@ export default function EditReceipt({
                             </Button>
 
                             {/* Botón Nota de Crédito (Solo aparece si ESTÁ publicado y no es una nota en sí) */}
-                            {isPublished && receipt.document_type == "credit_note" &&
+                            {isPublished &&
+                                receipt.document_type == 'credit_note' &&
                                 receipt.document_type !== 'credit_note' && (
                                     <Button
                                         type="button"
@@ -947,11 +958,55 @@ export default function EditReceipt({
                                     value="files"
                                     className="animate-in duration-300 fade-in"
                                 >
-                                    <div className="rounded-2xl border-2 border-dashed p-12 text-center transition-colors hover:border-blue-400 hover:bg-blue-50/10">
-                                        <FileText className="mx-auto mb-4 h-12 w-12 text-blue-500/50" />
-                                        {receipt.receipt_path ? (
+                                    <div
+                                        className={cn(
+                                            'rounded-2xl border-2 border-dashed p-12 text-center transition-colors',
+                                            data.file
+                                                ? 'border-blue-500 bg-blue-50/20'
+                                                : 'hover:border-blue-400 hover:bg-blue-50/10 dark:hover:bg-blue-900/5',
+                                        )}
+                                    >
+                                        <FileText
+                                            className={cn(
+                                                'mx-auto mb-4 h-12 w-12',
+                                                data.file
+                                                    ? 'text-blue-600'
+                                                    : 'text-blue-500/50',
+                                            )}
+                                        />
+
+                                        {/* 1. Si el usuario seleccionó un archivo nuevo (Aún no guardado) */}
+                                        {data.file ? (
                                             <div className="space-y-4">
-                                                <p className="mx-auto max-w-md truncate text-sm font-bold">
+                                                <div className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-4 py-1 text-blue-700 dark:bg-blue-900 dark:text-blue-100">
+                                                    <span className="text-xs font-black uppercase">
+                                                        Archivo por subir:
+                                                    </span>
+                                                    <p className="max-w-md truncate text-sm font-bold">
+                                                        {data.file.name}
+                                                    </p>
+                                                </div>
+                                                <p className="animate-pulse text-xs text-muted-foreground">
+                                                    Haga clic en "Guardar
+                                                    cambios" para procesar la
+                                                    subida.
+                                                </p>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                                                    onClick={() =>
+                                                        setData('file', null)
+                                                    }
+                                                >
+                                                    <X className="mr-1 h-3 w-3" />{' '}
+                                                    Cancelar selección
+                                                </Button>
+                                            </div>
+                                        ) : receipt.receipt_path ? (
+                                            /* 2. Si ya hay un archivo en el servidor y no se ha seleccionado uno nuevo */
+                                            <div className="space-y-4">
+                                                <p className="mx-auto max-w-md truncate text-sm font-bold text-foreground">
                                                     {receipt.receipt_path
                                                         .split('/')
                                                         .pop()}
@@ -970,44 +1025,53 @@ export default function EditReceipt({
                                                             Descargar
                                                         </a>
                                                     </Button>
-                                                    {!isPublished && (
-                                                        <div className="relative">
-                                                            <Button
-                                                                type="button"
-                                                                className="bg-blue-600 text-white"
-                                                            >
-                                                                <Plus className="mr-2 h-4 w-4" />{' '}
-                                                                Reemplazar
-                                                            </Button>
-                                                            <input
-                                                                type="file"
-                                                                className="absolute inset-0 cursor-pointer opacity-0"
-                                                                onChange={(e) =>
-                                                                    setData(
-                                                                        'file',
-                                                                        e.target
-                                                                            .files?.[0] ||
-                                                                            null,
-                                                                    )
-                                                                }
-                                                            />
-                                                        </div>
-                                                    )}
+
+                                                    <div className="relative">
+                                                        <Button
+                                                            type="button"
+                                                            className="bg-blue-600 text-white hover:bg-blue-700"
+                                                        >
+                                                            <Plus className="mr-2 h-4 w-4" />{' '}
+                                                            Reemplazar
+                                                        </Button>
+                                                        <input
+                                                            type="file"
+                                                            accept=".pdf,image/*"
+                                                            className="absolute inset-0 cursor-pointer opacity-0"
+                                                            onChange={(e) =>
+                                                                setData(
+                                                                    'file',
+                                                                    e.target
+                                                                        .files?.[0] ||
+                                                                        null,
+                                                                )
+                                                            }
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="relative inline-block">
-                                                <Button
-                                                    type="button"
-                                                    disabled={isPublished}
-                                                    className="bg-blue-600 font-bold text-white"
-                                                >
-                                                    <Plus className="mr-2 h-4 w-4" />{' '}
-                                                    Subir Archivo
-                                                </Button>
-                                                {!isPublished && (
+                                            /* 3. Estado totalmente vacío */
+                                            <div className="space-y-2">
+                                                <p className="mb-2 text-sm text-muted-foreground">
+                                                    No hay un archivo adjunto
+                                                    para este comprobante
+                                                </p>
+                                                <p className="mb-4 text-[10px] font-medium tracking-wider text-blue-600/60 uppercase">
+                                                    Solo PDF o Imágenes (JPG,
+                                                    PNG)
+                                                </p>
+                                                <div className="relative inline-block">
+                                                    <Button
+                                                        type="button"
+                                                        className="bg-blue-600 font-bold text-white hover:bg-blue-700"
+                                                    >
+                                                        <Plus className="mr-2 h-4 w-4" />{' '}
+                                                        Subir Archivo
+                                                    </Button>
                                                     <input
                                                         type="file"
+                                                        accept=".pdf,image/*"
                                                         className="absolute inset-0 cursor-pointer opacity-0"
                                                         onChange={(e) =>
                                                             setData(
@@ -1018,7 +1082,7 @@ export default function EditReceipt({
                                                             )
                                                         }
                                                     />
-                                                )}
+                                                </div>
                                             </div>
                                         )}
                                     </div>

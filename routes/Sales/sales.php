@@ -27,15 +27,16 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::controller(SalesController::class)->prefix('ventas')->group(function () {
-        Route::get('/', 'index')->name('sales.index'); // /ventas
+        Route::get('/', 'index')->name('sales.index');
         Route::get('/nuevaVenta', 'create')->name('sales.create');
         Route::post('/', 'store')->name('sales.store');
         Route::delete('/bulk-delete', 'bulkDestroy')->name('sales.bulk-destroy');
 
+        Route::get('/{id}', 'show')->name('sales.show');
+        Route::put('/{id}', 'update')->name('sales.update');
+        Route::delete('/{id}', 'destroy')->name('sales.destroy');
 
+        Route::post('/{id}/nota', 'storeNote')->name('sales.note'); // ✅ Corregido
         Route::get('/{id}/ticket', 'printTicket')->name('sales.ticket');
-        Route::get('/{sale}', 'show')->name('sales.show');
-        Route::put('/{sale}', 'update')->name('sales.update');
-        Route::delete('/{sale}', 'destroy')->name('sales.destroy');
     });
 });

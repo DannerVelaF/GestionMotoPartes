@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -14,10 +13,12 @@ class SaleDetail extends Model
     protected $fillable = [
         'id_sales',
         'id_product',
+        'id_tax',
+        'id_user',
         'quantity',
         'unit_price',
+        'tax_amount',
         'cost',
-        "id_user"
     ];
 
     public function sale(): BelongsTo
@@ -28,5 +29,16 @@ class SaleDetail extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Products::class, "id_product");
+    }
+
+    // ✅ Relación con Impuestos
+    public function tax(): BelongsTo
+    {
+        return $this->belongsTo(Taxes::class, "id_tax");
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'id_user');
     }
 }

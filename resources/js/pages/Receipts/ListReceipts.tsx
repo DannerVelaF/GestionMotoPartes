@@ -193,12 +193,16 @@ export default function ListReceipts({ receipts, filters }: Props) {
                     factura: 'Facturas',
                     boleta: 'Boletas de Venta',
                     invoice: 'Facturas',
+                    nota_venta: 'Notas de Venta',
                     receipt: 'Boletas de Venta',
                     nota_credito: 'Notas de Crédito',
                 };
                 key = mapNames[receipt.document_type.toLowerCase()] || 'Otros';
             } else if (groupBy === 'supplier') {
-                key = receipt.supplier?.company_name || 'Sin Proveedor';
+                key =
+                    receipt.supplier?.company_name ||
+                    receipt.sale?.receiver_name ||
+                    'Sin Proveedor/Cliente';
             } else if (groupBy === 'month') {
                 const date = new Date(receipt.issue_date);
                 if (!isNaN(date.getTime())) {
@@ -268,65 +272,117 @@ export default function ListReceipts({ receipts, filters }: Props) {
                                         onClick={() => toggleGroup(groupName)}
                                     >
                                         <TableCell className="py-3 pl-4">
-                                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                            {isExpanded ? (
+                                                <ChevronDown className="h-4 w-4" />
+                                            ) : (
+                                                <ChevronRight className="h-4 w-4" />
+                                            )}
                                         </TableCell>
-                                        <TableCell colSpan={5} className="font-bold text-foreground">
-                                            {groupName} <span className="ml-2 text-xs font-normal text-muted-foreground">({items.length} registros)</span>
+                                        <TableCell
+                                            colSpan={5}
+                                            className="font-bold text-foreground"
+                                        >
+                                            {groupName}{' '}
+                                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                                ({items.length} registros)
+                                            </span>
                                         </TableCell>
                                         <TableCell className="text-right font-black text-blue-700 tabular-nums dark:text-blue-400">
-                                            S/ {total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                                            S/{' '}
+                                            {total.toLocaleString('es-PE', {
+                                                minimumFractionDigits: 2,
+                                            })}
                                         </TableCell>
                                         <TableCell></TableCell>
                                     </TableRow>
 
-                                    {isExpanded && items.map((receipt) => (
-                                        <TableRow
-                                            key={receipt.id_receipt}
-                                            className="cursor-pointer border-b last:border-0 hover:bg-muted/40 dark:border-neutral-800/50"
-                                            onClick={() => handleCardClick(receipt)}
-                                        >
-                                            <TableCell className="py-3 pl-4" onClick={(e) => e.stopPropagation()}>
-                                                <Checkbox
-                                                    checked={!!rowSelection[receipt.id_receipt]}
-                                                    onCheckedChange={() => toggleSelectionCustom(receipt.id_receipt)}
-                                                />
-                                            </TableCell>
-                                            <TableCell className="text-sm text-foreground/80">
-                                                {format(new Date(receipt.issue_date), 'dd/MM/yyyy')}
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex flex-col gap-1">
-                                                    <span className="w-fit rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] font-bold text-muted-foreground dark:bg-neutral-800 uppercase">
-                                                        {receipt.receipt_code}
-                                                    </span>
-                                                    <span className="text-[10px] font-black tracking-tighter text-blue-600/70 uppercase">
-                                                        {receipt.document_type}
-                                                    </span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-sm font-medium text-foreground">
-                                                {receipt.supplier?.company_name}
-                                            </TableCell>
-                                            <TableCell className="text-[11px] font-bold tracking-tight text-foreground/70 uppercase">
-                                                {receipt.series}-{receipt.number}
-                                            </TableCell>
-                                            {/* ✅ NUEVA COLUMNA DE ORIGEN (OC) */}
-                                            <TableCell>
-                                                {receipt.purchase_order ? (
-                                                    <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase">
-                                                        <LinkIcon className="h-3 w-3" />
-                                                        {receipt.purchase_order.po_code}
+                                    {isExpanded &&
+                                        items.map((receipt) => (
+                                            <TableRow
+                                                key={receipt.id_receipt}
+                                                className="cursor-pointer border-b last:border-0 hover:bg-muted/40 dark:border-neutral-800/50"
+                                                onClick={() =>
+                                                    handleCardClick(receipt)
+                                                }
+                                            >
+                                                <TableCell
+                                                    className="py-3 pl-4"
+                                                    onClick={(e) =>
+                                                        e.stopPropagation()
+                                                    }
+                                                >
+                                                    <Checkbox
+                                                        checked={
+                                                            !!rowSelection[
+                                                                receipt
+                                                                    .id_receipt
+                                                            ]
+                                                        }
+                                                        onCheckedChange={() =>
+                                                            toggleSelectionCustom(
+                                                                receipt.id_receipt,
+                                                            )
+                                                        }
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="text-sm text-foreground/80">
+                                                    {format(
+                                                        new Date(
+                                                            receipt.issue_date,
+                                                        ),
+                                                        'dd/MM/yyyy',
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="w-fit rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] font-bold text-muted-foreground uppercase dark:bg-neutral-800">
+                                                            {
+                                                                receipt.receipt_code
+                                                            }
+                                                        </span>
+                                                        <span className="text-[10px] font-black tracking-tighter text-blue-600/70 uppercase">
+                                                            {
+                                                                receipt.document_type
+                                                            }
+                                                        </span>
                                                     </div>
-                                                ) : (
-                                                    <span className="text-[10px] text-muted-foreground italic">S/O</span>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="text-right font-bold text-foreground tabular-nums">
-                                                S/ {Number(receipt.total_amount).toFixed(2)}
-                                            </TableCell>
-                                            <TableCell></TableCell>
-                                        </TableRow>
-                                    ))}
+                                                </TableCell>
+                                                <TableCell className="text-sm font-medium text-foreground">
+                                                    {receipt.supplier
+                                                        ?.company_name ||
+                                                        receipt.sale
+                                                            ?.receiver_name ||
+                                                        'PÚBLICO GENERAL'}
+                                                </TableCell>
+                                                <TableCell className="text-[11px] font-bold tracking-tight text-foreground/70 uppercase">
+                                                    {receipt.series}-
+                                                    {receipt.number}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {receipt.purchase_order ? (
+                                                        <div className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-blue-600 uppercase dark:text-blue-400">
+                                                            <LinkIcon className="h-3 w-3" />
+                                                            {
+                                                                receipt
+                                                                    .purchase_order
+                                                                    .po_code
+                                                            }
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-[10px] text-muted-foreground italic">
+                                                            S/O
+                                                        </span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-right font-bold text-foreground tabular-nums">
+                                                    S/{' '}
+                                                    {Number(
+                                                        receipt.total_amount,
+                                                    ).toFixed(2)}
+                                                </TableCell>
+                                                <TableCell></TableCell>
+                                            </TableRow>
+                                        ))}
                                 </React.Fragment>
                             );
                         })}

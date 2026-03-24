@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { ArrowUpDown, Link as LinkIcon } from 'lucide-react';
 
 export interface Receipt {
+    sale: React.ReactElement<unknown, string | React.JSXElementConstructor<any>> | string | number | bigint | Iterable<React.ReactNode> | React.ReactPortal | boolean | Promise<AwaitedReactNode> | null | undefined;
     id_receipt: number;
     receipt_code: string;
     series: string;
@@ -15,7 +16,6 @@ export interface Receipt {
     document_type: string;
     currency: string;
     supplier?: { company_name: string; ruc: string };
-    // ✅ Agregamos la relación en la interfaz
     purchase_order?: { id_purchase_order: number; po_code: string };
 }
 
@@ -83,6 +83,7 @@ export const Columns: ColumnDef<Receipt>[] = [
             const type = (
                 row.getValue('document_type') as string
             )?.toLowerCase();
+
             const typeConfig: Record<
                 string,
                 { label: string; classes: string }
@@ -107,6 +108,12 @@ export const Columns: ColumnDef<Receipt>[] = [
                     classes:
                         'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
                 },
+                // ✅ CONFIGURACIÓN PARA NOTA DE VENTA
+                nota_venta: {
+                    label: 'N. Venta',
+                    classes:
+                        'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300',
+                },
                 credit_note: {
                     label: 'N. Crédito',
                     classes:
@@ -118,14 +125,17 @@ export const Columns: ColumnDef<Receipt>[] = [
                         'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300',
                 },
             };
+
             const config = typeConfig[type] || {
-                label: type,
-                classes: 'bg-gray-100',
+                label: type?.replace('_', ' ') || 'S/D',
+                classes:
+                    'bg-gray-100 text-gray-700 dark:bg-neutral-800 dark:text-neutral-400',
             };
+
             return (
                 <Badge
                     variant="outline"
-                    className={`text-[10px] font-bold uppercase ${config.classes}`}
+                    className={`text-[10px] font-bold uppercase shadow-none ${config.classes}`}
                 >
                     {config.label}
                 </Badge>
@@ -135,20 +145,42 @@ export const Columns: ColumnDef<Receipt>[] = [
     },
     {
         accessorKey: 'supplier.company_name',
-        header: 'Proveedor',
+        header: 'Entidad (Prov/Cli)',
         cell: ({ row }) => {
-            const supplier = row.original.supplier;
+            const receipt = row.original;
+            const supplier = receipt.supplier;
+            const sale = receipt.sale;
+
+            // Determinar nombre y documento (Prioriza proveedor, luego datos de la venta)
+            const name =
+                supplier?.company_name ||
+                sale?.receiver_name ||
+                'PÚBLICO GENERAL';
+            const document = supplier?.ruc || sale?.receiver_id_number || '-';
+
             return (
                 <div className="flex flex-col">
                     <span
-                        className="max-w-[180px] truncate text-sm font-bold"
-                        title={supplier?.company_name}
+                        className="max-w-[180px] truncate text-sm font-bold text-foreground"
+                        title={name}
                     >
-                        {supplier?.company_name || 'Desconocido'}
+                        {name}
                     </span>
-                    <span className="font-mono text-[10px] text-muted-foreground">
-                        {supplier?.ruc || '-'}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[10px] text-muted-foreground">
+                            {document}
+                        </span>
+                        {/* Badge minúsculo opcional para distinguir rápido */}
+                        {supplier ? (
+                            <span className="text-[9px] font-bold tracking-tighter text-blue-500/70 uppercase dark:text-blue-400/50">
+                                Prov
+                            </span>
+                        ) : sale ? (
+                            <span className="text-[9px] font-bold tracking-tighter text-emerald-500/70 uppercase dark:text-emerald-400/50">
+                                Cli
+                            </span>
+                        ) : null}
+                    </div>
                 </div>
             );
         },
@@ -164,7 +196,6 @@ export const Columns: ColumnDef<Receipt>[] = [
         ),
         size: 120,
     },
-    // ✅ --- NUEVA COLUMNA: ORIGEN (ORDEN DE COMPRA) ---
     {
         id: 'origin',
         header: 'Origen',

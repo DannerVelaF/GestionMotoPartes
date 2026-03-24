@@ -20,17 +20,25 @@ return new class extends Migration
             $table->unsignedBigInteger("id_sales");
             $table->foreign("id_sales")->references("id_sales")->on("sales")->onDelete('cascade');
 
-            // Ajuste: si el usuario se elimina, el detalle no se elimina
+            // ✅ Relación con Impuestos (IGV, Exonerado, etc.)
+            $table->unsignedBigInteger("id_tax")->nullable();
+            $table->foreign("id_tax")->references("id_tax")->on("taxes")->onDelete('restrict');
+
             $table->unsignedBigInteger("id_user")->nullable();
             $table->foreign("id_user")->references("id")->on("users")->onDelete('set null');
 
             $table->decimal('quantity', 10, 2);
-            $table->decimal('unit_price', 10, 2);
-            // El subtotal debe ser calculable si el producto no tiene descuento individual.
+            $table->decimal('unit_price', 10, 2); // Precio de venta incluyendo impuesto
+
+            // ✅ Monto del impuesto calculado para esta línea
+            $table->decimal('tax_amount', 10, 2)->default(0);
+
+            // El subtotal es el resultado de la cantidad por el precio unitario
             $table->decimal('subtotal', 10, 2)->virtualAs('quantity * unit_price');
 
             $table->timestamps();
 
+            // Evitar duplicados del mismo producto en la misma venta
             $table->unique(['id_sales', 'id_product']);
         });
     }

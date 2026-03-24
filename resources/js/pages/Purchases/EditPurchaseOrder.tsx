@@ -8,6 +8,7 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
@@ -30,14 +31,18 @@ import { cn } from '@/lib/utils';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { format } from 'date-fns';
 import {
+    Download,
     FileText,
     History,
     MessageSquare,
     PackageOpen,
+    Paperclip,
     Printer,
+    Search,
     ShoppingBag,
     Trash2,
-    Truck
+    Truck,
+    X,
 } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -180,13 +185,16 @@ export default function EditPurchaseOrder({
     }));
 
     const [rows, setRows] = useState<DetailRow[]>(initialRows);
-
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const {
         data,
         setData,
         errors,
         clearErrors,
         isDirty,
+        post: postAction,
+        processing: processingNote,
+        reset,
     } = useForm({
         id_supplier: String(order.id_supplier),
         po_code: order.po_code,
@@ -200,6 +208,7 @@ export default function EditPurchaseOrder({
         notes: order.notes || '',
         internal_note: '',
         status: order.status,
+        note_file: null as File | null,
     });
 
     const isServiceOrder = data.order_type === 'service';
@@ -267,21 +276,22 @@ export default function EditPurchaseOrder({
     };
 
     const submitNote = () => {
-        if (!data.internal_note.trim()) return;
-        router.post(
-            `/compras/ordenes/${order.id_purchase_order}/nota`,
-            { internal_note: data.internal_note },
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    setIsWritingNote(false);
-                    setData('internal_note', '');
-                },
+        if (!data.internal_note.trim() && !data.note_file) return;
+
+        postAction(`/compras/ordenes/${order.id_purchase_order}/nota`, {
+            preserveScroll: true,
+            forceFormData: true,
+            onSuccess: () => {
+                setIsWritingNote(false);
+                reset('internal_note', 'note_file');
+                router.reload({ only: ['order'] });
             },
-        );
+            onError: (errors) => {
+                setFormError(errors.error || 'Error al guardar la nota');
+            },
+        });
     };
 
-    // ✅ LÓGICA DE TOTALES (SUBTOTAL + IGV)
     const subTotal = rows.reduce(
         (acc, row) => acc + row.quantity * row.unit_cost,
         0,
@@ -721,12 +731,18 @@ export default function EditPurchaseOrder({
                                             onValueChange={handleCurrencyChange}
                                             disabled={isDone || isApproved}
                                         >
-                                            <SelectTrigger className={cleanInputClass}>
+                                            <SelectTrigger
+                                                className={cleanInputClass}
+                                            >
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="PEN">Soles (PEN)</SelectItem>
-                                                <SelectItem value="USD">Dólares (USD)</SelectItem>
+                                                <SelectItem value="PEN">
+                                                    Soles (PEN)
+                                                </SelectItem>
+                                                <SelectItem value="USD">
+                                                    Dólares (USD)
+                                                </SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </FormFieldRow>
@@ -735,16 +751,33 @@ export default function EditPurchaseOrder({
                                             type="number"
                                             step="0.001"
                                             value={data.exchange_rate}
-                                            onChange={(e) => onFieldChange('exchange_rate', e.target.value)}
-                                            disabled={data.currency === 'PEN' || isDone || isApproved}
+                                            onChange={(e) =>
+                                                onFieldChange(
+                                                    'exchange_rate',
+                                                    e.target.value,
+                                                )
+                                            }
+                                            disabled={
+                                                data.currency === 'PEN' ||
+                                                isDone ||
+                                                isApproved
+                                            }
                                             className={cleanInputClass}
                                         />
                                     </FormFieldRow>
                                     <FormFieldRow label="Fecha de Orden">
                                         <Input
                                             type="date"
-                                            value={format(data.issue_date, 'yyyy-MM-dd')}
-                                            onChange={(e) => onFieldChange('issue_date', new Date(e.target.value))}
+                                            value={format(
+                                                data.issue_date,
+                                                'yyyy-MM-dd',
+                                            )}
+                                            onChange={(e) =>
+                                                onFieldChange(
+                                                    'issue_date',
+                                                    new Date(e.target.value),
+                                                )
+                                            }
                                             disabled={isDone || isApproved}
                                             className={cleanInputClass}
                                         />
@@ -752,8 +785,24 @@ export default function EditPurchaseOrder({
                                     <FormFieldRow label="Llegada Esperada">
                                         <Input
                                             type="date"
-                                            value={data.expected_date ? format(data.expected_date, 'yyyy-MM-dd') : ''}
-                                            onChange={(e) => onFieldChange('expected_date', e.target.value ? new Date(e.target.value) : null)}
+                                            value={
+                                                data.expected_date
+                                                    ? format(
+                                                          data.expected_date,
+                                                          'yyyy-MM-dd',
+                                                      )
+                                                    : ''
+                                            }
+                                            onChange={(e) =>
+                                                onFieldChange(
+                                                    'expected_date',
+                                                    e.target.value
+                                                        ? new Date(
+                                                              e.target.value,
+                                                          )
+                                                        : null,
+                                                )
+                                            }
                                             disabled={isDone || isApproved}
                                             className={cleanInputClass}
                                         />
@@ -761,9 +810,17 @@ export default function EditPurchaseOrder({
                                     {order.actual_arrival_date && (
                                         <FormFieldRow label="Llegada Real">
                                             <Input
-                                                value={format(new Date(order.actual_arrival_date), 'dd/MM/yyyy')}
+                                                value={format(
+                                                    new Date(
+                                                        order.actual_arrival_date,
+                                                    ),
+                                                    'dd/MM/yyyy',
+                                                )}
                                                 disabled
-                                                className={cn(cleanInputClass, "border-emerald-200 text-emerald-700 font-bold")}
+                                                className={cn(
+                                                    cleanInputClass,
+                                                    'border-emerald-200 font-bold text-emerald-700',
+                                                )}
                                             />
                                         </FormFieldRow>
                                     )}
@@ -1182,22 +1239,12 @@ export default function EditPurchaseOrder({
                         <div className="z-10 flex shrink-0 items-center gap-1 border-b border-border bg-card p-2 shadow-sm">
                             <Button
                                 variant="ghost"
-                                className="h-8 text-xs font-bold text-muted-foreground"
+                                onClick={() => setIsWritingNote(!isWritingNote)}
+                                className="h-8 text-xs font-bold"
                             >
-                                Enviar mensaje
+                                <MessageSquare className="mr-1.5 h-3 w-3" />{' '}
+                                Registrar nota
                             </Button>
-                            {!(isDone || isApproved) && (
-                                <Button
-                                    variant="ghost"
-                                    onClick={() =>
-                                        setIsWritingNote(!isWritingNote)
-                                    }
-                                    className="h-8 text-xs font-bold"
-                                >
-                                    <MessageSquare className="mr-1.5 h-3 w-3" />{' '}
-                                    Registrar nota
-                                </Button>
-                            )}
                         </div>
                         {isWritingNote && (
                             <div className="animate-in border-b bg-background p-4 slide-in-from-top-2">
@@ -1206,23 +1253,85 @@ export default function EditPurchaseOrder({
                                     onChange={(e) =>
                                         setData('internal_note', e.target.value)
                                     }
-                                    className="w-full rounded-md border p-2 text-sm"
+                                    className="w-full rounded-md border p-2 text-sm focus:ring-1 focus:ring-emerald-500"
                                     rows={3}
-                                    placeholder="Nota interna..."
+                                    placeholder="Escriba la respuesta del proveedor o una nota..."
                                 />
-                                <div className="mt-2 flex justify-end">
-                                    <Button
-                                        size="sm"
-                                        onClick={submitNote}
-                                        className="h-8 bg-emerald-600 text-white"
-                                    >
-                                        Guardar nota
-                                    </Button>
+
+                                {/* ✅ INPUT DE ADJUNTO PARA LA NOTA */}
+                                <div className="mt-2 flex flex-col gap-2">
+                                    {data.note_file ? (
+                                        <div className="flex items-center justify-between rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                            <span className="flex items-center gap-1 truncate">
+                                                <Paperclip className="h-3 w-3" />{' '}
+                                                {data.note_file.name}
+                                            </span>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-5 w-5 text-emerald-700"
+                                                onClick={() =>
+                                                    setData('note_file', null)
+                                                }
+                                            >
+                                                <X className="h-3 w-3" />
+                                            </Button>
+                                        </div>
+                                    ) : (
+                                        <div className="relative">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-8 w-full border-dashed text-xs"
+                                            >
+                                                <Paperclip className="mr-1.5 h-3 w-3" />{' '}
+                                                Adjuntar Imagen o PDF
+                                            </Button>
+                                            <input
+                                                type="file"
+                                                accept="image/*,.pdf"
+                                                className="absolute inset-0 cursor-pointer opacity-0"
+                                                onChange={(e) =>
+                                                    setData(
+                                                        'note_file',
+                                                        e.target.files?.[0] ||
+                                                            null,
+                                                    )
+                                                }
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div className="flex justify-end gap-2">
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() =>
+                                                setIsWritingNote(false)
+                                            }
+                                            className="h-8 text-xs"
+                                        >
+                                            Cancelar
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            onClick={submitNote}
+                                            disabled={
+                                                processingNote ||
+                                                !data.internal_note.trim()
+                                            }
+                                            className="h-8 bg-emerald-600 text-white"
+                                        >
+                                            {processingNote
+                                                ? 'Guardando...'
+                                                : 'Guardar nota'}
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         )}
                         <div className="flex-1 space-y-6 overflow-y-auto p-6">
-                            {order.logs?.map((log) => (
+                            {order.logs?.map((log: any) => (
                                 <div
                                     key={log.id}
                                     className="relative border-l-2 pl-6 text-sm"
@@ -1245,9 +1354,50 @@ export default function EditPurchaseOrder({
                                             )}
                                         </span>
                                     </div>
-                                    <p className="leading-relaxed text-muted-foreground">
-                                        {log.notes || log.action}
+                                    <p className="leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                                        {log.notes}
                                     </p>
+
+                                    {log.file_path && (
+                                        <div className="mt-2">
+                                            {log.file_path.match(
+                                                /\.(jpeg|jpg|gif|png|webp)$/i,
+                                            ) ? (
+                                                <Dialog>
+                                                    <DialogTrigger asChild>
+                                                        <div className="relative w-48 cursor-zoom-in overflow-hidden rounded-md border transition-all hover:ring-2 hover:ring-emerald-500">
+                                                            <img
+                                                                src={`/storage/${log.file_path}`}
+                                                                alt="Adjunto"
+                                                                className="max-h-40 w-full object-cover"
+                                                            />
+                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/10 opacity-0 transition-opacity hover:opacity-100">
+                                                                <Search className="h-6 w-6 text-white" />
+                                                            </div>
+                                                        </div>
+                                                    </DialogTrigger>
+                                                    <DialogContent className="max-w-3xl border-none bg-transparent p-0 shadow-none">
+                                                        <img
+                                                            src={`/storage/${log.file_path}`}
+                                                            alt="Imagen expandida"
+                                                            className="h-auto w-full rounded-lg object-contain shadow-2xl"
+                                                        />
+                                                    </DialogContent>
+                                                </Dialog>
+                                            ) : (
+                                                <a
+                                                    href={`/storage/${log.file_path}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted"
+                                                >
+                                                    <FileText className="h-3.5 w-3.5 text-blue-500" />
+                                                    Ver PDF adjunto
+                                                    <Download className="ml-1 h-3 w-3" />
+                                                </a>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

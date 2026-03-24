@@ -127,7 +127,7 @@ export default function ListSales({ sales, filters }: Props) {
     };
 
     const handleCardClick = (sale: Sale) => {
-        router.visit(salesRoute.show({ sale: sale.id_sales }).url);
+        router.visit(salesRoute.show({ id: sale.id_sales }).url);
     };
 
     const toggleSelectionCustom = (id: number) => {

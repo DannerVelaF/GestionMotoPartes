@@ -117,7 +117,7 @@ class ReceiptController extends Controller
     }
 
     public function show($id) {
-        $allowedTypes = [DocumentType::INVOICE, DocumentType::RECEIPT, DocumentType::CREDIT_NOTE];
+        $allowedTypes = [DocumentType::INVOICE, DocumentType::RECEIPT, DocumentType::CREDIT_NOTE, DocumentType::NOTE];
 
         $receipt = Receipt::with([
             'details.product',
@@ -144,14 +144,20 @@ class ReceiptController extends Controller
         }
 
         $masterDocument = null;
+
         if ($receipt->id_purchase_order && $receipt->purchaseOrder) {
             $masterDocument = [
                 'type' => 'Orden Compra',
                 'code' => $receipt->purchaseOrder->po_code,
                 'url'  => "/compras/ordenes/{$receipt->id_purchase_order}"
             ];
+        } elseif ($receipt->id_sales && $receipt->sale) {
+            $masterDocument = [
+                'type' => 'Venta',
+                'code' => $receipt->sale->code_sales,
+                'url'  => "/ventas/{$receipt->id_sales}"
+            ];
         }
-
         return Inertia::render('Receipts/EditReceipt', [
             'receipt' => $receipt,
             'returnsCount' => $returnsCount,
@@ -222,7 +228,7 @@ class ReceiptController extends Controller
             return to_route('receipts.show', $id)->with('success', 'Comprobante actualizado correctamente.');
         } catch (\Exception $e) {
             Log::error("Error al actualizar recibo: " . $e->getMessage());
-            return back()->withErrors(['error' => 'Error al actualizar el comprobante.']);
+            return back()->withErrors(['error' => $e->getMessage()]);
         }
     }
     public function store(Request $request)

@@ -12,6 +12,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ReceiptService extends BaseService
 {
@@ -25,7 +26,17 @@ class ReceiptService extends BaseService
         return DB::transaction(function () use ($data) {
             $path = null;
             if (isset($data['file']) && $data['file'] instanceof UploadedFile) {
-                $path = $data['file']->store('receipts', 'public');
+                if ($receipt->receipt_path) {
+                    Storage::disk('public')->delete($receipt->receipt_path);
+                }
+
+                $originalName = pathinfo($data['file']->getClientOriginalName(), PATHINFO_FILENAME);
+                $extension = $data['file']->getClientOriginalExtension();
+
+                $cleanName = Str::slug($originalName, '_');
+                $fileName = time() . '_' . $cleanName . '.' . $extension;
+
+                $receipt->receipt_path = $data['file']->storeAs('receipts', $fileName, 'public');
             }
 
             $issueDate = Carbon::parse($data['issue_date']);
@@ -68,16 +79,47 @@ class ReceiptService extends BaseService
     {
         return DB::transaction(function () use ($data, $id) {
             $receipt = Receipt::findOrFail($id);
+            $isPublished = $receipt->status === 'published';
 
-            if ($receipt->status === 'published') {
-                throw new \Exception("No se puede editar un comprobante publicado.");
-            }
-
+            // 1. Manejo del Archivo (Siempre permitido)
             if (isset($data['file']) && $data['file'] instanceof UploadedFile) {
-                if ($receipt->receipt_path) Storage::disk('public')->delete($receipt->receipt_path);
-                $data['receipt_path'] = $data['file']->store('receipts', 'public');
+                if (isset($receipt) && $receipt->receipt_path) {
+                    Storage::disk('public')->delete($receipt->receipt_path);
+                }
+                $originalName = pathinfo($data['file']->getClientOriginalName(), PATHINFO_FILENAME);
+                $extension = $data['file']->getClientOriginalExtension();
+                $safeName = Str::slug($originalName);
+                $fileName = time() . '_' . $safeName . '.' . $extension;
+                $finalPath = $data['file']->storeAs('receipts', $fileName, 'public');
+
+                if (isset($receipt)) {
+                    $receipt->receipt_path = $finalPath;
+                } else {
+                    $path = $finalPath;
+                }
+            }
+            // 2. Si está publicado, solo actualizamos campos permitidos y salimos
+            if ($isPublished) {
+                $receipt->update([
+                    'issue_date' => Carbon::parse($data['issue_date']),
+                    'glosa'      => $data['glosa'] ?? $receipt->glosa,
+                    'series'     => strtoupper($data['series']),
+                    'number'     => $data['number'],
+                    // Agregamos el path si se subió uno nuevo
+                    'receipt_path' => $receipt->receipt_path
+                ]);
+
+                // Registramos un log de edición informativa
+                $receipt->logs()->create([
+                    'id_user' => Auth::id(),
+                    'action'  => 'Actualización',
+                    'notes'   => 'Se actualizó información de referencia (fecha/archivo) en comprobante publicado.'
+                ]);
+
+                return $receipt;
             }
 
+            // 3. Si NO está publicado, ejecutamos la actualización completa (original)
             $receipt->details()->delete();
 
             $issueDate = Carbon::parse($data['issue_date']);
@@ -93,9 +135,8 @@ class ReceiptService extends BaseService
                 'glosa'         => $data['glosa'] ?? null,
                 'issue_date'    => $issueDate,
                 'total_amount'  => $baseImponible * 1.18,
+                'receipt_path'  => $receipt->receipt_path
             ];
-
-            if (isset($data['receipt_path'])) $updateData['receipt_path'] = $data['receipt_path'];
 
             $receipt->update($updateData);
 
@@ -114,7 +155,6 @@ class ReceiptService extends BaseService
         });
     }
 
-    // ✅ NUEVO MÉTODO: Publicar y afectar Orden de Compra
     public function publishReceipt($id)
     {
         return DB::transaction(function () use ($id) {

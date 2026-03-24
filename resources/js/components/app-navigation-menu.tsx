@@ -20,6 +20,8 @@ import {
     Calculator,
     CalendarDays,
     Coins,
+    CreditCard,
+    FileText,
     Layers,
     Package,
     Percent,
@@ -37,11 +39,10 @@ import {
 export function AppNavigationMenu() {
     const { url } = usePage();
 
-    // 1. Detectar si estamos en el manual
+    // 1. Detectar si estamos en el manual o configuraciones globales
     const isManualModule = url.startsWith('/manual');
-    const isConfigModule = url.startsWith('/configuracion');
     const isDashboard = url === '/dashboard';
-    if (isManualModule || isConfigModule || isDashboard) return null;
+    if (isManualModule || isDashboard) return null;
 
     // --- Detección de Módulos ---
     const isProductsModule =
@@ -51,13 +52,18 @@ export function AppNavigationMenu() {
         url.startsWith('/tipos') ||
         url.startsWith('/proveedores');
 
-    const isSalesModule = url.startsWith('/ventas');
-    // ✅ Se incluye el nuevo prefijo de configuración de impuestos en el módulo de compras
+    const isInventoryModule = url.startsWith('/inventario');
+
+    // ✅ Ajuste: Detectamos impuestos para que no desaparezca el menú
+    const isSalesModule =
+        url.startsWith('/ventas') ||
+        url.startsWith('/compras/configuracion/impuestos');
+
     const isReceiptsModule =
         url.startsWith('/recibos') ||
         url.startsWith('/compras') ||
-        url.startsWith('/configuracion/impuestos');
-    const isInventoryModule = url.startsWith('/inventario');
+        url.startsWith('/compras/configuracion/impuestos');
+
     const isUsersModule =
         url.startsWith('/usuarios') || url.startsWith('/roles');
 
@@ -130,6 +136,22 @@ export function AppNavigationMenu() {
                     </MenubarContent>
                 </MenubarMenu>
 
+                {/* ✅ COMPROBANTES (GLOBAL) */}
+                <MenubarMenu>
+                    <MenubarTrigger className="cursor-pointer font-medium hover:bg-muted/50 data-[state=open]:bg-muted">
+                        Comprobantes
+                    </MenubarTrigger>
+                    <MenubarContent className="min-w-[180px]">
+                        <MenubarItem
+                            className={itemClass}
+                            onClick={() => router.visit('/recibos')}
+                        >
+                            <FileText className="h-4 w-4 text-blue-600" />{' '}
+                            Explorador General
+                        </MenubarItem>
+                    </MenubarContent>
+                </MenubarMenu>
+
                 {/* INVENTARIO */}
                 {isInventoryModule && (
                     <MenubarMenu>
@@ -142,11 +164,7 @@ export function AppNavigationMenu() {
                             </div>
                             <MenubarItem
                                 className={itemClass}
-                                onClick={() =>
-                                    router.visit(
-                                        '/inventario',
-                                    )
-                                }
+                                onClick={() => router.visit('/inventario')}
                             >
                                 <ArrowLeftRight className="h-4 w-4 text-emerald-600" />{' '}
                                 Stock por producto
@@ -155,15 +173,6 @@ export function AppNavigationMenu() {
                             <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
                                 Informes y Trazabilidad
                             </div>
-                            {/*<MenubarItem
-                                className={itemClass}
-                                onClick={() =>
-                                    router.visit('/inventario/movimientos')
-                                }
-                            >
-                                <Activity className="h-4 w-4 text-orange-600" />{' '}
-                                Kardex de Movimientos
-                            </MenubarItem>*/}
                             <MenubarItem
                                 className={itemClass}
                                 onClick={openKardexModal}
@@ -249,19 +258,34 @@ export function AppNavigationMenu() {
                                 </MenubarItem>
                             </MenubarContent>
                         </MenubarMenu>
+
                         <MenubarMenu>
                             <MenubarTrigger className="cursor-pointer font-bold text-fuchsia-700 hover:bg-fuchsia-50 dark:text-fuchsia-400 dark:hover:bg-fuchsia-950/30">
-                                Métodos de pago
+                                Configuración
                             </MenubarTrigger>
                             <MenubarContent className="min-w-[220px]">
+                                <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                                    Maestros y Finanzas
+                                </div>
                                 <MenubarItem
                                     className={itemClass}
                                     onClick={() =>
                                         router.visit('/ventas/metodoPago')
                                     }
                                 >
-                                    <CalendarDays className="h-4 w-4 text-fuchsia-600" />{' '}
+                                    <CreditCard className="h-4 w-4 text-fuchsia-600" />{' '}
                                     Métodos de pago
+                                </MenubarItem>
+                                <MenubarItem
+                                    className={itemClass}
+                                    onClick={() =>
+                                        router.visit(
+                                            '/compras/configuracion/impuestos',
+                                        )
+                                    }
+                                >
+                                    <Coins className="h-4 w-4 text-slate-600" />{' '}
+                                    Configuración de Impuestos
                                 </MenubarItem>
                             </MenubarContent>
                         </MenubarMenu>
@@ -269,91 +293,101 @@ export function AppNavigationMenu() {
                 )}
 
                 {/* COMPRAS / RECIBOS */}
-                {isReceiptsModule && (
-                    <MenubarMenu>
-                        <MenubarTrigger className="cursor-pointer font-bold text-purple-700 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-950/30">
-                            Gestión de Compras
-                        </MenubarTrigger>
-                        <MenubarContent className="min-w-[220px] dark:border-neutral-800">
-                            <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                                Finanzas y Auditoría
-                            </div>
-                            <MenubarItem
-                                className={itemClass}
-                                onClick={() =>
-                                    router.visit(
-                                        '/recibos/reportes/distribucion',
-                                    )
-                                }
-                            >
-                                <PieChartIcon className="h-4 w-4 text-amber-500" />{' '}
-                                Estructura de Gastos
-                            </MenubarItem>
-                            <MenubarItem
-                                className={itemClass}
-                                onClick={() =>
-                                    router.visit('/recibos/reportes/impuestos')
-                                }
-                            >
-                                <Percent className="h-4 w-4 text-emerald-600" />{' '}
-                                Libro de Compras (IGV)
-                            </MenubarItem>
-                            <MenubarItem
-                                className={itemClass}
-                                onClick={() =>
-                                    router.visit('/recibos/reportes/margen')
-                                }
-                            >
-                                <TrendingUp className="h-4 w-4 text-blue-600" />{' '}
-                                Margen y Rentabilidad
-                            </MenubarItem>
+                {isReceiptsModule && !isSalesModule && (
+                    <>
+                        <MenubarMenu>
+                            <MenubarTrigger className="cursor-pointer font-bold text-purple-700 hover:bg-purple-50 dark:text-purple-400 dark:hover:bg-purple-950/30">
+                                Gestión de Compras
+                            </MenubarTrigger>
+                            <MenubarContent className="min-w-[220px] dark:border-neutral-800">
+                                <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                                    Finanzas y Auditoría
+                                </div>
+                                <MenubarItem
+                                    className={itemClass}
+                                    onClick={() =>
+                                        router.visit(
+                                            '/recibos/reportes/distribucion',
+                                        )
+                                    }
+                                >
+                                    <PieChartIcon className="h-4 w-4 text-amber-500" />{' '}
+                                    Estructura de Gastos
+                                </MenubarItem>
+                                <MenubarItem
+                                    className={itemClass}
+                                    onClick={() =>
+                                        router.visit(
+                                            '/recibos/reportes/impuestos',
+                                        )
+                                    }
+                                >
+                                    <Percent className="h-4 w-4 text-emerald-600" />{' '}
+                                    Libro de Compras (IGV)
+                                </MenubarItem>
+                                <MenubarItem
+                                    className={itemClass}
+                                    onClick={() =>
+                                        router.visit('/recibos/reportes/margen')
+                                    }
+                                >
+                                    <TrendingUp className="h-4 w-4 text-blue-600" />{' '}
+                                    Margen y Rentabilidad
+                                </MenubarItem>
 
-                            <MenubarSeparator className="my-1 h-px bg-muted dark:bg-neutral-800" />
+                                <MenubarSeparator className="my-1 h-px bg-muted dark:bg-neutral-800" />
 
-                            <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                                Gestión de Suministros
-                            </div>
-                            <MenubarItem
-                                className={itemClass}
-                                onClick={() =>
-                                    router.visit(
-                                        '/recibos/reportes/proveedores',
-                                    )
-                                }
-                            >
-                                <Truck className="h-4 w-4 text-purple-600" />{' '}
-                                Ranking de Proveedores
-                            </MenubarItem>
-                            <MenubarItem
-                                className={itemClass}
-                                onClick={() =>
-                                    router.visit(
-                                        '/recibos/reportes/variacionCosto',
-                                    )
-                                }
-                            >
-                                <Activity className="h-4 w-4 text-orange-600" />{' '}
-                                Variación de Costos
-                            </MenubarItem>
+                                <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                                    Gestión de Suministros
+                                </div>
+                                <MenubarItem
+                                    className={itemClass}
+                                    onClick={() =>
+                                        router.visit(
+                                            '/recibos/reportes/proveedores',
+                                        )
+                                    }
+                                >
+                                    <Truck className="h-4 w-4 text-purple-600" />{' '}
+                                    Ranking de Proveedores
+                                </MenubarItem>
+                                <MenubarItem
+                                    className={itemClass}
+                                    onClick={() =>
+                                        router.visit(
+                                            '/recibos/reportes/variacionCosto',
+                                        )
+                                    }
+                                >
+                                    <Activity className="h-4 w-4 text-orange-600" />{' '}
+                                    Variación de Costos
+                                </MenubarItem>
+                            </MenubarContent>
+                        </MenubarMenu>
 
-                            {/* ✅ SECCIÓN AGREGADA: CONFIGURACIÓN DE COMPRAS */}
-                            <MenubarSeparator className="my-1 h-px bg-muted dark:bg-neutral-800" />
-                            <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
-                                Maestros
-                            </div>
-                            <MenubarItem
-                                className={itemClass}
-                                onClick={() =>
-                                    router.visit(
-                                        '/compras/configuracion/impuestos',
-                                    )
-                                }
-                            >
-                                <Coins className="h-4 w-4 text-slate-600" />{' '}
-                                Configuración de Impuestos
-                            </MenubarItem>
-                        </MenubarContent>
-                    </MenubarMenu>
+                        {/* ✅ NUEVO MENÚ DE CONFIGURACIÓN PARA COMPRAS */}
+                        <MenubarMenu>
+                            <MenubarTrigger className="cursor-pointer font-bold text-fuchsia-700 hover:bg-fuchsia-50 dark:text-fuchsia-400 dark:hover:bg-fuchsia-950/30">
+                                Configuración
+                            </MenubarTrigger>
+                            <MenubarContent className="min-w-[220px]">
+                                <div className="px-3 py-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
+                                    Maestros
+                                </div>
+                                <MenubarItem
+                                    className={itemClass}
+                                    onClick={() =>
+                                        router.visit(
+                                            '/compras/configuracion/impuestos',
+                                        )
+                                    }
+                                >
+                                    <Coins className="h-4 w-4 text-slate-600" />{' '}
+                                    Configuración de Impuestos
+                                </MenubarItem>
+                            </MenubarContent>
+                        </MenubarMenu>
+                    </>
                 )}
 
                 {/* ADMINISTRACIÓN */}

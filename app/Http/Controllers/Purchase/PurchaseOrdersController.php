@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Storage;
 
 class PurchaseOrdersController extends Controller
 {
@@ -191,9 +192,83 @@ class PurchaseOrdersController extends Controller
 
     public function addNote(Request $request, $id)
     {
-        $request->validate(['internal_note' => 'required|string']);
-        $this->service->registerNote($id, $request->internal_note);
-        return back()->with('success', 'Nota agregada.');
+        try {
+            // Log 1: Inicio del proceso
+            \Log::info("--- INICIO PROCESO ADD_NOTE OC: {$id} ---");
+
+            $validated = $request->validate([
+                'internal_note' => 'required|string|max:1000',
+                'note_file'     => 'nullable|file|mimes:pdf,jpg,png,jpeg|max:5120',
+            ]);
+
+            $order = PurchaseOrder::findOrFail($id);
+
+            $filePath = null;
+
+            // Log 2: Verificar si el archivo viene en la request
+            \Log::info("¿Viene archivo en request?: " . ($request->hasFile('note_file') ? 'SÍ' : 'NO'));
+
+            if ($request->hasFile('note_file')) {
+                $file = $request->file('note_file');
+
+                // Log 3: Datos del archivo recibido
+                \Log::info("Datos archivo original:", [
+                    'name' => $file->getClientOriginalName(),
+                    'size' => $file->getSize(),
+                    'mime' => $file->getMimeType()
+                ]);
+
+                $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+                $safeName = \Illuminate\Support\Str::slug($originalName) . '_' . time();
+                $extension = $file->getClientOriginalExtension();
+                $fileName = "{$safeName}.{$extension}";
+
+                $directory = 'orders/notes';
+
+                // Log 4: Ruta donde se intentará guardar
+                \Log::info("Intentando guardar en: public/{$directory}/{$fileName}");
+
+                // Intentamos el guardado
+                $path = $file->storeAs($directory, $fileName, 'public');
+
+                if ($path) {
+                    $filePath = $path;
+                    \Log::info("✅ Archivo guardado con éxito en: " . $path);
+
+                    // Log 5: Verificar si el archivo existe físicamente después de guardarlo
+                    $exists = \Illuminate\Support\Facades\Storage::disk('public')->exists($path);
+                    \Log::info("¿El archivo existe físicamente en el disco public?: " . ($exists ? 'SÍ' : 'NO'));
+                } else {
+                    \Log::error("❌ El método storeAs devolvió false.");
+                }
+            }
+
+            $order->logs()->create([
+                'id_user'   => Auth::id(),
+                'action'    => 'Nota',
+                'notes'     => $validated['internal_note'],
+                'file_path' => $filePath,
+            ]);
+
+            \Log::info("--- FIN PROCESO EXITOSO ---");
+
+            return back()->with('success', 'Nota registrada correctamente.');
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            \Log::error("❌ Error de Validación:", $e->errors());
+            throw $e;
+        } catch (\Exception $e) {
+            // Log 6: Error crítico
+            \Log::error("❌ EXCEPCIÓN EN ADD_NOTE:", [
+                'mensaje' => $e->getMessage(),
+                'linea' => $e->getLine(),
+                'file' => $e->getFile()
+            ]);
+
+            return back()->withErrors([
+                'error' => 'No se pudo registrar la nota: ' . $e->getMessage()
+            ]);
+        }
     }
 
     public function approve(Request $request, $id)

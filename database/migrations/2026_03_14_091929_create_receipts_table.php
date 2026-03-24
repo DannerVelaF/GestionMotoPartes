@@ -16,7 +16,7 @@ return new class extends Migration
             $table->id("id_receipt");
             $table->string("receipt_code"); // Código interno del sistema (REC-XXXX)
 
-            $table->unsignedBigInteger("id_supplier");
+            $table->unsignedBigInteger("id_supplier")->nullable();
             $table->foreign("id_supplier")->references("id_supplier")->on("suppliers");
 
             $table->unsignedBigInteger("id_purchase_order")->nullable();
@@ -37,6 +37,9 @@ return new class extends Migration
 
             $table->enum("document_type", array_column(DocumentType::cases(), "value"))->default(DocumentType::RECEIPT->value);
             $table->string('receipt_path')->nullable();
+
+            $table->unsignedBigInteger("id_sales")->nullable();
+            $table->foreign("id_sales")->references("id_sales")->on("sales")->onDelete('set null');
 
             $table->enum('currency', ['PEN', 'USD'])->default('PEN');
             $table->decimal('exchange_rate', 10, 4)->default(1.0000);

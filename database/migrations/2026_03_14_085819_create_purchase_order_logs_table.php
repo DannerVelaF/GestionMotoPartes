@@ -22,7 +22,7 @@ return new class extends Migration
             $table->text('new_value')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
-
+            $table->string('file_path')->nullable();
             $table->foreign('id_purchase_order')->references('id_purchase_order')->on('purchase_orders')->onDelete('cascade');
             $table->foreign('id_user')->references('id')->on('users');
         });

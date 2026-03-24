@@ -389,7 +389,7 @@ class InventoryMovementsController extends Controller
                 $masterDocument = [
                     'type' => 'VENTA',
                     'code' => $adjustment->source->code_sales ?? 'Ver Venta',
-                    'url'  => "/ventas/pedido/{$adjustment->source_document_id}"
+                    'url'  => "/ventas/{$adjustment->source_document_id}"
                 ];
             }
         }

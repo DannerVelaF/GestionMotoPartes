@@ -15,38 +15,30 @@ return new class extends Migration
     {
         Schema::create('sales', function (Blueprint $table) {
             $table->id("id_sales");
-
-            // --- Campos del Documento ---
-            $table->enum("document_type", array_column(DocumentType::cases(), "value"))->default(DocumentType::RECEIPT->value);
-            $table->string('series', 5);
-            $table->string('number', 10);
-
-            // Asegurar que la referencia (serie + número) sea única por tipo de documento
-            $table->unique(['document_type', 'series', 'number']);
-
-            // --- Información del Receptor/Cliente ---
-            $table->string('receiver_id_number', 20)->nullable()->comment('DNI o RUC del cliente');
-            $table->string('receiver_name', 255)->nullable()->comment('Nombre o Razon Social del cliente');
-            $table->string('receiver_address', 255)->nullable();
-
-            // --- Otros Campos ---
-            $table->string("code_sales")->unique();
+            $table->string("code_sales")->unique(); // VEN-202603-0001 (Control interno)
             $table->dateTime("date_sales");
 
-            $table->decimal("subtotal", 10, 2);
-            $table->decimal("tax", 10, 2);
-            $table->decimal("discount", 10, 2)->default(0);
-            $table->decimal("total", 10, 2);
+            // Información del Cliente
+            $table->string('receiver_id_number', 20)->nullable();
+            $table->string('receiver_name', 255)->nullable();
+            $table->string('receiver_address', 255)->nullable();
+
+            // Totales
+            $table->decimal("subtotal", 12, 2);
+            $table->decimal("tax", 12, 2);
+            $table->decimal("discount", 12, 2)->default(0);
+            $table->decimal("total", 12, 2);
 
             $table->unsignedBigInteger("id_method_payment")->nullable();
             $table->foreign("id_method_payment")->references("id_method_payment")->on("method_payments")->onDelete("set null");
 
-            $table->enum("status", array_column(SalesStatus::cases(), 'value'))
-                ->default(SalesStatus::PENDING->value);
+            // Estado: draft (cotización), completed (venta hecha), cancelled
+            $table->string('status')->default('draft');
 
             $table->unsignedBigInteger("id_user")->nullable();
             $table->foreign("id_user")->references("id")->on("users")->onDelete("set null");
 
+            $table->timestamp('completed_at')->nullable();
             $table->timestamps();
         });
     }

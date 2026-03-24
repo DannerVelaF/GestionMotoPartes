@@ -15,7 +15,8 @@ class PurchaseOrderLog extends Model
         'field_changed',
         'old_value',
         'new_value',
-        'notes'
+        'notes',
+        'file_path'
     ];
 
     public function user()
