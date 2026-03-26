@@ -1,4 +1,3 @@
-import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { router } from '@inertiajs/react';
 import { ColumnDef } from '@tanstack/react-table';
@@ -22,34 +21,6 @@ const formatCurrency = (value: number) => {
 };
 
 export const InventoryColumns: ColumnDef<InventoryItem>[] = [
-    {
-        id: 'select',
-        header: ({ table }) => (
-            <Checkbox
-                checked={
-                    table.getIsAllPageRowsSelected() ||
-                    (table.getIsSomePageRowsSelected() && 'indeterminate')
-                }
-                onCheckedChange={(value) =>
-                    table.toggleAllPageRowsSelected(!!value)
-                }
-                aria-label="Select all"
-                className="border-slate-300 dark:border-slate-600"
-            />
-        ),
-        cell: ({ row }) => (
-            <Checkbox
-                checked={row.getIsSelected()}
-                onCheckedChange={(value) => row.toggleSelected(!!value)}
-                aria-label="Select row"
-                onClick={(e) => e.stopPropagation()}
-                className="border-slate-300 dark:border-slate-600"
-            />
-        ),
-        enableSorting: false,
-        enableHiding: false,
-        size: 40,
-    },
     {
         accessorKey: 'product_code',
         header: 'SKU',
@@ -78,7 +49,6 @@ export const InventoryColumns: ColumnDef<InventoryItem>[] = [
                         onClick={handleNavigateToMovements}
                         className="text-left decoration-blue-500 underline-offset-4 hover:cursor-pointer hover:underline"
                     >
-                        {/* Azul oscuro en Light, Azul claro neón en Dark */}
                         <span className="mb-1 text-sm leading-none font-bold text-blue-600 capitalize dark:text-blue-400">
                             {productName}
                         </span>
@@ -132,7 +102,6 @@ export const InventoryColumns: ColumnDef<InventoryItem>[] = [
         accessorKey: 'sale_price',
         header: () => <div className="text-right">P. Venta</div>,
         cell: ({ row }) => (
-            // Texto oscuro en light, claro en dark
             <div className="text-right text-sm font-bold text-blue-900 tabular-nums dark:text-blue-100">
                 {formatCurrency(Number(row.original.sale_price || 0))}
             </div>
@@ -195,9 +164,7 @@ export const InventoryColumns: ColumnDef<InventoryItem>[] = [
                     <div
                         className={cn(
                             'rounded px-2 py-0.5 text-right font-bold tabular-nums',
-                            // LIGHT: Fondo azul muy suave, texto azul medio
                             'bg-blue-50 text-blue-700',
-                            // DARK: Fondo azul profundo translúcido, texto azul claro
                             'dark:bg-blue-900/30 dark:text-blue-300',
                         )}
                     >

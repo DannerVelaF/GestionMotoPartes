@@ -13,21 +13,23 @@ class ProductTemplateExport implements WithHeadings, WithStyles, WithEvents
     public function headings(): array
     {
         return [
-            'Nombre',      // A
-            'Codigo',      // B
-            'Precio',      // C
-            'Stock',       // D
-            'Categoria',   // E
-            'Marca',       // F
-            'Tipo',        // G
-            'Notas',       // H
+            'Nombre',         // A
+            'Codigo',         // B
+            'Precio Venta',   // C
+            'Precio Compra',  // D (NUEVA)
+            'Stock',          // E
+            'Categoria',      // F
+            'Marca',          // G
+            'Tipo',           // H
+            'Notas',          // I
         ];
     }
 
     public function styles(Worksheet $sheet)
     {
         $sheet->getStyle('1')->getFont()->setBold(true);
-        foreach (range('A', 'H') as $column) {
+        // Ajustamos el rango de columnas hasta la I
+        foreach (range('A', 'I') as $column) {
             $sheet->getColumnDimension($column)->setAutoSize(true);
         }
         return [];
@@ -37,12 +39,13 @@ class ProductTemplateExport implements WithHeadings, WithStyles, WithEvents
     {
         return [
             AfterSheet::class => function (AfterSheet $event) {
-                // Opcional: Validación para que no metan texto en Precio (Columna C)
+                // Validación para Precio Venta (C) y Precio Compra (D)
                 $validation = $event->sheet->getCell('C2')->getDataValidation();
                 $validation->setType(\PhpOffice\PhpSpreadsheet\Cell\DataValidation::TYPE_DECIMAL);
                 $validation->setErrorTitle('Error de formato');
-                $validation->setError('Debe ser un número (ej: 15.00)');
-                $event->sheet->setDataValidation('C2:C500', $validation);
+                $validation->setError('Debe ser un número decimal');
+
+                $event->sheet->setDataValidation('C2:D500', $validation);
             },
         ];
     }

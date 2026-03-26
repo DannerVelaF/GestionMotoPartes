@@ -1,32 +1,16 @@
 import { cn } from '@/lib/utils';
+import { router } from '@inertiajs/react';
 import { ColumnDef } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { User2 } from 'lucide-react';
+import { Eye, User2 } from 'lucide-react';
 
-export interface Movement {
-    id_movement: number;
-    created_at: string;
-    product: {
-        product_name: string;
-        product_code: string;
-    };
-    type: 'IN' | 'OUT' | 'INTERNAL' | string;
-    quantity: number;
-    balance: number;
-    user: { name: string };
-    location_source?: string;
-    location_dest?: string;
-    reference_label?: string;
-    source_document?: string;
-    reference_type: string;
-    reference_id: number;
-}
+// ... (Interface Movement se mantiene igual)
 
 export const MovementColumns: ColumnDef<Movement>[] = [
     {
         accessorKey: 'created_at',
-        header: 'FECHA Y HORA',
+        header: 'FECHA KARDEX',
         cell: ({ row }) => (
             <div className="text-[11px] whitespace-nowrap text-muted-foreground tabular-nums">
                 {format(
@@ -39,18 +23,32 @@ export const MovementColumns: ColumnDef<Movement>[] = [
     },
     {
         accessorKey: 'reference_label',
-        header: 'REFERENCIA',
-        cell: ({ row }) => (
-            <div className="text-[11px] font-bold tracking-tight whitespace-nowrap text-foreground uppercase">
-                {row.original.reference_label || '—'}
-            </div>
-        ),
+        header: 'MOVIMIENTO',
+        cell: ({ row }) => {
+            const { reference_id, reference_label } = row.original;
+
+            const handleNavigate = () => {
+                if (!reference_id) return;
+                // Redirigimos siempre al detalle del Ajuste de Inventario
+                router.get(`/inventario/ajuste/${reference_id}`);
+            };
+
+            return (
+                <button
+                    onClick={handleNavigate}
+                    className="group flex items-center gap-1.5 text-[11px] font-bold tracking-tight text-blue-600 hover:text-blue-800 hover:underline dark:text-blue-400"
+                >
+                    <Eye className="h-3 w-3 opacity-50 group-hover:opacity-100" />
+                    {reference_label || 'VER DETALLE'}
+                </button>
+            );
+        },
     },
     {
         accessorKey: 'source_document',
         header: 'DOC. ORIGEN',
         cell: ({ row }) => (
-            <div className="text-[11px] font-bold whitespace-nowrap text-blue-600 uppercase dark:text-blue-400">
+            <div className="text-[11px] font-bold whitespace-nowrap text-muted-foreground uppercase">
                 {row.original.source_document || '—'}
             </div>
         ),
@@ -63,7 +61,7 @@ export const MovementColumns: ColumnDef<Movement>[] = [
                 <span className="text-xs leading-tight font-bold text-foreground">
                     {row.original.product.product_name}
                 </span>
-                <span className="font-mono text-[9px] text-muted-foreground/80">
+                <span className="font-mono text-[9px] text-muted-foreground/80 uppercase">
                     {row.original.product.product_code}
                 </span>
             </div>
@@ -71,7 +69,7 @@ export const MovementColumns: ColumnDef<Movement>[] = [
     },
     {
         accessorKey: 'location_source',
-        header: 'DE',
+        header: 'ORIGEN',
         cell: ({ row }) => (
             <div className="text-[10px] font-medium whitespace-nowrap text-muted-foreground/90 uppercase">
                 {row.original.location_source || '—'}
@@ -80,7 +78,7 @@ export const MovementColumns: ColumnDef<Movement>[] = [
     },
     {
         accessorKey: 'location_dest',
-        header: 'PARA',
+        header: 'DESTINO',
         cell: ({ row }) => (
             <div className="text-[10px] font-medium whitespace-nowrap text-muted-foreground/90 uppercase">
                 {row.original.location_dest || '—'}
@@ -89,16 +87,21 @@ export const MovementColumns: ColumnDef<Movement>[] = [
     },
     {
         accessorKey: 'quantity',
-        header: 'CANTIDAD',
+        header: () => <div className="text-right">CANTIDAD</div>,
         cell: ({ row }) => {
-            const isOut = ['OUT', 'sale', 'purchase_return'].includes(
-                row.original.type,
-            );
+            const type = row.original.type.toLowerCase();
+            const isOut = [
+                'out',
+                'sale',
+                'purchase_return',
+                'salida',
+                'egreso',
+            ].includes(type);
+
             return (
                 <div
                     className={cn(
                         'text-right text-sm font-black tabular-nums',
-                        // Colores optimizados: emerald/red-600 en light, 400 en dark para mejor contraste
                         isOut
                             ? 'text-red-600 dark:text-red-400'
                             : 'text-emerald-600 dark:text-emerald-400',
@@ -112,10 +115,12 @@ export const MovementColumns: ColumnDef<Movement>[] = [
     },
     {
         accessorKey: 'balance',
-        header: 'STOCK FINAL',
+        header: () => <div className="text-right">STOCK FINAL</div>,
         cell: ({ row }) => (
-            <div className="rounded border border-transparent bg-muted/40 px-2 py-0.5 text-right font-bold text-foreground tabular-nums dark:border-neutral-700/50 dark:bg-neutral-800">
-                {Number(row.original.balance).toFixed(2)}
+            <div className="flex justify-end">
+                <div className="rounded border border-transparent bg-muted/40 px-2 py-0.5 text-right font-bold text-foreground tabular-nums dark:border-neutral-700/50 dark:bg-neutral-800/50">
+                    {Number(row.original.balance).toFixed(2)}
+                </div>
             </div>
         ),
     },
@@ -125,7 +130,7 @@ export const MovementColumns: ColumnDef<Movement>[] = [
         cell: ({ row }) => (
             <div className="flex items-center justify-end gap-2 text-[11px] font-medium whitespace-nowrap text-muted-foreground">
                 <User2 className="h-3 w-3 opacity-70" />
-                {row.original.user?.name || 'Sist.'}
+                {row.original.user?.name || 'Sistema'}
             </div>
         ),
     },

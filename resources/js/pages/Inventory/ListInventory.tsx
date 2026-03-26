@@ -155,35 +155,6 @@ export default function ListInventory({ inventory, filters }: Props) {
                             />
                         </div>
 
-                        {/* ✅ BOTÓN ACTUALIZADO: Redirige a la Trazabilidad / Movimientos */}
-                        <Button
-                            variant="default"
-                            className="h-9 bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-600"
-                            onClick={() =>
-                                router.visit('/inventario/movimientos')
-                            }
-                        >
-                            <History className="mr-2 h-4 w-4" />
-                            Ver Trazabilidad
-                        </Button>
-
-                        <Button
-                            variant={selectedCount > 0 ? 'default' : 'outline'}
-                            className={cn(
-                                'h-9 transition-all',
-                                selectedCount > 0
-                                    ? 'bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:text-white'
-                                    : 'border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-400 dark:hover:bg-blue-950/30',
-                            )}
-                            disabled={selectedCount === 0}
-                            onClick={handleExport}
-                        >
-                            <FileDown className="mr-2 h-4 w-4" />
-                            {selectedCount > 0
-                                ? `Exportar (${selectAllGlobal ? inventory.total : selectedCount})`
-                                : 'Exportar'}
-                        </Button>
-
                         {/* PAGINACIÓN */}
                         <div className="flex items-center gap-2 border-l border-border pl-4 text-sm text-muted-foreground tabular-nums">
                             <span>
