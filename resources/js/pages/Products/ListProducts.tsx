@@ -629,7 +629,7 @@ export default function ListProducts({ products, filters }: Props) {
                                                 <Download className="mr-2 h-4 w-4" />
                                                 <span>Importar</span>
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem
+                                            {/*<DropdownMenuItem
                                                 onClick={() =>
                                                     console.log(
                                                         'Lógica de exportar',
@@ -638,7 +638,7 @@ export default function ListProducts({ products, filters }: Props) {
                                             >
                                                 <Layers className="mr-2 h-4 w-4" />
                                                 <span>Exportar catálogo</span>
-                                            </DropdownMenuItem>
+                                            </DropdownMenuItem>*/}
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </div>
