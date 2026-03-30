@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
+use App\Http\Controllers\NotificationController;
 
 // Route::get('/', function () {
 //     return Inertia::render('welcome', [
@@ -14,6 +15,21 @@ Route::get("/", function () {
     return redirect()->route('dashboard');
 })->name('home');
 
+Broadcast::routes(['middleware' => ['auth', 'web']]);
+
+Route::middleware(['auth'])->group(function () {
+    // Página principal de historial
+    Route::get('/notificaciones', [NotificationController::class, 'index'])->name('notifications.index');
+
+    // Marcar una como leída (usada por la campana y el historial)
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
+
+    // Marcar todas como leídas
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead'])->name('notifications.read-all');
+
+    // Opcional: Eliminar una notificación
+    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', DashboardController::class)->name('dashboard');

@@ -21,6 +21,24 @@ export default defineConfig({
             formVariants: true,
         }),
     ],
+    server: {
+        host: '127.0.0.1',
+        port: 5173,
+        strictPort: true,
+        origin: 'http://127.0.0.1:5173',
+        cors: {
+            origin: '*', // Permitir peticiones desde el servidor de Laravel
+            methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+            allowedHeaders: [
+                'Content-Type',
+                'Authorization',
+                'X-Requested-With',
+            ],
+        },
+        hmr: {
+            host: '127.0.0.1',
+        },
+    },
     esbuild: {
         jsx: 'automatic',
     },

@@ -12,10 +12,13 @@ use App\Models\Receipt;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Models\BusinessConfig; // Importar el modelo BusinessConfig
+use App\Notifications\OrderApproved;
+use App\Notifications\OrderPendingApproval;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 
@@ -92,6 +95,16 @@ class PurchaseOrdersController extends Controller
 
         try {
             $order = $this->service->createOrder($validated);
+            $order->refresh();
+            if ($validated['status'] === 'sent') {
+                $approvers = User::whereHas('role', function ($query) {
+                    $query->where('name', 'admin');
+                })->get();
+
+                if ($approvers->isNotEmpty()) {
+                    Notification::send($approvers, new OrderPendingApproval($order));
+                }
+            }
             return redirect()->route('purchase-orders.show', ['purchaseOrder' => $order->id_purchase_order])
                 ->with('success', 'Orden creada correctamente.');
         } catch (\Exception $e) {
@@ -165,10 +178,25 @@ class PurchaseOrdersController extends Controller
                 'details.*.suggested_sale_price' => 'nullable|numeric',
             ]);
 
-            // LOG 2: Si llega aquí, la validación pasó
-            Log::info("Validación exitosa para OC ID: {$id}", ['validated_data' => $validated]);
+            $order = PurchaseOrder::findOrFail($id);
+            $oldStatus = $order->status;
 
             $this->service->updateOrder($validated, $id);
+
+            $order->refresh();
+
+            if ($validated['status'] === 'sent' && $oldStatus !== 'sent') {
+
+                // Buscamos usuarios con rol 'admin' (ajusta según tu tabla de roles)
+                $approvers = User::whereHas('role', function ($query) {
+                    $query->where('name', 'admin');
+                })->get();
+
+                if ($approvers->isNotEmpty()) {
+                    Notification::send($approvers, new OrderPendingApproval($order));
+                    Log::info("Notificación de aprobación enviada para OC: {$order->po_code}");
+                }
+            }
 
             return back()->with('success', 'Orden actualizada.');
 
@@ -274,7 +302,16 @@ class PurchaseOrdersController extends Controller
     public function approve(Request $request, $id)
     {
         try {
+            $order = PurchaseOrder::findOrFail($id);
+
             $this->service->approveOrder($id);
+
+            $order->refresh();
+
+            if ($order->creator) {
+                $order->creator->notify(new OrderApproved($order));
+            }
+
             return back()->with('success', 'Orden aprobada correctamente.');
         } catch (\Exception $e) {
             Log::error('Error approving PO: ' . $e->getMessage());

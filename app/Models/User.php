@@ -97,4 +97,9 @@ class User extends Authenticatable
 
         return $this->role ? $this->role->hasPermission($permission) : false;
     }
+
+    public function unreadNotifications()
+    {
+        return $this->notifications()->whereNull('read_at');
+    }
 }

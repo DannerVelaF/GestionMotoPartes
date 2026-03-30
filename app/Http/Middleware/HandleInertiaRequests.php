@@ -46,8 +46,19 @@ class HandleInertiaRequests extends Middleware
             'quote' => ['message' => trim($message), 'author' => trim($author)],
 
             'auth' => [
-                'user' => $user ? $user->load('role') : null,
-
+                'user' => $user ? [
+                    'id' => $user->id,
+                    'id_user' => $user->id_user,
+                    'name' => $user->name,
+                    'role' => $user->load('role'),
+                    'notifications' => $user->unreadNotifications->map(function ($n) {
+                        return [
+                            'id' => $n->id,
+                            'data' => $n->data,
+                            'created_at' => $n->created_at,
+                        ];
+                    }),
+                ] : null,
                 'permissions' => ($user && $user->role)
                     ? $user->role->permissions->pluck('name')->toArray()
                     : [],
