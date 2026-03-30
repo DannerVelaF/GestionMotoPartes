@@ -1,4 +1,5 @@
-import { FloatingAlert } from '@/components/FloatingAlert'; // ✅ Usando el componente que creamos
+import { FloatingAlert } from '@/components/FloatingAlert';
+import { usePermission } from '@/hooks/usePermission';
 import { SearchableSelect } from '@/components/SearchableSelect';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,7 +39,7 @@ import {
     PackageOpen,
     Paperclip,
     Printer,
-    Search,
+    Search, Shield,
     ShoppingBag,
     Trash2,
     Truck,
@@ -140,6 +141,7 @@ export default function EditPurchaseOrder({
     products,
     taxes
 }: Props) {
+    const { hasPermission } = usePermission();
     useEffect(() => {
         const handleFocus = () => {
             router.reload({ only: ['order'] }); // Solo recarga el objeto de la orden
@@ -162,6 +164,7 @@ export default function EditPurchaseOrder({
     });
 
     const isDraft = order.status === 'draft';
+    const isSent = order.status === 'sent';
     const isApproved = order.status === 'approved';
     const isDone = order.status === 'received';
     const isCancelled = order.status === 'cancelled';
@@ -445,74 +448,76 @@ export default function EditPurchaseOrder({
 
                     <div className="flex items-center justify-between px-6 py-3">
                         <div className="flex items-center gap-2">
-                            {isDraft && (
+
+                            {!(isDone || isApproved || isCancelled) && hasPermission('purchase.create') && (
                                 <>
                                     <Button
-                                        onClick={() => submitForm('sent')}
-                                        disabled={rows.length === 0}
-                                        className="h-8 bg-emerald-600 text-white hover:bg-emerald-700"
-                                    >
-                                        Confirmar Orden
-                                    </Button>
-                                    <Button
                                         variant="outline"
-                                        onClick={() => submitForm('draft')}
+                                        onClick={() => submitForm(order.status as 'draft' | 'sent')}
                                         disabled={!hasUnsavedChanges}
                                         className="h-8"
                                     >
                                         Guardar Cambios
                                     </Button>
+
+                                    {/* Si está en borrador, mostramos el botón para enviarla a revisión */}
+                                    {isDraft && (
+                                        <Button
+                                            onClick={() => submitForm('sent')}
+                                            disabled={rows.length === 0}
+                                            className="h-8 bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+                                        >
+                                            Confirmar Orden
+                                        </Button>
+                                    )}
                                 </>
                             )}
+
                             {order.status === 'sent' && (
                                 <>
-                                    <Button
-                                        onClick={handleApproveOrder}
-                                        disabled={isApproving}
-                                        className="h-8 bg-blue-600 text-white hover:bg-blue-700"
-                                    >
-                                        Aprobar Orden
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => submitForm('sent')}
-                                        disabled={!hasUnsavedChanges}
-                                        className="h-8"
-                                    >
-                                        Guardar Cambios
-                                    </Button>
+                                    {hasPermission('purchase.approve') ? (
+                                        <Button
+                                            onClick={handleApproveOrder}
+                                            disabled={isApproving}
+                                            className="h-8 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 font-bold"
+                                        >
+                                            <Shield className="mr-2 h-4 w-4" />
+                                            Aprobar Orden
+                                        </Button>
+                                    ) : (
+                                        <div className="flex items-center rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700">
+                                        <History className="mr-1.5 h-3.5 w-3.5 animate-pulse" />
+                                        Esperando Aprobación...
+                                        </div>
+                                    )}
                                 </>
                             )}
-                            {(isApproved || isDone) && (
+
+                            {/* --- 3. ACCIONES OPERATIVAS (Aprobada o Completada) --- */}
+                            {(isApproved || isDone) && hasPermission('purchase.create') && (
                                 <>
                                     {needsReception && (
                                         <Button
-                                            onClick={() =>
-                                                router.get(
-                                                    `/compras/ordenes/${order.id_purchase_order}/recepcion`,
-                                                )
-                                            }
-                                            className="h-8 bg-emerald-600 text-white hover:bg-emerald-700"
+                                            onClick={() => router.get(`/compras/ordenes/${order.id_purchase_order}/recepcion`)}
+                                            className="h-8 bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
                                         >
-                                            <PackageOpen className="mr-2 h-4 w-4" />{' '}
-                                            Recibir Productos
+                                            <PackageOpen className="mr-2 h-4 w-4" /> Recibir Productos
                                         </Button>
                                     )}
                                     {needsBilling && (
                                         <Button
-                                            onClick={() =>
-                                                setShowBillingModal(true)
-                                            }
+                                            onClick={() => setShowBillingModal(true)}
                                             variant="outline"
                                             className="h-8 border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
                                         >
-                                            <FileText className="mr-2 h-4 w-4" />{' '}
-                                            Facturar Productos
+                                            <FileText className="mr-2 h-4 w-4" /> Facturar Productos
                                         </Button>
                                     )}
                                 </>
                             )}
-                            {!isDone && !isCancelled && (
+
+                            {/* --- 4. CANCELAR Y VOLVER --- */}
+                            {!isDone && !isCancelled && hasPermission('purchase.approve') && (
                                 <Button
                                     onClick={handleCancelOrder}
                                     variant="ghost"
@@ -521,11 +526,8 @@ export default function EditPurchaseOrder({
                                     Cancelar Orden
                                 </Button>
                             )}
-                            <Button
-                                variant="ghost"
-                                onClick={() => window.history.back()}
-                                className="h-8"
-                            >
+
+                            <Button variant="ghost" onClick={() => window.history.back()} className="h-8">
                                 Volver
                             </Button>
                         </div>

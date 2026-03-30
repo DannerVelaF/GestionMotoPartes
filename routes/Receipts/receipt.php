@@ -8,10 +8,11 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\TaxesController;
 
 Route::middleware("auth")->group(function () {
-    Route::controller(SupplierController::class)->group(function () {
 
-        Route::get('/proovedores/template', [SupplierController::class, 'template'])->name('suppliers.template');
-        Route::post('/proovedores/import', [SupplierController::class, 'import'])->name('suppliers.import');
+    // --- PROVEEDORES ---
+    Route::controller(SupplierController::class)->group(function () {
+        Route::get('/proovedores/template', 'template')->name('suppliers.template');
+        Route::post('/proovedores/import', 'import')->name('suppliers.import');
         Route::get("/proovedores/buscar-sunat", "buscarSunatProveedor")->name("suppliers.buscarSunat");
         Route::get("/proovedores", "index")->name("suppliers.index");
         Route::get("/proovedores/nuevoProovedor", "create")->name("suppliers.create");
@@ -21,21 +22,28 @@ Route::middleware("auth")->group(function () {
         Route::delete("/proovedores/bulk-delete", 'bulkDestroy')->name('suppliers.bulk-destroy');
         Route::delete("/proovedores/{supplier}", "destroy")->name("suppliers.destroy");
     });
+
+    // --- RECIBOS / COMPROBANTES ---
     Route::controller(ReceiptController::class)->group(function () {
         Route::get('/recibos', 'index')->name('receipts.index');
-        Route::get('/recibos/nuevoRecibo', 'create')->name('receipts.create');
-        Route::post('/recibos', 'store')->name('receipts.store');
+
+        // Protección específica para creación de recibos
+        Route::middleware('permission:purchase.create')->group(function () {
+            Route::get('/recibos/nuevoRecibo', 'create')->name('receipts.create');
+            Route::post('/recibos', 'store')->name('receipts.store');
+        });
+
         Route::get('/recibos/{receipt}', 'show')->name('receipts.show');
         Route::put('/recibos/{receipt}', 'update')->name('receipts.update');
         Route::post('/recibos/{receipt}/nota', 'addNote')->name('receipts.note');
         Route::delete("/recibos/bulk-delete", 'bulkDestroy')->name('receipts.bulk-destroy');
         Route::delete("/recibos/{receipt}", "destroy")->name("receipts.destroy");
 
-        // ✅ RUTAS NUEVAS PARA PUBLICAR Y DEVOLUCIONES (Ajustadas al frontend)
+        // Publicar y Devoluciones
         Route::post('/recibos/{receipt}/publish', 'publish')->name('receipts.publish');
         Route::post('/recibos/{receipt}/devolver', 'returnReceipt')->name('receipts.return');
 
-        // Reportes
+        // Reportes de Recibos
         Route::get('/recibos/reportes/impuestos',  'taxReport')->name('reports-receipts.tax');
         Route::get('/recibos/reportes/impuestosExcel',  'exportTaxExcel')->name('reports-receipts.taxExcel');
         Route::get('/recibos/reportes/distribucion', 'expenseDistributionReport')->name('receipts.reports.distribution');
@@ -43,22 +51,40 @@ Route::middleware("auth")->group(function () {
         Route::get('/recibos/reportes/proveedores',  'supplierReport')->name('reports-receipts.suppliers');
         Route::get('/recibos/reportes/variacionCosto',  'variationReport')->name('reports-receipts.variation');
     });
-    Route::get('/api/consultar-documento/{documento}', [CustomerSearchController::class, 'searchCustomer']);
 
+    // --- BÚSQUEDA DE CLIENTES (API) ---
+    Route::get('/api/consultar-documento/{documento}', [CustomerSearchController::class, 'searchCustomer'])
+        ->middleware('permission:sales.create');
+
+    // --- ÓRDENES DE COMPRA ---
     Route::controller(PurchaseOrdersController::class)->group(function () {
         Route::get('/compras/ordenes', 'index')->name('purchase-orders.index');
-        Route::get('/compras/ordenes/crear', 'create')->name('purchase-orders.create');
-        Route::post('/compras/ordenes', 'store')->name('purchase-orders.store');
+
+        // Creación y edición bajo permiso de creación
+        Route::middleware('permission:purchase.create')->group(function () {
+            Route::get('/compras/ordenes/crear', 'create')->name('purchase-orders.create');
+            Route::post('/compras/ordenes', 'store')->name('purchase-orders.store');
+            Route::put('/compras/ordenes/{purchaseOrder}', 'update')->name('purchase-orders.update');
+            Route::post('/compras/ordenes/{purchaseOrder}/nota', 'addNote')->name('purchase-orders.note');
+        });
+
         Route::get('/compras/ordenes/{purchaseOrder}', 'show')->name('purchase-orders.show');
-        Route::put('/compras/ordenes/{purchaseOrder}', 'update')->name('purchase-orders.update');
         Route::delete('/compras/ordenes/{purchaseOrder}', 'destroy')->name('purchase-orders.destroy');
-        Route::post('/compras/ordenes/{purchaseOrder}/nota', 'addNote')->name('purchase-orders.note');
-        Route::post('/compras/ordenes/{purchaseOrder}/aprobar', 'approve')->name('purchase-orders.approve');
+
+        // 🛡️ Aprobación y Cancelación (Solo usuarios con permiso de aprobar)
+        Route::post('/compras/ordenes/{purchaseOrder}/aprobar', 'approve')
+            ->name('purchase-orders.approve')
+            ->middleware('permission:purchase.approve');
+
+        Route::post('/compras/ordenes/{id}/cancelar', 'cancel')
+            ->name('purchase-orders.cancel')
+            ->middleware('permission:purchase.approve');
+
         Route::get('/compras/ordenes/{id}/recepcion', 'prepareReception')->name('purchase-orders.reception');
-        Route::get('/compras/{purchaseOrder}/print', [PurchaseOrdersController::class, 'print'])->name('purchase-orders.print');
-        Route::post('/compras/ordenes/{id}/cancelar', [PurchaseOrdersController::class, 'cancel'])->name('purchase-orders.cancel');
+        Route::get('/compras/{purchaseOrder}/print', 'print')->name('purchase-orders.print');
     });
 
+    // --- CONFIGURACIÓN DE IMPUESTOS ---
     Route::controller(TaxesController::class)->group(function () {
         Route::get('/compras/configuracion/impuestos', 'index')->name('taxes.index');
         Route::post('/compras/configuracion/impuestos', 'store')->name('taxes.store');

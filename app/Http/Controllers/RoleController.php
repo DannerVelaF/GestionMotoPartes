@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Controller;
 use App\Http\Services\RoleService;
+use App\Models\Permissions;
 use App\Models\Role;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -91,35 +92,44 @@ class RoleController extends Controller
      */
     public function show($id)
     {
-        $role = Role::with('users:id,name,email,role_id')->findOrFail($id);
+        // Cargamos el rol con sus usuarios y sus permisos actuales
+        $role = Role::with(['users:id,name,email,role_id', 'permissions'])
+            ->findOrFail($id);
+
+        // Obtenemos todos los permisos disponibles en el sistema agrupados por módulo
+        $allPermissions = Permissions::all();
 
         return Inertia::render("Users/Roles/EditRole", [
-            'role' => $role
+            'role' => $role,
+            'allPermissions' => $allPermissions
         ]);
     }
 
     /**
-     * Actualiza un rol existente.
+     * Actualiza un rol y sincroniza sus permisos.
      */
     public function update(Request $request, $id)
     {
-        $rules = [
+        $role = Role::findOrFail($id);
+
+        $validatedData = $request->validate([
             'name'        => ['required', 'string', 'max:50', Rule::unique('roles', 'name')->ignore($id)],
             'label'       => 'required|string|max:100',
             'description' => 'nullable|string|max:255',
-        ];
+            'permissions' => 'nullable|array', // Array de IDs de permisos
+            'permissions.*' => 'exists:permissions,id_permission'
+        ]);
 
-        $messages = [
-            'name.required'  => 'El identificador es obligatorio.',
-            'name.unique'    => 'Este identificador ya está en uso por otro rol.',
-            'label.required' => 'El nombre visible es obligatorio.',
-        ];
+        // Actualizamos datos básicos
+        $role->update([
+            'name' => $validatedData['name'],
+            'label' => $validatedData['label'],
+            'description' => $validatedData['description'],
+        ]);
 
-        $validatedData = $request->validate($rules, $messages);
+        $role->permissions()->sync($request->input('permissions', []));
 
-        $this->service->updateRole($id, $validatedData);
-
-        return back()->with('success', 'Rol actualizado correctamente.');
+        return back()->with('success', 'Rol y permisos actualizados correctamente.');
     }
 
     /**

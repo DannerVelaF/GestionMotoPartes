@@ -88,4 +88,13 @@ class User extends Authenticatable
     {
         return (bool) $this->is_active;
     }
+
+    public function canDo(string $permission): bool
+    {
+        if ($this->role && $this->role->name === 'admin') {
+            return true;
+        }
+
+        return $this->role ? $this->role->hasPermission($permission) : false;
+    }
 }

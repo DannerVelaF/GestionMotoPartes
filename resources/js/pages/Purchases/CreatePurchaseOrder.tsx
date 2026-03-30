@@ -21,6 +21,7 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import { format } from 'date-fns';
 import { History, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { usePermission } from '@/hooks/usePermission';
 
 // --- ESTILOS REUTILIZABLES ---
 const cleanInputClass =
@@ -142,6 +143,7 @@ export default function CreatePurchaseOrder({
 }: Props) {
     const { props: pageProps } = usePage<any>();
     const today = new Date().toISOString().split('T')[0];
+    const { hasPermission } = usePermission();
 
     const [formError, setFormError] = useState<string | null>(null);
 
@@ -359,28 +361,33 @@ export default function CreatePurchaseOrder({
 
                     <div className="flex items-center justify-between px-6 py-3">
                         <div className="flex items-center gap-2">
-                            <Button
-                                onClick={() => submitForm('sent')}
-                                disabled={processing || rows.length === 0}
-                                className="h-8 rounded-sm bg-emerald-600 px-4 text-white hover:bg-emerald-700"
-                            >
-                                Confirmar Orden
-                            </Button>
-                            <Button
-                                variant="outline"
-                                onClick={() => submitForm('draft')}
-                                disabled={processing}
-                                className="h-8 rounded-sm"
-                            >
-                                Guardar Borrador
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                onClick={() => window.history.back()}
-                                className="h-8"
-                            >
-                                Descartar
-                            </Button>
+                            {hasPermission('purchase.create') && (
+                                <>
+                                    <Button
+                                        onClick={() => submitForm('sent')}
+                                        disabled={processing || rows.length === 0}
+                                        className="h-8 rounded-sm bg-emerald-600 px-4 text-white hover:bg-emerald-700"
+                                    >
+                                        Confirmar Orden
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => submitForm('draft')}
+                                        disabled={processing}
+                                        className="h-8 rounded-sm"
+                                    >
+                                        Guardar Borrador
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        onClick={() => window.history.back()}
+                                        className="h-8"
+                                    >
+                                        Descartar
+                                    </Button>
+                                </>
+                            )}
+
                         </div>
                         <div className="flex h-8 items-center rounded-sm border bg-muted/30 px-4 text-[10px] font-bold tracking-widest uppercase">
                             Cotización

@@ -52,6 +52,7 @@ import React, {
 } from 'react';
 import { useDebounce } from 'use-debounce';
 import { Columns, PurchaseOrder } from './Columns';
+import { usePermission } from '@/hooks/usePermission';
 
 interface PaginatedOrders {
     data: PurchaseOrder[];
@@ -73,6 +74,8 @@ interface Props {
 const breadcrumbs = [{ title: 'Órdenes de Compra', href: '/compras/ordenes' }];
 
 export default function ListOrders({ orders, filters }: Props) {
+    const { hasPermission } = usePermission();
+
     // --- ESTADOS ---
     const [searchTerm, setSearchTerm] = useState(filters.search || '');
     const [debouncedSearch] = useDebounce(searchTerm, 300);
@@ -184,15 +187,15 @@ export default function ListOrders({ orders, filters }: Props) {
     // --- AGRUPACIÓN DE DATOS ---
             const groupedData = useMemo(() => {
             if (groupBy === 'none') return null;
-    
+
             const groups: Record<
                 string,
                 { items: PurchaseOrder[]; total: number }
             > = {};
-    
+
             orders.data.forEach((order) => {
                 let key = 'Otros';
-    
+
                 if (groupBy === 'status') {
                     const mapNames: Record<string, string> = {
                         draft: 'Borradores',
@@ -213,19 +216,19 @@ export default function ListOrders({ orders, filters }: Props) {
                         key = 'Fecha inválida';
                     }
                 }
-    
+
                 if (!groups[key]) groups[key] = { items: [], total: 0 };
                 groups[key].items.push(order);
                 groups[key].total += Number(order.total_amount); // NOTA: Aquí asume que todo es la misma moneda, para algo exacto tendrías que separar PEN de USD.
             });
-    
+
             return groups;
         }, [orders.data, groupBy]);
-    
+
         const selectedCount = Object.keys(rowSelection).length;
         const hidePaginationControls =
             orders.total <= orders.per_page || orders.total === 0;
-    
+
         const statusConfig: Record<
             string,
             { label: string; class: string }
@@ -251,7 +254,7 @@ export default function ListOrders({ orders, filters }: Props) {
                 class: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
             },
         };
-    
+
         // --- RENDERIZADO DEL CONTENIDO PRINCIPAL ---
         const renderContent = () => {
             if (groupBy === 'none') {
@@ -267,7 +270,7 @@ export default function ListOrders({ orders, filters }: Props) {
                     </div>
                 );
             }
-    
+
             if (!groupedData || Object.keys(groupedData).length === 0) {
                 return (
                     <div className="p-8 text-center text-muted-foreground">
@@ -275,7 +278,7 @@ export default function ListOrders({ orders, filters }: Props) {
                     </div>
                 );
             }
-    
+
             return (
                 <div className="overflow-hidden rounded-xl border bg-card shadow-sm dark:border-neutral-800 dark:bg-neutral-900/20">
                     <Table>
@@ -302,7 +305,7 @@ export default function ListOrders({ orders, filters }: Props) {
                                 ([groupName, { items, total }]) => {
                                     const isExpanded =
                                         expandedGroups[groupName] !== false;
-    
+
                                     return (
                                         <React.Fragment key={groupName}>
                                             <TableRow
@@ -335,13 +338,13 @@ export default function ListOrders({ orders, filters }: Props) {
                                                 </TableCell>
                                                 <TableCell></TableCell>
                                             </TableRow>
-    
+
                                             {isExpanded &&
                                                 items.map((order) => {
                                                     const config =
                                                         statusConfig[order.status] ||
                                                         statusConfig.draft;
-    
+
                                                     return (
                                                         <TableRow
                                                             key={
@@ -502,15 +505,22 @@ export default function ListOrders({ orders, filters }: Props) {
                     ) : (
                         <div className="flex w-full animate-in items-center justify-between fade-in slide-in-from-bottom-1">
                             <div className="flex items-center gap-4">
-                                <Button
-                                    className="bg-emerald-600 font-medium text-white shadow-sm hover:bg-emerald-700"
-                                    onClick={() =>
-                                        router.visit('/compras/ordenes/crear')
-                                    }
-                                >
-                                    <Plus className="mr-2 h-4 w-4" /> Nueva
-                                    Orden
-                                </Button>
+                                {hasPermission('purchase.create') && (
+                                    <>
+                                        <Button
+                                            className="bg-emerald-600 font-medium text-white shadow-sm hover:bg-emerald-700"
+                                            onClick={() =>
+                                                router.visit(
+                                                    '/compras/ordenes/crear',
+                                                )
+                                            }
+                                        >
+                                            <Plus className="mr-2 h-4 w-4" />{' '}
+                                            Nueva Orden
+                                        </Button>
+                                    </>
+                                )}
+
                                 <h1 className="text-lg font-semibold text-foreground">
                                     Órdenes de Compra
                                 </h1>

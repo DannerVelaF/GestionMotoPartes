@@ -3,9 +3,11 @@
 namespace Database\Seeders;
 
 use App\Models\Brand;
+use App\Models\Permissions;
 use App\Models\ProductCategory;
 use App\Models\ProductType;
 use App\Models\Products;
+use App\Models\Role;
 use App\Models\Supplier;
 use App\Enums\GenericStatus;
 use Illuminate\Database\Seeder;
@@ -105,6 +107,31 @@ class DatabaseSeeder extends Seeder
 
         foreach ($productos as $p) {
             Products::create($p);
+        }
+
+        $p1 = Permissions::create(['name' => 'purchase.create', 'label' => 'Crear OC', 'module' => 'Compras']);
+        $p2 = Permissions::create(['name' => 'purchase.approve', 'label' => 'Aprobar OC', 'module' => 'Compras']);
+        $p3 = Permissions::create(['name' => 'sales.create', 'label' => 'Registrar Ventas', 'module' => 'Ventas']);
+
+// 7. Asignar a Roles
+        $admin = Role::where('name', 'admin')->first();
+        $colab = Role::where('name', 'collaborator')->first();
+
+        if ($admin) {
+            // ✅ Cambiamos ->id por ->id_permission
+            $admin->permissions()->attach([
+                $p1->id_permission,
+                $p2->id_permission,
+                $p3->id_permission
+            ]);
+        }
+
+        if ($colab) {
+            // ✅ Cambiamos ->id por ->id_permission
+            $colab->permissions()->attach([
+                $p1->id_permission,
+                $p3->id_permission
+            ]);
         }
 
         $this->call([
