@@ -11,9 +11,24 @@ import { useEffect, useState } from 'react';
 import { formatDistanceToNow } from 'date-fns'; // Necesitarás instalar date-fns o usar Intl
 import { es } from 'date-fns/locale';
 
+// 1. Definimos un tipo para la carga útil de la notificación para mayor seguridad y autocompletado.
+interface NotificationPayload {
+    id: string;
+    created_at: string;
+    read_at: string | null;
+    data: {
+        title: string;
+        message: string;
+        url: string;
+        type: string;
+    };
+}
+
 export function NotificationBell() {
-    const { auth } = usePage<any>().props;
-    const [notifications, setNotifications] = useState<any[]>([]);
+    // 2. Usamos tipos más estrictos en lugar de 'any'
+    // El tipo 'PageProps' ya no se exporta. Lo definimos inline.
+    const { auth } = usePage<{ auth: { user: { notifications: NotificationPayload[] } & { id: number } } }>().props;
+    const [notifications, setNotifications] = useState<NotificationPayload[]>([]);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     // Sincronizar datos iniciales
@@ -25,7 +40,8 @@ export function NotificationBell() {
 
     // Escuchar WebSockets (Echo)
     useEffect(() => {
-        const userId = auth.user?.id || auth.user?.id_user;
+        const userId = auth.user?.id;
+
         if (!userId) return;
 
         const echoInstance = (window as any).Echo;
@@ -33,46 +49,45 @@ export function NotificationBell() {
         if (echoInstance) {
             const channelName = `App.Models.User.${userId}`;
 
-            // 1. Abandonamos para evitar duplicados
-            echoInstance.leave(channelName);
-
-            // 2. Escuchamos específicamente NOTIFICACIONES
+            // 3. Escuchamos específicamente NOTIFICACIONES
             // Importante: .private(...).notification() es un atajo especial de Laravel
-            echoInstance
-                .private(channelName)
-                .notification((notification: any) => {
-                    console.log('🔔 ¡EVENTO RECIBIDO EN VIVO!', notification);
+            const channel = echoInstance.private(channelName);
 
-                    // Estructura normalizada
-                    const newNotif = {
-                        id: notification.id || `live-${Date.now()}`,
-                        created_at: new Date().toISOString(),
-                        data: {
-                            title:
-                                notification.title ||
-                                notification.data?.title ||
-                                'Aviso',
-                            message:
-                                notification.message ||
-                                notification.data?.message ||
-                                '',
-                            url:
-                                notification.url ||
-                                notification.data?.url ||
-                                '#',
-                            type:
-                                notification.type ||
-                                notification.data?.type ||
-                                'info',
-                        },
-                    };
+            channel.notification((notification: any) => {
+                console.log('🔔🔔🔔 ¡EVENTO RECIBIDO EN VIVO!', notification);
+                
+                // Dependiendo de la versión de Laravel/Echo, los datos pueden venir
+                // sueltos en el objeto 'notification', o anidados dentro de 'notification.data'
+                const payloadData = notification.data || notification;
 
-                    // Actualizamos el estado para que el número (unreadCount) cambie al instante
-                    setNotifications((prev) => [newNotif, ...prev]);
+                const normalizedNotif: NotificationPayload = {
+                    id: notification.id || `live-${Date.now()}`,
+                    data: {
+                        title: payloadData.title || 'Nueva Notificación',
+                        message: payloadData.message || 'Tienes una nueva actualización',
+                        url: payloadData.url || '#',
+                        type: payloadData.type || 'info',
+                    },
+                    created_at: new Date().toISOString(),
+                    read_at: null
+                };
 
-                    // Opcional: Sonido de alerta
-                    // new Audio('/sounds/notification.mp3').play().catch(() => {});
+                // La añadimos al principio de la lista (Evitando duplicados por StrictMode o re-renders)
+                setNotifications((prev) => {
+                    // Si ya existe una notificación con este ID, no hacemos nada
+                    if (prev.some((n) => n.id === normalizedNotif.id)) {
+                        return prev;
+                    }
+                    return [normalizedNotif, ...prev];
                 });
+            });
+
+            // 4. Patrón de limpieza de React: Devolvemos una función que se ejecuta
+            // cuando el componente se desmonta o el efecto se vuelve a ejecutar.
+            return () => {
+                channel.stopListening('.notification');
+                echoInstance.leave(channelName);
+            };
         }
     }, [auth.user?.id]);
 
@@ -148,8 +163,12 @@ export function NotificationBell() {
                         </div>
                     ) : (
                         notifications.map((notif) => {
-                            const item = notif.data || notif;
-                            const isSuccess = item.title?.toLowerCase().includes('aprobada') || item.type === 'success';
+                            if (!notif) return null; // Seguridad extra
+
+                            // Usamos un fallback súper seguro para evitar crasheos si la data llega distinta de la BD
+                            const item = notif.data || (notif as any) || {};
+                            const title = item.title || '';
+                            const isSuccess = title.toLowerCase().includes('aprobada') || item.type === 'success';
                             const date = notif.created_at ? new Date(notif.created_at) : new Date();
 
                             return (

@@ -35,7 +35,7 @@ class OrderApproved extends Notification implements ShouldQueue
     public function toDatabase(object $notifiable): array
     {
         return [
-            'title'   => '✅ Orden Aprobada',
+            'title'   => 'Orden Aprobada',
             'message' => "Tu orden {$this->order->po_code} ha sido aprobada.",
             'url'     => "/compras/ordenes/{$this->order->id_purchase_order}",
             'type'    => 'success'
@@ -48,7 +48,7 @@ class OrderApproved extends Notification implements ShouldQueue
     public function toBroadcast(object $notifiable): BroadcastMessage
     {
         return new BroadcastMessage([
-            'title'   => '✅ Orden Aprobada',
+            'title'   => 'Orden Aprobada',
             'message' => "Tu orden {$this->order->po_code} ha sido aprobada.",
             'url'     => "/compras/ordenes/{$this->order->id_purchase_order}",
             'id'      => $this->id, // ID único de la notificación
