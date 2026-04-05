@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\BusinessConfig; // Importar el modelo BusinessConfig
 use App\Notifications\OrderApproved;
 use App\Notifications\OrderPendingApproval;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -461,4 +462,346 @@ class PurchaseOrdersController extends Controller
             return back()->withErrors(['error' => 'No se pudo cancelar la orden: ' . $e->getMessage()]);
         }
     }
+
+    public function taxReport(Request $request)
+    {
+        $from = $request->input('from')
+            ? Carbon::parse($request->input('from'))->startOfDay()
+            : Carbon::now()->startOfMonth()->startOfDay();
+
+        $to = $request->input('to')
+            ? Carbon::parse($request->input('to'))->endOfDay()
+            : Carbon::now()->endOfDay();
+
+        // Consultamos los detalles de las OC que NO estén canceladas ni en borrador
+        // (Normalmente solo reportas lo que ya es un compromiso real o recibido)
+        $reportData = DB::table('purchase_orders')
+            ->join('purchase_order_details', 'purchase_orders.id_purchase_order', '=', 'purchase_order_details.id_purchase_order')
+            ->join('taxes', 'purchase_order_details.id_tax', '=', 'taxes.id_tax')
+            ->whereBetween('purchase_orders.issue_date', [$from, $to])
+            ->whereNotIn('purchase_orders.status', ['draft', 'cancelled'])
+            ->select(
+                'purchase_orders.order_type as document_type', // Agrupamos por tipo (Compra/Servicio)
+                DB::raw('SUM(
+                CASE
+                    WHEN purchase_orders.currency = "USD" THEN purchase_order_details.subtotal * purchase_orders.exchange_rate
+                    ELSE purchase_order_details.subtotal
+                END
+            ) as base_imponible'),
+                DB::raw('SUM(
+                CASE
+                    WHEN purchase_orders.currency = "USD" THEN (purchase_order_details.subtotal * (taxes.percentage / 100)) * purchase_orders.exchange_rate
+                    ELSE (purchase_order_details.subtotal * (taxes.percentage / 100))
+                END
+            ) as igv')
+            )
+            ->groupBy('purchase_orders.order_type')
+            ->get()
+            ->map(function ($item) {
+                $base = (float)$item->base_imponible;
+                $igv = (float)$item->igv;
+                return [
+                    'document_type' => $item->document_type === 'purchase' ? 'Compra Mercadería' : 'Servicios/Otros',
+                    'base_imponible' => round($base, 2),
+                    'igv' => round($igv, 2),
+                    'total' => round($base + $igv, 2),
+                ];
+            });
+
+        return Inertia::render('Receipts/Reports/TaxReport', [
+            'reportData' => $reportData,
+            'filters' => [
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString(),
+            ]
+        ]);
+    }
+
+    public function variationReport(Request $request)
+    {
+        $from = $request->input('from')
+            ? \Carbon\Carbon::parse($request->input('from'))->startOfDay()
+            : \Carbon\Carbon::now()->subMonths(6)->startOfDay();
+
+        $to = $request->input('to')
+            ? \Carbon\Carbon::parse($request->input('to'))->endOfDay()
+            : \Carbon\Carbon::now()->endOfDay();
+
+        $id_product = $request->input('id_product');
+
+        // 1. Tendencia de Precios
+        $trendQuery = DB::table('purchase_order_details')
+            ->join('purchase_orders', 'purchase_order_details.id_purchase_order', '=', 'purchase_orders.id_purchase_order')
+            ->whereNotNull('purchase_order_details.id_product')
+            ->whereNotIn('purchase_orders.status', ['draft', 'cancelled'])
+            ->whereBetween('purchase_orders.issue_date', [$from, $to]);
+
+        if ($id_product) {
+            $trendQuery->where('purchase_order_details.id_product', $id_product);
+        }
+
+        $trendData = $trendQuery->select(
+            'purchase_orders.issue_date as date',
+            DB::raw('AVG(
+                CASE
+                    WHEN purchase_orders.currency = "USD" THEN purchase_order_details.unit_cost * purchase_orders.exchange_rate
+                    ELSE purchase_order_details.unit_cost
+                END
+            ) as price')
+        )
+            ->groupBy('purchase_orders.issue_date')
+            ->orderBy('purchase_orders.issue_date', 'asc')
+            ->get();
+
+        // 2. Ranking de Variación (Usando id_po_detail)
+        $products = DB::table('purchase_order_details')
+            ->join('purchase_orders', 'purchase_order_details.id_purchase_order', '=', 'purchase_orders.id_purchase_order')
+            ->join('products', 'purchase_order_details.id_product', '=', 'products.id_product')
+            ->whereNotIn('purchase_orders.status', ['draft', 'cancelled'])
+            ->whereBetween('purchase_orders.issue_date', [$from, $to])
+            ->select(
+                'products.id_product',
+                'products.product_name',
+                // ✅ CORREGIDO: Usamos id_po_detail que es tu Primary Key real
+                DB::raw('MIN(purchase_order_details.id_po_detail) as first_detail_id'),
+                DB::raw('MAX(purchase_order_details.id_po_detail) as last_detail_id')
+            )
+            ->groupBy('products.id_product', 'products.product_name')
+            ->get()
+            ->map(function ($p) {
+                $getNormalizedPrice = function ($detailId) {
+                    $record = DB::table('purchase_order_details')
+                        ->join('purchase_orders', 'purchase_order_details.id_purchase_order', '=', 'purchase_orders.id_purchase_order')
+                        // ✅ CORREGIDO: Usamos id_po_detail aquí también
+                        ->where('purchase_order_details.id_po_detail', $detailId)
+                        ->select('purchase_order_details.unit_cost', 'purchase_orders.currency', 'purchase_orders.exchange_rate')
+                        ->first();
+
+                    if (!$record) return 0;
+                    return $record->currency === 'USD'
+                        ? $record->unit_cost * $record->exchange_rate
+                        : $record->unit_cost;
+                };
+
+                $firstPrice = $getNormalizedPrice($p->first_detail_id);
+                $lastPrice = $getNormalizedPrice($p->last_detail_id);
+
+                $variation = $firstPrice > 0 ? (($lastPrice - $firstPrice) / $firstPrice) * 100 : 0;
+
+                return [
+                    'id'        => $p->id_product,
+                    'name'      => $p->product_name,
+                    'old_price' => round((float)$firstPrice, 2),
+                    'new_price' => round((float)$lastPrice, 2),
+                    'variation' => round($variation, 2)
+                ];
+            })
+            ->sortByDesc(fn($item) => abs($item['variation']))
+            ->values();
+
+        return Inertia::render('Receipts/Reports/CostVariationReport', [
+            'trendData'    => $trendData,
+            'reportData'   => $products,
+            'productsList' => \App\Models\Products::select('id_product as value', 'product_name as label')->orderBy('product_name')->get(),
+            'filters'      => [
+                'from'       => $from->toDateString(),
+                'to'         => $to->toDateString(),
+                'id_product' => $id_product
+            ]
+        ]);
+    }
+
+    public function exportTaxExcel(Request $request)
+    {
+        $from = $request->input('from', Carbon::now()->startOfMonth()->toDateString());
+        $to = $request->input('to', Carbon::now()->toDateString());
+
+        // Llamamos al nuevo exportador de OC
+        return \Maatwebsite\Excel\Facades\Excel::download(
+            new \App\Exports\PurchaseOrderTaxExport($from, $to),
+            "libro_compras_OC_{$from}_al_{$to}.xlsx"
+        );
+    }
+
+    public function expenseDistributionReport(Request $request)
+    {
+        $from = $request->input('from')
+            ? \Carbon\Carbon::parse($request->input('from'))->startOfDay()
+            : \Carbon\Carbon::now()->startOfMonth()->startOfDay();
+
+        $to = $request->input('to')
+            ? \Carbon\Carbon::parse($request->input('to'))->endOfDay()
+            : \Carbon\Carbon::now()->endOfDay();
+
+        // 1. Resumen Agrupado
+        $summary = DB::table('purchase_order_details')
+            ->join('purchase_orders', 'purchase_order_details.id_purchase_order', '=', 'purchase_orders.id_purchase_order')
+            ->whereBetween('purchase_orders.issue_date', [$from, $to])
+            ->whereNotIn('purchase_orders.status', ['draft', 'cancelled'])
+            ->select(
+                DB::raw('CASE WHEN purchase_orders.order_type = "service" THEN "Servicios" ELSE "Productos" END as expense_type'),
+                DB::raw('COUNT(purchase_order_details.id_po_detail) as count'),
+                DB::raw('SUM(
+                CASE
+                    WHEN purchase_orders.currency = "USD" THEN purchase_order_details.subtotal * purchase_orders.exchange_rate
+                    ELSE purchase_order_details.subtotal
+                END
+            ) as total_amount')
+            )
+            ->groupBy('expense_type')
+            ->get(); // ✅ CORREGIDO: Tenía un punto antes de get()
+
+        $grandTotal = $summary->sum('total_amount');
+
+        $reportData = $summary->map(function ($item) use ($grandTotal) {
+            return [
+                'name' => $item->expense_type,
+                'value' => round((float)$item->total_amount, 2),
+                'count' => (int)$item->count,
+                'percentage' => $grandTotal > 0 ? round(($item->total_amount / $grandTotal) * 100, 1) : 0
+            ];
+        });
+
+        // 2. Detalle Específico (Top 50 items)
+        $details = DB::table('purchase_order_details')
+            ->join('purchase_orders', 'purchase_order_details.id_purchase_order', '=', 'purchase_orders.id_purchase_order')
+            ->leftJoin('products', 'purchase_order_details.id_product', '=', 'products.id_product')
+            ->whereBetween('purchase_orders.issue_date', [$from, $to])
+            ->whereNotIn('purchase_orders.status', ['draft', 'cancelled'])
+            ->select(
+                DB::raw('CASE WHEN purchase_orders.order_type = "service" THEN "Servicios" ELSE "Productos" END as category'),
+                DB::raw('COALESCE(products.product_name, purchase_order_details.description) as item_name'),
+                DB::raw('SUM(
+                CASE
+                    WHEN purchase_orders.currency = "USD" THEN purchase_order_details.subtotal * purchase_orders.exchange_rate
+                    ELSE purchase_order_details.subtotal
+                END
+            ) as total_amount')
+            )
+            ->groupBy('category', 'item_name')
+            ->orderByDesc('total_amount')
+            ->limit(50)
+            ->get();
+
+        // Cambiado a la carpeta de Purchases para ser coherentes con el controlador
+        return Inertia::render('Receipts/Reports/ExpenseDistributionReport', [
+            'reportData' => $reportData,
+            'detailedData' => $details,
+            'filters' => [
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString()
+            ]
+        ]);
+    }
+
+    public function marginReport(Request $request)
+    {
+        $from = $request->input('from')
+            ? \Carbon\Carbon::parse($request->input('from'))->startOfDay()
+            : \Carbon\Carbon::now()->startOfMonth()->startOfDay();
+        $to = $request->input('to')
+            ? \Carbon\Carbon::parse($request->input('to'))->endOfDay()
+            : \Carbon\Carbon::now()->endOfDay();
+
+        // Consulta basada en Órdenes de Compra vinculadas a productos
+        $reportData = DB::table('purchase_order_details')
+            ->join('purchase_orders', 'purchase_order_details.id_purchase_order', '=', 'purchase_orders.id_purchase_order')
+            ->join('products', 'purchase_order_details.id_product', '=', 'products.id_product')
+            ->whereBetween('purchase_orders.issue_date', [$from, $to])
+            ->whereNotIn('purchase_orders.status', ['draft', 'cancelled'])
+            ->select(
+                'products.product_name',
+                'products.product_code',
+                'products.sale_price as current_sale_price',
+                // Calculamos el costo promedio en Soles usando el T.C. de la OC
+                DB::raw('AVG(
+                CASE
+                    WHEN purchase_orders.currency = "USD" THEN purchase_order_details.unit_cost * purchase_orders.exchange_rate
+                    ELSE purchase_order_details.unit_cost
+                END
+            ) as avg_cost'),
+                DB::raw('SUM(purchase_order_details.quantity) as total_qty')
+            )
+            ->groupBy('products.id_product', 'products.product_name', 'products.product_code', 'products.sale_price')
+            ->get()
+            ->map(function ($item) {
+                $cost = (float) $item->avg_cost;
+                $sale = (float) $item->current_sale_price;
+
+                $profit_per_unit = $sale - $cost;
+                $margin_percent = $sale > 0 ? ($profit_per_unit / $sale) * 100 : 0;
+
+                return [
+                    'product' => $item->product_name,
+                    'code' => $item->product_code,
+                    'avg_cost' => round($cost, 2),
+                    'avg_sale' => round($sale, 2),
+                    'margin_percent' => round($margin_percent, 2),
+                    'projected_profit' => round($profit_per_unit * $item->total_qty, 2),
+                    'total_qty' => (float)$item->total_qty
+                ];
+            })
+            ->sortByDesc('projected_profit')
+            ->values();
+
+        return Inertia::render('Receipts/Reports/MarginReport', [
+            'reportData' => $reportData,
+            'filters' => [
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString()
+            ]
+        ]);
+    }
+
+    public function supplierReport(Request $request)
+    {
+        // 1. Configuración de periodos
+        $from = $request->input('from')
+            ? \Carbon\Carbon::parse($request->input('from'))->startOfDay()
+            : \Carbon\Carbon::now()->startOfMonth()->startOfDay();
+        $to = $request->input('to')
+            ? \Carbon\Carbon::parse($request->input('to'))->endOfDay()
+            : \Carbon\Carbon::now()->endOfDay();
+
+        // 2. Consulta de Ranking de Proveedores
+        $reportData = DB::table('purchase_orders')
+            ->join('suppliers', 'purchase_orders.id_supplier', '=', 'suppliers.id_supplier')
+            // Excluimos borradores y cancelados para ver inversión real
+            ->whereNotIn('purchase_orders.status', ['draft', 'cancelled'])
+            ->whereBetween('purchase_orders.issue_date', [$from, $to])
+            ->select(
+                'suppliers.company_name',
+                'suppliers.ruc',
+                DB::raw('COUNT(purchase_orders.id_purchase_order) as purchase_count'),
+                // Sumatoria normalizada a Soles (PEN)
+                DB::raw('SUM(
+                CASE
+                    WHEN purchase_orders.currency = "USD" THEN purchase_orders.total_amount * purchase_orders.exchange_rate
+                    ELSE purchase_orders.total_amount
+                END
+            ) as total_invested'),
+                DB::raw('MAX(purchase_orders.issue_date) as last_purchase')
+            )
+            ->groupBy('suppliers.id_supplier', 'suppliers.company_name', 'suppliers.ruc')
+            ->orderByDesc('total_invested')
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'supplier'  => $item->company_name,
+                    'ruc'       => $item->ruc,
+                    'count'     => (int)$item->purchase_count,
+                    'total'     => round((float)$item->total_invested, 2),
+                    'last_date' => \Carbon\Carbon::parse($item->last_purchase)->format('d/m/Y'),
+                ];
+            });
+
+        return Inertia::render('Receipts/Reports/SupplierReport', [
+            'reportData' => $reportData,
+            'filters'    => [
+                'from' => $from->toDateString(),
+                'to'   => $to->toDateString()
+            ]
+        ]);
+    }
+
 }

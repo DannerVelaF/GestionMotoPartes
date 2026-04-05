@@ -1,17 +1,17 @@
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea'; // Asegúrate de tener este componente
+import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
-import roles from '@/routes/roles'; // Asumo que tienes esta ruta definida
+import roles from '@/routes/roles';
 import users from '@/routes/users';
 import { Head, useForm } from '@inertiajs/react';
-import { RotateCcw, Save, Shield, Tag, Text } from 'lucide-react';
+import { Info, RotateCcw, Save, Shield } from 'lucide-react';
 import { FormEventHandler } from 'react';
 
 export default function CreateRole() {
-    // 1. Configuración del formulario
     const {
         data,
         setData,
@@ -22,8 +22,8 @@ export default function CreateRole() {
         isDirty,
         reset,
     } = useForm({
-        name: '', // Identificador interno (ej: admin)
-        label: '', // Nombre visible (ej: Administrador)
+        name: '',
+        label: '',
         description: '',
     });
 
@@ -38,7 +38,6 @@ export default function CreateRole() {
         post(roles.store().url);
     };
 
-    // 2. Configuración del Wayfinder (Breadcrumbs)
     const breadcrumbs = [
         { title: 'Usuarios', href: users.index().url },
         { title: 'Roles', href: roles.index().url },
@@ -51,44 +50,42 @@ export default function CreateRole() {
 
             <form
                 onSubmit={submit}
-                className="flex h-full flex-col bg-background text-foreground"
+                className="flex h-full flex-1 flex-col overflow-hidden bg-background text-foreground"
             >
-                {/* --- HEADER STICKY --- */}
-                <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-border bg-background/95 px-8 py-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                {/* --- HEADER STICKY (Idéntico a EditRole) --- */}
+                <div className="sticky top-0 z-20 flex items-center justify-between gap-4 border-b border-border bg-background/95 px-8 py-4 shadow-sm backdrop-blur">
                     <div className="flex items-center gap-3">
-                        <div className="rounded-lg bg-violet-600 p-2 text-white shadow-lg shadow-violet-500/20">
+                        <div className="rounded-lg bg-violet-600 p-2 text-white shadow-lg">
                             <Shield className="h-5 w-5" />
                         </div>
-                        <span className="text-xl font-semibold text-foreground">
+                        <span className="text-xl font-semibold">
                             Nuevo Rol de Sistema
                         </span>
 
-                        {/* Indicador de cambios */}
                         {isDirty && (
                             <span className="ml-2 animate-pulse rounded-full bg-amber-100 px-3 py-1 text-[10px] font-bold text-amber-700 uppercase dark:bg-amber-900/50 dark:text-amber-400">
                                 Sin guardar
                             </span>
                         )}
                     </div>
+
                     <div className="flex items-center gap-3">
                         <Button
                             variant="ghost"
                             type="button"
                             onClick={() => reset()}
                             disabled={!isDirty || processing}
-                            className="text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
                             <RotateCcw className="mr-2 h-4 w-4" /> Descartar
                         </Button>
-
                         <Button
                             type="submit"
                             disabled={!isDirty || processing}
                             className={cn(
-                                'px-6 font-bold shadow-sm transition-all',
+                                'px-6 font-bold transition-all',
                                 isDirty
-                                    ? 'bg-violet-600 text-white hover:bg-violet-700 active:scale-95 dark:bg-violet-600 dark:hover:bg-violet-500'
-                                    : 'cursor-not-allowed bg-muted text-muted-foreground',
+                                    ? 'bg-violet-600 text-white hover:bg-violet-700'
+                                    : 'bg-muted text-muted-foreground',
                             )}
                         >
                             <Save className="mr-2 h-4 w-4" /> Guardar Rol
@@ -96,93 +93,142 @@ export default function CreateRole() {
                     </div>
                 </div>
 
-                <div className="w-full animate-in px-8 py-8 duration-500 fade-in slide-in-from-bottom-4">
-                    {/* --- INPUT GIGANTE (SLUG/NAME) --- */}
-                    <div className="mb-12 max-w-3xl">
-                        <Label className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                            Identificador Único (Slug)
-                        </Label>
-                        <div className="flex items-center">
-                            <span className="mr-2 text-4xl font-extrabold text-muted-foreground/30">
-                                #
-                            </span>
-                            <input
-                                autoFocus
-                                value={data.name}
-                                onChange={(e) =>
-                                    onFieldChange(
-                                        'name',
-                                        e.target.value
-                                            .toLowerCase()
-                                            .replace(/\s+/g, '_'), // Forzar formato slug
-                                    )
-                                }
-                                placeholder="ej_administrador"
-                                className={`h-auto w-full rounded-none border-0 border-b-2 bg-transparent px-0 py-2 text-4xl font-extrabold tracking-tight transition-all placeholder:text-muted-foreground/40 focus:ring-0 focus:outline-none ${
-                                    errors.name
-                                        ? 'border-red-500 text-red-600 dark:text-red-400'
-                                        : 'border-muted-foreground/20 text-foreground focus:border-violet-600 dark:focus:border-violet-500'
-                                }`}
-                            />
+                {/* --- CONTENIDO PRINCIPAL (Mismo grid que EditRole) --- */}
+                <div className="custom-scrollbar flex-1 overflow-y-auto bg-muted/5 px-8 py-8 dark:bg-background">
+                    <div className="mx-auto grid max-w-[1600px] grid-cols-1 gap-8 lg:grid-cols-3">
+                        {/* COLUMNA IZQUIERDA: INFORMACIÓN Y TIPS */}
+                        <div className="flex flex-col gap-6 lg:col-span-1">
+                            <Card className="shrink-0 border-l-4 border-l-violet-600 shadow-sm">
+                                <CardHeader className="pb-4">
+                                    <CardTitle className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+                                        Configuración Inicial
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    {/* Identificador con estilo # para denotar que es un slug técnico */}
+                                    <div className="space-y-1.5">
+                                        <Label className="text-[11px] font-bold uppercase opacity-60">
+                                            Identificador (Slug)
+                                        </Label>
+                                        <div className="relative">
+                                            <span className="absolute top-2 left-3 font-mono text-xs text-muted-foreground/40">
+                                                #
+                                            </span>
+                                            <Input
+                                                autoFocus
+                                                value={data.name}
+                                                onChange={(e) =>
+                                                    onFieldChange(
+                                                        'name',
+                                                        e.target.value
+                                                            .toLowerCase()
+                                                            .replace(
+                                                                /\s+/g,
+                                                                '_',
+                                                            ),
+                                                    )
+                                                }
+                                                placeholder="ej_administrador"
+                                                className={cn(
+                                                    'h-8 pl-6 font-mono text-xs focus-visible:ring-violet-500',
+                                                    errors.name &&
+                                                        'border-red-500',
+                                                )}
+                                            />
+                                        </div>
+                                        {errors.name && (
+                                            <p className="text-[10px] font-medium text-red-500">
+                                                {errors.name}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-[11px] font-bold uppercase opacity-60">
+                                            Nombre Visible
+                                        </Label>
+                                        <Input
+                                            value={data.label}
+                                            onChange={(e) =>
+                                                onFieldChange(
+                                                    'label',
+                                                    e.target.value,
+                                                )
+                                            }
+                                            placeholder="Ej: Administrador de Ventas"
+                                            className={cn(
+                                                'h-9 focus-visible:ring-violet-500',
+                                                errors.label &&
+                                                    'border-red-500',
+                                            )}
+                                        />
+                                        {errors.label && (
+                                            <p className="text-[10px] font-medium text-red-500">
+                                                {errors.label}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-[11px] font-bold uppercase opacity-60">
+                                            Descripción
+                                        </Label>
+                                        <Textarea
+                                            value={data.description}
+                                            onChange={(e) =>
+                                                onFieldChange(
+                                                    'description',
+                                                    e.target.value,
+                                                )
+                                            }
+                                            rows={3}
+                                            placeholder="Propósito de este rol..."
+                                            className="resize-none text-sm focus-visible:ring-violet-500"
+                                        />
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Card Informativa para balancear el diseño de la columna izquierda */}
+                            <Card className="border-violet-200 bg-violet-50/50 shadow-none dark:border-violet-900/50 dark:bg-violet-900/10">
+                                <CardContent className="flex gap-3 p-4">
+                                    <Info className="mt-0.5 h-5 w-5 shrink-0 text-violet-600" />
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-bold text-violet-900 dark:text-violet-300">
+                                            ¿Qué sigue?
+                                        </p>
+                                        <p className="text-[11px] leading-relaxed text-violet-800/80 dark:text-violet-400">
+                                            Tras guardar el rol, serás
+                                            redirigido a la pantalla de edición
+                                            donde podrás asignar la{' '}
+                                            <strong>matriz de permisos</strong>{' '}
+                                            específica.
+                                        </p>
+                                    </div>
+                                </CardContent>
+                            </Card>
                         </div>
-                        {errors.name ? (
-                            <p className="mt-1 text-sm font-medium text-red-500">
-                                {errors.name}
-                            </p>
-                        ) : (
-                            <p className="mt-2 text-xs text-muted-foreground">
-                                Se usa internamente en el código (ej:{' '}
-                                <code>if (user.hasRole('admin'))</code>).
-                            </p>
-                        )}
-                    </div>
 
-                    <div className="grid grid-cols-1 gap-x-20 gap-y-10 md:grid-cols-2">
-                        {/* COLUMNA IZQUIERDA: DETALLES VISIBLES */}
-                        <div className="space-y-8">
-                            {/* Label */}
-                            <div className="group space-y-2">
-                                <Label className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase">
-                                    <Tag className="h-3 w-3" /> Nombre Visible
-                                    (Label)
-                                </Label>
-                                <Input
-                                    value={data.label}
-                                    onChange={(e) =>
-                                        onFieldChange('label', e.target.value)
-                                    }
-                                    placeholder="Ej: Administrador General"
-                                    className="h-12 rounded-none border-0 border-b border-foreground/20 bg-transparent px-0 text-lg text-foreground shadow-none placeholder:text-muted-foreground/50 focus-visible:border-violet-600 focus-visible:ring-0"
-                                />
-                                {errors.label && (
-                                    <p className="text-sm font-medium text-red-500">
-                                        {errors.label}
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Descripción */}
-                            <div className="group space-y-2">
-                                <Label className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase">
-                                    <Text className="h-3 w-3" /> Descripción
-                                </Label>
-                                <Textarea
-                                    value={data.description}
-                                    onChange={(e) =>
-                                        onFieldChange(
-                                            'description',
-                                            e.target.value,
-                                        )
-                                    }
-                                    placeholder="Describe brevemente el alcance de este rol..."
-                                    className="min-h-[120px] resize-none rounded-xl border-2 border-muted bg-muted/20 p-4 text-base focus-visible:border-violet-600 focus-visible:ring-0"
-                                />
-                                {errors.description && (
-                                    <p className="text-sm font-medium text-red-500">
-                                        {errors.description}
-                                    </p>
-                                )}
-                            </div>
+                        {/* COLUMNA DERECHA: PLACEHOLDER O VISTA PREVIA */}
+                        <div className="lg:col-span-2">
+                            <Card className="flex h-full min-h-[400px] flex-col items-center justify-center border-2 border-dashed bg-muted/5 p-8 text-center">
+                                <div className="max-w-md space-y-4">
+                                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                                        <Shield className="h-8 w-8 text-muted-foreground/40" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <h3 className="text-lg font-bold text-muted-foreground">
+                                            Configuración de Capacidades
+                                        </h3>
+                                        <p className="text-sm text-muted-foreground/70">
+                                            La matriz de permisos estará
+                                            disponible una vez que el rol haya
+                                            sido creado exitosamente en el
+                                            sistema.
+                                        </p>
+                                    </div>
+                                </div>
+                            </Card>
                         </div>
                     </div>
                 </div>

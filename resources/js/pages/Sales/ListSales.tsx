@@ -41,6 +41,8 @@ import React, {
 } from 'react';
 import { useDebounce } from 'use-debounce';
 import { Columns, Sale } from './Columns';
+import { usePermission } from '@/hooks/usePermission';
+import rolesRoute from '@/routes/roles';
 
 interface PaginatedSales {
     data: Sale[];
@@ -317,6 +319,7 @@ export default function ListSales({ sales, filters }: Props) {
             </div>
         );
     };
+    const { hasPermission } = usePermission();
 
     return (
         <AppLayout
@@ -329,7 +332,7 @@ export default function ListSales({ sales, filters }: Props) {
                 >
                     <div className="flex items-center gap-4">
                         {selectedCount > 0 ? (
-                            <div className="flex animate-in items-center gap-2 rounded-md bg-blue-100 px-3 py-1 text-blue-700 fade-in slide-in-from-top-1">
+                            <div className="flex animate-in items-center gap-2 rounded-md bg-violet-100 px-3 py-1 text-violet-700 fade-in slide-in-from-top-1 dark:bg-violet-900/30 dark:text-violet-400">
                                 <span className="font-bold">
                                     {selectedCount}
                                 </span>{' '}
@@ -337,26 +340,37 @@ export default function ListSales({ sales, filters }: Props) {
                                 <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-4 w-4"
+                                    className="h-4 w-4 hover:bg-violet-200 dark:hover:bg-violet-800"
                                     onClick={() => setRowSelection({})}
                                 >
                                     <X className="h-3 w-3" />
                                 </Button>
                             </div>
                         ) : (
-                            <>
-                                <Button
-                                    className="bg-blue-700 text-white shadow-sm hover:bg-blue-800"
-                                    onClick={() =>
-                                        router.visit(salesRoute.create().url)
-                                    }
-                                >
-                                    <Plus className="mr-2 h-4 w-4" /> Nuevo
-                                </Button>
-                                <h1 className="text-lg font-semibold">
-                                    Ventas
-                                </h1>
-                            </>
+                            <div className="flex items-center gap-4">
+                                {hasPermission('sales.create') ? (
+                                    <>
+                                        <Button
+                                            className="bg-violet-600 text-white shadow-sm hover:bg-violet-700"
+                                            onClick={() =>
+                                                router.visit(
+                                                    salesRoute.create().url,
+                                                )
+                                            }
+                                        >
+                                            <Plus className="mr-2 h-4 w-4" />{' '}
+                                            Nuevo
+                                        </Button>
+                                        <h1 className="text-lg font-semibold text-foreground">
+                                            Ventas
+                                        </h1>
+                                    </>
+                                ) : (
+                                    <h1 className="text-lg font-semibold text-foreground">
+                                        Ventas
+                                    </h1>
+                                )}
+                            </div>
                         )}
                     </div>
 

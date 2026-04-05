@@ -4,16 +4,20 @@ namespace App\Exports;
 
 use App\Models\Receipt;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithColumnFormatting;
+use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
 
-class TaxReportExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize, WithStyles, WithColumnFormatting
+class TaxReportExport implements FromCollection, WithHeadings, WithMapping, ShouldAutoSize, WithStyles, WithColumnFormatting, WithTitle
 {
     protected $from;
     protected $to;
@@ -24,127 +28,125 @@ class TaxReportExport implements FromCollection, WithHeadings, WithMapping, Shou
         $this->to = $to;
     }
 
+    public function title(): string
+    {
+        return 'Libro de Ventas ' . $this->from;
+    }
+
     /**
-     * Trae el listado DETALLADO de comprobantes.
+     * Traemos la colección con los montos de impuestos ya calculados desde la base de datos
      */
     public function collection()
     {
         $fromDate = $this->from . ' 00:00:00';
         $toDate = $this->to . ' 23:59:59';
 
+        // IMPORTANTE: Cambiamos a Query Builder para sumar los impuestos reales de los detalles
         return Receipt::query()
-            ->with('supplier') // Cargar relación para evitar N+1
+            ->with(['supplier', 'sale.details']) // Traemos los detalles para sumar impuestos reales
             ->whereBetween('issue_date', [$fromDate, $toDate])
             ->orderBy('issue_date', 'asc')
-            ->orderBy('series', 'asc')
-            ->orderBy('number', 'asc')
             ->get();
     }
 
     public function headings(): array
     {
         return [
-            'Fecha Emisión',
-            'Tipo Documento',
-            'Serie',
-            'Número',
-            'RUC Proveedor',        // Corregido: Es compras, vemos Proveedores
-            'Razón Social',         // Corregido
-            'Moneda Orig.',         // Útil para auditoría
-            'T. Cambio',            // Útil para auditoría
-            'Base Imponible (S/)',  // Aclaramos que es en Soles
-            'IGV (18%) (S/)',
-            'Total (S/)',
+            'FECHA EMISIÓN',
+            'TIPO DOC',
+            'SERIE',
+            'NÚMERO',
+            'RUC/DNI',
+            'CLIENTE / PROVEEDOR',
+            'MONEDA ORIG.',
+            'T.C.',
+            'BASE IMPONIBLE (S/)',
+            'IGV REAL (S/)',
+            'TOTAL (S/)',
         ];
     }
 
-    /**
-     * Mapea cada FILA (cada comprobante individual)
-     */
     public function map($receipt): array
     {
-        // 1. Normalización de Moneda a SOLES
-        $exchangeRate = (float) $receipt->exchange_rate;
-        $originalTotal = (float) $receipt->total_amount;
+        $exchangeRate = (float) ($receipt->exchange_rate ?? 1.000);
 
-        // Si es USD, convertimos. Si es PEN, se mantiene.
-        $totalInSoles = ($receipt->currency === 'USD')
-            ? $originalTotal * $exchangeRate
-            : $originalTotal;
+        /** * LÓGICA DINÁMICA:
+         * En lugar de total / 1.18, sumamos el tax_amount de los detalles.
+         * Si el recibo viene de una venta, sumamos sus detalles.
+         */
+        $totalTax = 0;
+        $totalSubtotal = 0;
 
-        // 2. Cálculos Tributarios (Base / IGV) sobre el monto en Soles
-        $base = $totalInSoles / 1.18;
-        $igv = $totalInSoles - $base;
+        if ($receipt->sale && $receipt->sale->details) {
+            $totalTax = $receipt->sale->details->sum('tax_amount');
+            // La base imponible es el total de la línea menos su impuesto
+            $totalSubtotal = $receipt->sale->details->sum(function($d) {
+                return ($d->quantity * $d->unit_price) - $d->tax_amount;
+            });
+        } else {
+            // Fallback: Si no hay detalles (por migración antigua), usamos la lógica anterior
+            // pero marcamos que es un cálculo estimado.
+            $totalInOriginalCurrency = (float) $receipt->total_amount;
+            $totalSubtotal = $totalInOriginalCurrency / 1.18;
+            $totalTax = $totalInOriginalCurrency - $totalSubtotal;
+        }
 
-        // 3. Formateo del Tipo de Documento
+        // Aplicamos Tipo de Cambio si es USD
+        $isUSD = $receipt->currency === 'USD';
+        $baseSoles = $isUSD ? $totalSubtotal * $exchangeRate : $totalSubtotal;
+        $igvSoles = $isUSD ? $totalTax * $exchangeRate : $totalTax;
+        $totalSoles = $isUSD ? ($receipt->total_amount * $exchangeRate) : $receipt->total_amount;
+
         $tipoDoc = $receipt->document_type instanceof \App\Enums\DocumentType
             ? $receipt->document_type->label()
             : ucfirst(str_replace('_', ' ', $receipt->document_type));
 
-        // 4. Datos del Proveedor (Safety checks)
-        $ruc = $receipt->supplier ? $receipt->supplier->ruc : '---';
-        $razonSocial = $receipt->supplier ? $receipt->supplier->company_name : 'Proveedor Eliminado';
-
         return [
-            // A. Fecha (Objeto Carbon o string, Excel lo formatea luego)
             Carbon::parse($receipt->issue_date)->format('d/m/Y'),
-
-            // B. Tipo
             $tipoDoc,
-
-            // C. Serie
             $receipt->series,
-
-            // D. Número
             $receipt->number,
-
-            // E. RUC
-            $ruc,
-
-            // F. Razón Social
-            $razonSocial,
-
-            // G. Moneda Original
+            $receipt->supplier ? $receipt->supplier->ruc : '---',
+            $receipt->supplier ? $receipt->supplier->company_name : 'N/A',
             $receipt->currency,
-
-            // H. Tipo de Cambio
             $exchangeRate,
-
-            // I. Base (Soles)
-            $base,
-
-            // J. IGV (Soles)
-            $igv,
-
-            // K. Total (Soles)
-            $totalInSoles,
+            round($baseSoles, 2),
+            round($igvSoles, 2),
+            round($totalSoles, 2),
         ];
     }
 
     public function styles(Worksheet $sheet)
     {
+        // Obtener el número de filas
+        $highestRow = $sheet->getHighestRow();
+
         return [
-            // Fila 1 (Encabezados)
+            // Encabezados: Fondo azul oscuro, texto blanco, negrita
             1 => [
-                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
-                'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => '2563EB']], // Azul corporativo
-                'alignment' => ['horizontal' => 'center'],
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 11],
+                'fill' => ['fillType' => 'solid', 'startColor' => ['rgb' => '1E3A8A']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            ],
+            // Bordes para toda la tabla
+            "A1:K{$highestRow}" => [
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['rgb' => 'CCCCCC'],
+                    ],
+                ],
             ],
         ];
     }
 
-    /**
-     * Da formato de moneda y fecha a las columnas de Excel
-     */
     public function columnFormats(): array
     {
         return [
-            // G (Moneda texto), H (TC 3 decimales)
             'H' => '0.000',
-            // I (Base), J (IGV), K (Total) con formato moneda Soles
-            'I' => '"S/" #,##0.00',
-            'J' => '"S/" #,##0.00',
-            'K' => '"S/" #,##0.00',
+            'I' => NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1,
+            'J' => NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1,
+            'K' => NumberFormat::FORMAT_NUMBER_COMMA_SEPARATED1,
         ];
     }
 }

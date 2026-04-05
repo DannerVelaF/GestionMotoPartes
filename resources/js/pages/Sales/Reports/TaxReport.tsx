@@ -157,14 +157,14 @@ export default function TaxReport({
                                 value={`S/ ${totals.base.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
                                 icon={<Calculator className="h-4 w-4" />}
                                 colorClass="text-blue-600 dark:text-blue-400"
-                                description="Monto neto sin impuestos"
+                                description="Monto neto grabado" // Cambiado: más genérico
                             />
                             <TaxStatCard
-                                title="IGV Recaudado (18%)"
+                                title="Impuestos Recaudados" // Cambiado: quitamos el "(18%)"
                                 value={`S/ ${totals.igv.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
                                 icon={<Percent className="h-4 w-4" />}
                                 colorClass="text-emerald-600 dark:text-emerald-400"
-                                description="Débito fiscal generado"
+                                description="Total IGV acumulado" // Cambiado
                             />
                             <Card className="rounded-3xl border-none bg-blue-600 text-white shadow-sm ring-1 ring-slate-200 dark:ring-blue-900">
                                 <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -341,8 +341,10 @@ export default function TaxReport({
                                 </div>
                                 <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/50 p-3 dark:border-blue-900/30 dark:bg-blue-900/10">
                                     <p className="text-[10px] leading-relaxed font-medium text-blue-700 dark:text-blue-300">
-                                        * Tasa impositiva del 18% aplicada según
-                                        normativa SUNAT vigente.
+                                        * Los montos mostrados corresponden a la
+                                        sumatoria de bases e impuestos aplicados
+                                        detalladamente en cada comprobante según
+                                        la configuración del sistema.
                                     </p>
                                 </div>
                             </div>

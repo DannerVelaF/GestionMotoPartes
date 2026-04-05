@@ -10,8 +10,6 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
-import receipts from '@/routes/receipts';
-import { margin } from '@/routes/reports-receipts';
 import { Head, router } from '@inertiajs/react';
 import {
     AlertTriangle,
@@ -30,7 +28,7 @@ import {
     XAxis,
     YAxis,
 } from 'recharts';
-
+import {cn} from '@/lib/utils';
 interface MarginItem {
     product: string;
     code: string;
@@ -44,7 +42,7 @@ interface MarginItem {
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444'];
 
 export default function MarginReport({
-    reportData,
+    reportData = [],
     filters,
 }: {
     reportData: MarginItem[];
@@ -69,7 +67,7 @@ export default function MarginReport({
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         router.get(
-            margin().url,
+            '/compras/reportes/margen', // ✅ Nueva ruta
             {
                 from: formData.get('from'),
                 to: formData.get('to'),
@@ -81,54 +79,54 @@ export default function MarginReport({
     return (
         <AppLayout
             breadcrumbs={[
-                { title: 'Comprobantes', href: receipts.index().url },
+                { title: 'Compras', href: '/compras/ordenes' },
                 { title: 'Reportes', href: '#' },
                 { title: 'Análisis de Margen', href: '' },
             ]}
         >
-            <Head title="Análisis de Rentabilidad" />
+            <Head title="Rentabilidad Proyectada" />
 
-            <div className="flex h-full flex-col bg-background">
-                {/* --- HEADER --- */}
+            <div className="flex h-full flex-col bg-background text-foreground">
+                {/* --- HEADER STICKY --- */}
                 <div className="sticky top-0 z-20 flex items-center justify-between border-b bg-background/95 px-8 py-4 backdrop-blur dark:border-neutral-800">
-                    <div className="flex items-center gap-4">
-                        <div>
-                            <h1 className="text-lg font-bold tracking-tight">
-                                Análisis de Margen
-                            </h1>
-                            <p className="flex items-center gap-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
-                                Rentabilidad Proyectada de Compras
-                                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                                    EN SOLES (PEN)
-                                </span>
-                            </p>
-                        </div>
+                    <div>
+                        <h1 className="text-lg font-bold tracking-tight">
+                            Análisis de Margen (OC)
+                        </h1>
+                        <p className="flex items-center gap-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                            Rentabilidad Proyectada sobre Compras
+                            <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                VALORES EN SOLES (PEN)
+                            </span>
+                        </p>
                     </div>
 
                     <form
                         onSubmit={handleFilterChange}
                         className="flex items-center gap-3"
                     >
-                        <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-1 dark:border-neutral-800">
+                        <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-1 dark:border-neutral-800 dark:bg-neutral-900/50">
                             <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                             <Input
                                 type="date"
                                 name="from"
                                 defaultValue={filters.from}
-                                className="h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0"
+                                className="dark:color-scheme-dark h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0"
                             />
-                            <span className="opacity-20">|</span>
+                            <span className="text-muted-foreground opacity-20">
+                                |
+                            </span>
                             <Input
                                 type="date"
                                 name="to"
                                 defaultValue={filters.to}
-                                className="h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0"
+                                className="dark:color-scheme-dark h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0"
                             />
                         </div>
                         <Button
                             type="submit"
                             size="sm"
-                            className="bg-blue-600 font-bold hover:bg-blue-700"
+                            className="bg-blue-600 font-bold hover:bg-blue-700 dark:text-white"
                         >
                             <Filter className="mr-2 h-3.5 w-3.5" /> Analizar
                         </Button>
@@ -148,7 +146,7 @@ export default function MarginReport({
                                         ? 'text-orange-500'
                                         : 'text-emerald-500'
                                 }
-                                subtext="Rendimiento promedio sobre venta"
+                                subtext="Rendimiento promedio sobre venta sugerida"
                             />
                             <StatCard
                                 title="Items Críticos"
@@ -159,24 +157,24 @@ export default function MarginReport({
                                         ? 'text-red-500'
                                         : 'text-emerald-500'
                                 }
-                                subtext="Productos con margen < 15%"
+                                subtext="Productos con margen inferior al 15%"
                             />
                             <StatCard
                                 title="Utilidad Proyectada Total"
                                 value={`S/ ${totalProjectedProfit.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
                                 icon={<DollarSign className="h-4 w-4" />}
                                 colorClass="text-blue-500"
-                                subtext="Si se vende todo el stock ingresado"
+                                subtext="Si se vende todo el stock de las OC"
                             />
                         </div>
 
                         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-                            {/* Gráfico de Ranking de Ganancia Proyectada */}
+                            {/* Gráfico Ranking */}
                             <Card className="rounded-3xl border-none shadow-sm ring-1 ring-neutral-200 lg:col-span-3 dark:bg-neutral-900/50 dark:ring-neutral-800">
                                 <CardHeader className="border-b bg-muted/30 dark:border-neutral-800">
-                                    <CardTitle className="flex items-center gap-2 text-[10px] font-black tracking-widest uppercase">
+                                    <CardTitle className="flex items-center gap-2 text-[10px] font-black tracking-widest text-foreground uppercase">
                                         <PieIcon className="h-4 w-4 text-blue-500" />
-                                        Top 10 Productos por Utilidad
+                                        Top 10 Productos por Utilidad (S/)
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="pt-6">
@@ -203,8 +201,9 @@ export default function MarginReport({
                                                     axisLine={false}
                                                     tickLine={false}
                                                     tick={{
-                                                        fontSize: 11,
-                                                        fill: '#888',
+                                                        fontSize: 10,
+                                                        fill: 'currentColor',
+                                                        opacity: 0.5,
                                                         fontWeight: 600,
                                                     }}
                                                     width={100}
@@ -215,16 +214,16 @@ export default function MarginReport({
                                                         opacity: 0.05,
                                                     }}
                                                     contentStyle={{
-                                                        backgroundColor: '#000',
+                                                        backgroundColor:
+                                                            'black',
                                                         border: 'none',
-                                                        borderRadius: '8px',
-                                                        color: '#fff',
-                                                        fontSize: '12px',
+                                                        borderRadius: '12px',
+                                                        color: 'white',
                                                     }}
                                                     formatter={(
                                                         value: number,
                                                     ) => [
-                                                        `S/ ${value.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
+                                                        `S/ ${value.toLocaleString('es-PE')}`,
                                                         'Utilidad',
                                                     ]}
                                                 />
@@ -240,65 +239,85 @@ export default function MarginReport({
                                 </CardContent>
                             </Card>
 
-                            {/* Detalle en Tabla */}
+                            {/* Tabla Detalle */}
                             <div className="flex flex-col rounded-3xl border border-neutral-200 bg-card p-6 shadow-sm lg:col-span-2 dark:border-neutral-800 dark:bg-neutral-900/20">
                                 <h3 className="mb-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
-                                    Detalle de Costos vs Venta
+                                    Comparativa Costo vs Venta
                                 </h3>
                                 <div className="flex-1 overflow-hidden rounded-2xl border dark:border-neutral-800">
                                     <Table>
                                         <TableHeader className="bg-muted/50 dark:bg-neutral-800/50">
                                             <TableRow className="border-none hover:bg-transparent">
-                                                <TableHead className="font-bold">
+                                                <TableHead className="font-bold text-foreground">
                                                     Producto
                                                 </TableHead>
-                                                <TableHead className="text-right font-bold">
+                                                <TableHead className="text-right font-bold text-foreground">
                                                     Margen %
                                                 </TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {reportData.map((item, idx) => (
-                                                <TableRow
-                                                    key={idx}
-                                                    className="transition-colors hover:bg-muted/50 dark:border-neutral-800"
-                                                >
-                                                    <TableCell className="py-3">
-                                                        <p
-                                                            className="max-w-[180px] truncate text-[11px] leading-tight font-black uppercase"
-                                                            title={item.product}
-                                                        >
-                                                            {item.product}
-                                                        </p>
-                                                        <div className="mt-1 flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
-                                                            <span className="text-red-500">
-                                                                C:{' '}
-                                                                {item.avg_cost}
+                                            {reportData.length > 0 ? (
+                                                reportData.map((item, idx) => (
+                                                    <TableRow
+                                                        key={idx}
+                                                        className="transition-colors hover:bg-muted/50 dark:border-neutral-800"
+                                                    >
+                                                        <TableCell className="py-3">
+                                                            <p
+                                                                className="max-w-[180px] truncate text-[11px] font-black text-foreground uppercase"
+                                                                title={
+                                                                    item.product
+                                                                }
+                                                            >
+                                                                {item.product}
+                                                            </p>
+                                                            <div className="mt-1 flex items-center gap-2 font-mono text-[9px] text-muted-foreground">
+                                                                <span className="font-bold text-red-500">
+                                                                    C: S/
+                                                                    {
+                                                                        item.avg_cost
+                                                                    }
+                                                                </span>
+                                                                <span className="opacity-30">
+                                                                    |
+                                                                </span>
+                                                                <span className="font-bold text-emerald-500">
+                                                                    V: S/
+                                                                    {
+                                                                        item.avg_sale
+                                                                    }
+                                                                </span>
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <span
+                                                                className={cn(
+                                                                    'rounded-md px-2 py-1 text-[11px] font-black tabular-nums',
+                                                                    item.margin_percent <
+                                                                        15
+                                                                        ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                                                                        : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
+                                                                )}
+                                                            >
+                                                                {item.margin_percent.toFixed(
+                                                                    1,
+                                                                )}
+                                                                %
                                                             </span>
-                                                            <span>/</span>
-                                                            <span className="text-emerald-500">
-                                                                V:{' '}
-                                                                {item.avg_sale}
-                                                            </span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        <span
-                                                            className={`rounded-md px-2 py-1 text-xs font-black ${
-                                                                item.margin_percent <
-                                                                15
-                                                                    ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                                                                    : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                                            }`}
-                                                        >
-                                                            {item.margin_percent.toFixed(
-                                                                1,
-                                                            )}
-                                                            %
-                                                        </span>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            ) : (
+                                                <TableRow>
+                                                    <TableCell
+                                                        colSpan={2}
+                                                        className="h-24 text-center text-muted-foreground italic"
+                                                    >
+                                                        Sin datos registrados.
                                                     </TableCell>
                                                 </TableRow>
-                                            ))}
+                                            )}
                                         </TableBody>
                                     </Table>
                                 </div>
@@ -318,7 +337,9 @@ function StatCard({ title, value, icon, colorClass, subtext }: any) {
                 <CardTitle className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
                     {title}
                 </CardTitle>
-                <div className={`rounded-lg bg-muted/50 p-2 ${colorClass}`}>
+                <div
+                    className={`rounded-lg bg-muted/50 p-2 dark:bg-neutral-800 ${colorClass}`}
+                >
                     {icon}
                 </div>
             </CardHeader>
@@ -328,7 +349,7 @@ function StatCard({ title, value, icon, colorClass, subtext }: any) {
                 >
                     {value}
                 </div>
-                <p className="mt-1 text-[12px] font-medium text-muted-foreground opacity-60">
+                <p className="mt-1 text-[11px] font-medium text-muted-foreground opacity-60">
                     {subtext}
                 </p>
             </CardContent>

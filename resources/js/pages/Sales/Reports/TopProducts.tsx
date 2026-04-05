@@ -53,10 +53,11 @@ export default function TopProducts({
         );
     };
 
-    const chartData = [...reportData].slice(0, 10).map((item) => ({
+    // Preparamos la data para el gráfico asegurando valores numéricos
+    const chartData = reportData.slice(0, 10).map((item) => ({
         name: item.product_name,
-        cantidad: Number(item.total_qty),
-        ingresos: Number(item.total_revenue),
+        cantidad: Number(item.total_qty) || 0,
+        ingresos: Number(item.total_revenue) || 0,
     }));
 
     return (
@@ -69,18 +70,16 @@ export default function TopProducts({
         >
             <Head title="Ranking de Productos" />
 
-            <div className="flex h-full flex-col bg-background">
-                {/* --- HEADER STICKY (Sincronizado) --- */}
+            <div className="flex h-full flex-col bg-background text-foreground">
+                {/* --- HEADER STICKY --- */}
                 <div className="sticky top-0 z-20 flex items-center justify-between border-b bg-background/95 px-8 py-4 backdrop-blur dark:border-neutral-800">
-                    <div className="flex items-center gap-4">
-                        <div>
-                            <h1 className="text-lg font-bold tracking-tight text-foreground">
-                                Productos Estrella
-                            </h1>
-                            <p className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
-                                Ranking de Rendimiento
-                            </p>
-                        </div>
+                    <div>
+                        <h1 className="text-lg font-bold tracking-tight">
+                            Productos Estrella
+                        </h1>
+                        <p className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                            Ranking de Rendimiento y Rotación
+                        </p>
                     </div>
 
                     <form
@@ -93,14 +92,14 @@ export default function TopProducts({
                                 type="date"
                                 name="from"
                                 defaultValue={filters.from}
-                                className="h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0 dark:text-neutral-200"
+                                className="dark:color-scheme-dark h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0"
                             />
                             <span className="text-muted-foreground/30">|</span>
                             <Input
                                 type="date"
                                 name="to"
                                 defaultValue={filters.to}
-                                className="h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0 dark:text-neutral-200"
+                                className="dark:color-scheme-dark h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0"
                             />
                         </div>
                         <Button
@@ -116,35 +115,38 @@ export default function TopProducts({
                 <div className="flex-1 overflow-auto bg-muted/5 p-8 dark:bg-neutral-950/20">
                     <div className="mx-auto max-w-7xl space-y-8">
                         {/* --- TOP 1 HIGHLIGHT (Hero Section) --- */}
-                        {reportData.length > 0 && (
-                            <Card className="rounded-3xl border-none bg-gradient-to-r from-blue-700 to-blue-500 text-white shadow-lg ring-1 ring-blue-400/20 dark:ring-blue-900">
+                        {reportData.length > 0 ? (
+                            <Card className="rounded-3xl border-none bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 text-white shadow-xl ring-1 ring-white/10">
                                 <CardContent className="flex flex-col items-center justify-between gap-6 p-8 md:flex-row">
                                     <div className="flex items-center gap-6">
-                                        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20 backdrop-blur-xl">
-                                            <Trophy className="h-10 w-10 text-yellow-300 drop-shadow-lg" />
+                                        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-white/20 shadow-inner ring-1 ring-white/30 backdrop-blur-md">
+                                            <Trophy className="h-10 w-10 text-yellow-300 drop-shadow-md" />
                                         </div>
                                         <div>
-                                            <p className="text-[10px] font-black tracking-widest text-blue-100 uppercase opacity-80">
-                                                Producto Líder
+                                            <p className="text-[10px] font-black tracking-[0.2em] text-blue-100 uppercase opacity-80">
+                                                Producto Líder en Ventas
                                             </p>
                                             <h2 className="text-3xl font-black tracking-tighter capitalize">
                                                 {reportData[0].product_name}
                                             </h2>
-                                            <p className="text-sm font-medium text-blue-100/90">
-                                                SKU:{' '}
-                                                {reportData[0].product_code} —{' '}
-                                                <span className="font-black">
+                                            <p className="text-sm font-medium text-blue-50/80">
+                                                Código:{' '}
+                                                <span className="font-mono">
+                                                    {reportData[0].product_code}
+                                                </span>{' '}
+                                                —
+                                                <span className="ml-2 font-black text-white">
                                                     {Number(
                                                         reportData[0].total_qty,
-                                                    )}
-                                                </span>{' '}
-                                                unidades vendidas
+                                                    ).toLocaleString()}{' '}
+                                                    unidades
+                                                </span>
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="rounded-2xl bg-black/10 p-4 text-center backdrop-blur-sm md:text-right">
-                                        <p className="text-[10px] font-black text-blue-100 uppercase opacity-80">
-                                            Recaudación Total
+                                    <div className="rounded-2xl bg-white/10 px-6 py-4 text-center ring-1 ring-white/20 backdrop-blur-md md:text-right">
+                                        <p className="text-[10px] font-black text-blue-100 uppercase opacity-70">
+                                            Ingresos Totales
                                         </p>
                                         <p className="text-3xl font-black tracking-tighter tabular-nums">
                                             S/{' '}
@@ -157,11 +159,18 @@ export default function TopProducts({
                                     </div>
                                 </CardContent>
                             </Card>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed bg-background/50 py-12 text-center">
+                                <ShoppingBag className="mb-4 h-12 w-12 text-muted-foreground/20" />
+                                <p className="font-medium text-muted-foreground">
+                                    No hay datos para el periodo seleccionado.
+                                </p>
+                            </div>
                         )}
 
                         <div className="grid grid-cols-1 gap-8 lg:grid-cols-5">
-                            {/* --- COMPARATIVA DE VOLUMEN (Chart) --- */}
-                            <Card className="overflow-hidden rounded-3xl border-none shadow-sm ring-1 ring-slate-200 lg:col-span-3 dark:bg-neutral-900/50 dark:ring-neutral-800">
+                            {/* --- GRÁFICO DE VOLUMEN --- */}
+                            <Card className="rounded-3xl border-none shadow-sm ring-1 ring-neutral-200 lg:col-span-3 dark:bg-neutral-900/50 dark:ring-neutral-800">
                                 <CardHeader className="border-b bg-muted/30 dark:border-neutral-800">
                                     <CardTitle className="flex items-center gap-2 text-xs font-black tracking-widest uppercase">
                                         <BarChart3 className="h-4 w-4 text-blue-600" />{' '}
@@ -183,7 +192,7 @@ export default function TopProducts({
                                                     strokeDasharray="3 3"
                                                     horizontal={true}
                                                     vertical={false}
-                                                    strokeOpacity={0.05}
+                                                    strokeOpacity={0.1}
                                                 />
                                                 <XAxis type="number" hide />
                                                 <YAxis
@@ -194,7 +203,8 @@ export default function TopProducts({
                                                     tick={{
                                                         fontSize: 10,
                                                         fontWeight: 'bold',
-                                                        fill: '#888',
+                                                        fill: 'currentColor',
+                                                        opacity: 0.5,
                                                     }}
                                                     width={120}
                                                 />
@@ -208,8 +218,11 @@ export default function TopProducts({
                                                         border: 'none',
                                                         borderRadius: '12px',
                                                         color: '#fff',
-                                                        fontSize: '12px',
                                                     }}
+                                                    formatter={(value: any) => [
+                                                        `${value} unidades`,
+                                                        'Cantidad',
+                                                    ]}
                                                 />
                                                 <Bar
                                                     dataKey="cantidad"
@@ -236,8 +249,8 @@ export default function TopProducts({
                                 </CardContent>
                             </Card>
 
-                            {/* --- TABLA DE DETALLE (Ranking) --- */}
-                            <div className="flex flex-col rounded-3xl border border-slate-200 bg-card p-6 shadow-sm lg:col-span-2 dark:border-neutral-800 dark:bg-neutral-900/20">
+                            {/* --- TABLA DE RANKING --- */}
+                            <div className="flex flex-col rounded-3xl border border-neutral-200 bg-card p-6 shadow-sm lg:col-span-2 dark:border-neutral-800 dark:bg-neutral-900/20">
                                 <h3 className="mb-4 flex items-center gap-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
                                     <ShoppingBag className="h-4 w-4 text-blue-600" />{' '}
                                     Listado de Ventas
@@ -252,44 +265,61 @@ export default function TopProducts({
                                                 <TableHead className="font-bold">
                                                     Producto
                                                 </TableHead>
-                                                <TableHead className="text-right font-bold">
-                                                    Cant.
-                                                </TableHead>
-                                                <TableHead className="text-right font-bold">
+                                                <TableHead className="text-right font-bold text-blue-600 dark:text-blue-400">
                                                     Total
                                                 </TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {reportData.map((item, idx) => (
-                                                <TableRow
-                                                    key={idx}
-                                                    className="transition-colors hover:bg-muted/50 dark:border-neutral-800"
-                                                >
-                                                    <TableCell className="text-[10px] font-black text-muted-foreground/50">
-                                                        {String(
-                                                            idx + 1,
-                                                        ).padStart(2, '0')}
-                                                    </TableCell>
-                                                    <TableCell className="py-3">
-                                                        <p className="text-[11px] leading-tight font-black text-foreground uppercase">
-                                                            {item.product_name}
-                                                        </p>
-                                                        <span className="font-mono text-[10.5px] text-muted-foreground">
-                                                            {item.product_code}
-                                                        </span>
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-bold tabular-nums">
-                                                        {Number(item.total_qty)}
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-black text-blue-600 tabular-nums dark:text-blue-400">
-                                                        S/{' '}
-                                                        {Number(
-                                                            item.total_revenue,
-                                                        ).toFixed(2)}
+                                            {reportData.length > 0 ? (
+                                                reportData.map((item, idx) => (
+                                                    <TableRow
+                                                        key={idx}
+                                                        className="transition-colors hover:bg-muted/50 dark:border-neutral-800"
+                                                    >
+                                                        <TableCell className="text-[10px] font-black text-muted-foreground/50">
+                                                            {String(
+                                                                idx + 1,
+                                                            ).padStart(2, '0')}
+                                                        </TableCell>
+                                                        <TableCell className="py-3">
+                                                            <p className="text-[11px] leading-tight font-black text-foreground uppercase">
+                                                                {
+                                                                    item.product_name
+                                                                }
+                                                            </p>
+                                                            <span className="font-mono text-[10px] text-muted-foreground opacity-70">
+                                                                {
+                                                                    item.product_code
+                                                                }
+                                                            </span>
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <p className="text-xs font-black text-blue-600 tabular-nums dark:text-blue-400">
+                                                                S/{' '}
+                                                                {Number(
+                                                                    item.total_revenue,
+                                                                ).toFixed(2)}
+                                                            </p>
+                                                            <p className="text-[9px] font-bold text-muted-foreground uppercase">
+                                                                {Number(
+                                                                    item.total_qty,
+                                                                )}{' '}
+                                                                uds
+                                                            </p>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
+                                            ) : (
+                                                <TableRow>
+                                                    <TableCell
+                                                        colSpan={3}
+                                                        className="h-24 text-center text-muted-foreground italic"
+                                                    >
+                                                        Sin datos.
                                                     </TableCell>
                                                 </TableRow>
-                                            ))}
+                                            )}
                                         </TableBody>
                                     </Table>
                                 </div>

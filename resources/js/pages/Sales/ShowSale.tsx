@@ -141,7 +141,15 @@ export default function ShowSales({ sale }: Props) {
             },
         });
     };
-
+    const getDocTypeLabel = (type?: string) => {
+        if (!type) return 'TICKET DE VENTA';
+        const labels: any = {
+            factura: 'FACTURA DE VENTA',
+            boleta: 'BOLETA DE VENTA',
+            nota_venta: 'NOTA DE VENTA',
+        };
+        return labels[type] || 'TICKET DE VENTA';
+    };
     return (
         <AppLayout
             breadcrumbs={[
@@ -352,19 +360,30 @@ export default function ShowSales({ sale }: Props) {
                                             />
                                         </div>
                                         <div className="group space-y-2">
-                                            <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:text-neutral-400">
-                                                <FileText className="h-3 w-3" />{' '}
-                                                Referencia de Comprobante
+                                            <Label className="flex items-center gap-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase dark:text-neutral-400">
+                                                <FileText className="h-3.5 w-3.5 text-blue-600 dark:text-blue-500" />
+                                                Documento de Referencia
                                             </Label>
-                                            <Input
-                                                value={
-                                                    sale.receipt
-                                                        ? `${sale.receipt.series} - ${sale.receipt.number}`
-                                                        : 'N/A'
-                                                }
-                                                disabled
-                                                className={disabledInputClass}
-                                            />
+                                            <div className="flex items-center gap-2 border-b border-dashed border-muted-foreground/30 pb-2">
+                                                <span className="text-sm font-bold text-foreground uppercase">
+                                                    {sale.receipt
+                                                        ? getDocTypeLabel(
+                                                              sale.receipt
+                                                                  .document_type,
+                                                          )
+                                                        : 'TICKET DE VENTA'}
+                                                </span>
+                                                <span className="font-light text-muted-foreground/40">
+                                                    |
+                                                </span>
+                                                <span className="font-mono text-sm font-black text-blue-600 dark:text-blue-400">
+                                                    {sale.receipt
+                                                        ? `${sale.receipt.series}-${sale.receipt.number}`
+                                                        : sale.id_sales
+                                                              .toString()
+                                                              .padStart(8, '0')}
+                                                </span>
+                                            </div>
                                         </div>
                                         <div className="group space-y-2">
                                             <Label className="flex items-center gap-2 text-xs font-bold tracking-widest text-muted-foreground uppercase dark:text-neutral-400">

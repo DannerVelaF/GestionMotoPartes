@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
-import productsRoute from '@/routes/products/index';
 import { Head, router } from '@inertiajs/react';
 import { format } from 'date-fns';
 import {
@@ -39,9 +38,23 @@ interface Props {
         active_users: number;
         low_stock: number;
     };
-    chartData: any[];
-    recentMovements: any[];
-    topProducts: any[];
+    chartData: {
+        date: string;
+        ventas: number;
+        compras: number;
+    }[];
+    recentMovements: {
+        product_name: string;
+        quantity: number;
+        type: 'purchase' | 'sale';
+        reference_label: string;
+        created_at: string;
+    }[];
+    topProducts: {
+        id_product: number;
+        product_name: string;
+        sold: number;
+    }[];
 }
 
 export default function Dashboard({
@@ -56,8 +69,8 @@ export default function Dashboard({
         <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/dashboard' }]}>
             <Head title="Panel de Control" />
 
-            <div className="flex h-full flex-1 animate-in flex-col gap-6 bg-background p-6 duration-700 fade-in">
-                {/* --- SECCIÓN DE ALERTA --- */}
+            <div className="flex h-full flex-1 animate-in flex-col gap-6 bg-background p-6 text-foreground duration-700 fade-in">
+                {/* --- SECCIÓN DE ALERTA DE MARGEN --- */}
                 {isLoss && (
                     <div className="flex animate-pulse items-center gap-4 rounded-2xl border-2 border-red-500/20 bg-red-50/50 p-4 dark:bg-red-950/20">
                         <div className="rounded-full bg-red-500 p-2 text-white">
@@ -68,8 +81,13 @@ export default function Dashboard({
                                 Alerta de Margen Negativo
                             </h4>
                             <p className="text-xs font-medium text-red-700/80 dark:text-red-300/60">
-                                Los egresos superan a los ingresos por S/{' '}
-                                {Math.abs(stats.margin_raw).toLocaleString()}.
+                                Los egresos (compras) superan a los ingresos por
+                                S/{' '}
+                                {Math.abs(stats.margin_raw).toLocaleString(
+                                    'es-PE',
+                                    { minimumFractionDigits: 2 },
+                                )}
+                                .
                             </p>
                         </div>
                     </div>
@@ -81,13 +99,13 @@ export default function Dashboard({
                         title="Ventas"
                         value={`S/ ${stats.total_sales}`}
                         icon={<DollarSign className="text-emerald-500" />}
-                        description="Ventas brutas"
+                        description="Ingresos totales (PEN)"
                     />
                     <StatCard
                         title="Compras"
                         value={`S/ ${stats.total_purchases}`}
                         icon={<ShoppingBag className="text-orange-500" />}
-                        description="Inversión total"
+                        description="Inversión en OC (PEN)"
                     />
                     <StatCard
                         title="Utilidad"
@@ -99,34 +117,42 @@ export default function Dashboard({
                                 <TrendingUp className="text-emerald-500" />
                             )
                         }
-                        description="Balance neto"
+                        description="Balance neto actual"
                         highlight={isLoss}
                     />
                     <StatCard
                         title="Equipo"
                         value={stats.active_users.toString()}
                         icon={<Users className="text-blue-500" />}
-                        description="Usuarios en sistema"
+                        description="Usuarios registrados"
                     />
                     <StatCard
                         title="Stock"
                         value={stats.low_stock.toString()}
-                        icon={<Package className="text-red-500" />}
-                        description="Items críticos"
+                        icon={
+                            <Package
+                                className={cn(
+                                    stats.low_stock > 0
+                                        ? 'text-red-500'
+                                        : 'text-emerald-500',
+                                )}
+                            />
+                        }
+                        description="Items bajo mínimo"
                         highlight={stats.low_stock > 0}
                     />
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-7">
-                    {/* GRÁFICO (4 COLUMNAS) */}
-                    <Card className="border-none shadow-sm md:col-span-4 dark:bg-neutral-900/50">
-                        <CardHeader>
+                    {/* GRÁFICO DE ÁREA (4 COLUMNAS) */}
+                    <Card className="rounded-3xl border-none shadow-sm ring-1 ring-neutral-200 md:col-span-4 dark:bg-neutral-900/50 dark:ring-neutral-800">
+                        <CardHeader className="border-b dark:border-neutral-800">
                             <CardTitle className="flex items-center gap-2 text-xs font-black tracking-widest uppercase">
                                 <TrendingUp className="h-4 w-4 text-blue-600" />{' '}
-                                Ventas vs Compras
+                                Flujo de Caja (Ventas vs Compras)
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="h-[350px]">
+                        <CardContent className="h-[350px] pt-6">
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart data={chartData}>
                                     <defs>
@@ -170,30 +196,39 @@ export default function Dashboard({
                                     <CartesianGrid
                                         strokeDasharray="3 3"
                                         vertical={false}
-                                        opacity={0.1}
+                                        strokeOpacity={0.1}
                                     />
                                     <XAxis
                                         dataKey="date"
                                         fontSize={10}
                                         axisLine={false}
                                         tickLine={false}
+                                        tick={{
+                                            fill: 'currentColor',
+                                            opacity: 0.5,
+                                        }}
                                     />
                                     <YAxis
                                         fontSize={10}
                                         axisLine={false}
                                         tickLine={false}
+                                        tick={{
+                                            fill: 'currentColor',
+                                            opacity: 0.5,
+                                        }}
+                                        tickFormatter={(val) => `S/ ${val}`}
                                     />
                                     <Tooltip
                                         formatter={(value: number) => [
-                                            `S/ ${value.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
-                                            '', // El segundo parámetro es el nombre, lo dejamos vacío para usar el name de la Area
+                                            `S/ ${value.toLocaleString('es-PE')}`,
+                                            '',
                                         ]}
                                         contentStyle={{
-                                            backgroundColor: '#000',
+                                            backgroundColor: 'black',
                                             border: 'none',
                                             borderRadius: '12px',
                                             fontSize: '12px',
-                                            color: '#fff',
+                                            color: 'white',
                                         }}
                                     />
                                     <Legend
@@ -224,10 +259,10 @@ export default function Dashboard({
                         </CardContent>
                     </Card>
 
-                    {/* DERECHA: SALUD Y TOP 5 (3 COLUMNAS) */}
+                    {/* SALUD Y TOP 5 (3 COLUMNAS) */}
                     <div className="flex flex-col gap-6 md:col-span-3">
-                        {/* Tarjeta Salud */}
-                        <Card className="border-none shadow-sm dark:bg-neutral-900/50">
+                        {/* Salud del Negocio */}
+                        <Card className="rounded-3xl border-none shadow-sm ring-1 ring-neutral-200 dark:bg-neutral-900/50 dark:ring-neutral-800">
                             <CardHeader>
                                 <CardTitle className="text-xs font-black tracking-widest uppercase">
                                     Salud del Negocio
@@ -237,35 +272,51 @@ export default function Dashboard({
                                 <div className="space-y-2">
                                     <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase">
                                         <span>Eficiencia Operativa</span>
-                                        <span>
-                                            {isLoss ? 'Bajo' : 'Óptimo'}
+                                        <span
+                                            className={cn(
+                                                isLoss
+                                                    ? 'text-red-500'
+                                                    : 'text-emerald-500',
+                                            )}
+                                        >
+                                            {isLoss
+                                                ? 'Bajo (Déficit)'
+                                                : 'Saludable'}
                                         </span>
                                     </div>
                                     <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
                                         <div
                                             className={cn(
-                                                'h-full transition-all',
+                                                'h-full transition-all duration-1000',
                                                 isLoss
                                                     ? 'bg-red-500'
                                                     : 'bg-emerald-500',
                                             )}
                                             style={{
-                                                width: isLoss ? '30%' : '85%',
+                                                width: isLoss ? '35%' : '85%',
                                             }}
                                         />
                                     </div>
                                 </div>
-                                <div className="rounded-xl border border-dashed p-3">
-                                    <p className="text-[11px] leading-relaxed font-medium text-muted-foreground">
+                                <div
+                                    className={cn(
+                                        'rounded-xl border border-dashed p-3',
+                                        isLoss
+                                            ? 'border-red-500/30'
+                                            : 'border-emerald-500/30',
+                                    )}
+                                >
+                                    <p className="text-[11px] leading-relaxed font-medium">
                                         {isLoss ? (
-                                            <span className="inline-flex items-center">
-                                                <TriangleAlert className="mr-1 h-3 w-3 text-red-500" />
-                                                Atención: Los costos son altos.
+                                            <span className="inline-flex items-center text-red-600 dark:text-red-400">
+                                                <TriangleAlert className="mr-1 h-3 w-3" />
+                                                Atención: Revisar costos de
+                                                compra.
                                             </span>
                                         ) : (
-                                            <span className="inline-flex items-center">
-                                                <Check className="mr-1 h-3 w-3 text-emerald-500" />
-                                                Buen desempeño actual.
+                                            <span className="inline-flex items-center text-emerald-600 dark:text-emerald-400">
+                                                <Check className="mr-1 h-3 w-3" />
+                                                Margen de utilidad positivo.
                                             </span>
                                         )}
                                     </p>
@@ -273,28 +324,25 @@ export default function Dashboard({
                             </CardContent>
                         </Card>
 
-                        {/* Tarjeta Top 5 (CORREGIDA) */}
-                        <Card className="flex-1 border-none shadow-sm dark:bg-neutral-900/50">
-                            <CardHeader>
+                        {/* Top 5 Productos */}
+                        <Card className="flex-1 rounded-3xl border-none shadow-sm ring-1 ring-neutral-200 dark:bg-neutral-900/50 dark:ring-neutral-800">
+                            <CardHeader className="border-b dark:border-neutral-800">
                                 <CardTitle className="flex items-center gap-2 text-xs font-black tracking-widest uppercase">
                                     <Trophy className="h-4 w-4 text-amber-500" />{' '}
-                                    Top 5 Productos
+                                    Top 5 Más Vendidos
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-2">
+                            <CardContent className="space-y-2 pt-4">
                                 {topProducts.length > 0 ? (
                                     topProducts.map((prod, i) => (
                                         <div
                                             key={i}
                                             onClick={() =>
                                                 router.visit(
-                                                    productsRoute.show({
-                                                        product:
-                                                            prod.id_product,
-                                                    }).url,
+                                                    `/productos/${prod.id_product}`,
                                                 )
                                             }
-                                            className="group flex cursor-pointer items-center justify-between rounded-lg p-2 transition-colors hover:bg-muted/50"
+                                            className="group flex cursor-pointer items-center justify-between rounded-xl p-2 transition-all hover:bg-blue-50 dark:hover:bg-blue-900/20"
                                         >
                                             <div className="flex flex-col">
                                                 <span className="max-w-[150px] truncate text-xs font-bold transition-colors group-hover:text-blue-600">
@@ -305,21 +353,15 @@ export default function Dashboard({
                                                 </span>
                                             </div>
                                             <div className="rounded-lg bg-muted px-2 py-1 text-[10px] font-black uppercase tabular-nums">
-                                                {prod.sold} unidades
+                                                {prod.sold} uds
                                             </div>
                                         </div>
                                     ))
                                 ) : (
-                                    <div className="flex flex-col items-center justify-center py-12 text-center">
-                                        <div className="mb-3 rounded-full bg-muted p-3">
-                                            <ShoppingBag className="h-6 w-6 text-muted-foreground/40" />
-                                        </div>
-                                        <p className="text-[11px] font-bold tracking-tight text-muted-foreground uppercase">
-                                            Sin datos de ventas
-                                        </p>
-                                        <p className="mt-1 text-[10px] text-muted-foreground/60">
-                                            Inicia una venta para ver el
-                                            ranking.
+                                    <div className="flex flex-col items-center justify-center py-12 text-center opacity-50">
+                                        <ShoppingBag className="mb-2 h-6 w-6" />
+                                        <p className="text-[10px] font-bold uppercase">
+                                            Sin ventas
                                         </p>
                                     </div>
                                 )}
@@ -328,31 +370,28 @@ export default function Dashboard({
                     </div>
                 </div>
 
-                {/* --- AUDITORÍA (FULL WIDTH) --- */}
-                <Card className="border-none shadow-sm dark:bg-neutral-900/50">
-                    <CardHeader>
+                {/* --- AUDITORÍA DE INVENTARIO --- */}
+                <Card className="rounded-3xl border-none shadow-sm ring-1 ring-neutral-200 dark:bg-neutral-900/50 dark:ring-neutral-800">
+                    <CardHeader className="border-b dark:border-neutral-800">
                         <CardTitle className="flex items-center gap-2 text-xs font-black tracking-widest uppercase">
                             <Activity className="h-4 w-4 text-blue-500" />{' '}
-                            Auditoría de Inventario
+                            Historial de Movimientos
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-4">
                         {recentMovements.length > 0 ? (
-                            <div className="space-y-4">
+                            <div className="space-y-3">
                                 {recentMovements.map((move, i) => {
                                     const isEntry = move.type === 'purchase';
-                                    const displayQuantity = Math.abs(
-                                        move.quantity,
-                                    );
                                     return (
                                         <div
                                             key={i}
-                                            className="flex items-center justify-between rounded-lg border-b border-border px-2 pb-3 transition-all last:border-0 hover:bg-muted/40"
+                                            className="flex items-center justify-between rounded-xl border-b border-border/50 px-2 pb-3 transition-all last:border-0 hover:bg-muted/40"
                                         >
                                             <div className="flex items-center gap-4">
                                                 <div
                                                     className={cn(
-                                                        'rounded-lg p-2',
+                                                        'rounded-full p-2',
                                                         isEntry
                                                             ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10'
                                                             : 'bg-red-50 text-red-600 dark:bg-red-500/10',
@@ -366,50 +405,51 @@ export default function Dashboard({
                                                 </div>
                                                 <div>
                                                     <div className="flex items-baseline gap-2">
-                                                        <p className="text-sm font-bold text-foreground">
+                                                        <p className="max-w-[200px] truncate text-sm font-bold">
                                                             {move.product_name}
                                                         </p>
-                                                        <span className="text-[10px] font-medium text-muted-foreground/80 tabular-nums">
+                                                        <span className="text-[9px] font-medium text-muted-foreground tabular-nums">
                                                             {format(
                                                                 new Date(
                                                                     move.created_at,
                                                                 ),
-                                                                'dd/MM/yyyy HH:mm',
+                                                                'dd MMM, HH:mm',
                                                             )}
                                                         </span>
                                                     </div>
-
-                                                    <p className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                                                    <p className="text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
                                                         {move.reference_label}
                                                     </p>
                                                 </div>
                                             </div>
-                                            <span
-                                                className={cn(
-                                                    'text-sm font-black tabular-nums',
-                                                    isEntry
-                                                        ? 'text-emerald-600'
-                                                        : 'text-red-600',
-                                                )}
-                                            >
-                                                {isEntry ? '+' : '-'}
-                                                {displayQuantity.toFixed(2)}
-                                            </span>
+                                            <div className="text-right">
+                                                <span
+                                                    className={cn(
+                                                        'text-sm font-black tabular-nums',
+                                                        isEntry
+                                                            ? 'text-emerald-600'
+                                                            : 'text-red-600',
+                                                    )}
+                                                >
+                                                    {isEntry ? '+' : '-'}
+                                                    {Math.abs(
+                                                        move.quantity,
+                                                    ).toFixed(2)}
+                                                </span>
+                                                <p className="text-[8px] font-bold text-muted-foreground uppercase">
+                                                    unidades
+                                                </p>
+                                            </div>
                                         </div>
                                     );
                                 })}
                             </div>
                         ) : (
-                            <div className="flex flex-col items-center justify-center py-20 text-center">
-                                <Activity className="mb-4 h-10 w-10 text-muted-foreground/20" />
-                                <h3 className="text-sm font-black tracking-widest text-muted-foreground uppercase">
-                                    Historial Vacío
+                            <div className="flex flex-col items-center justify-center py-20 text-center opacity-30">
+                                <Activity className="mb-4 h-10 w-10" />
+                                <h3 className="text-sm font-black uppercase">
+                                    Sin actividad
                                 </h3>
-                                <p className="mt-2 max-w-[250px] text-xs font-medium text-muted-foreground/60">
-                                    No se registran entradas ni salidas de stock
-                                    en los últimos días. Realiza una compra o
-                                    venta para ver el rastro.
-                                </p>
                             </div>
                         )}
                     </CardContent>
@@ -423,17 +463,17 @@ function StatCard({ title, value, icon, description, highlight = false }: any) {
     return (
         <Card
             className={cn(
-                'border-none shadow-sm transition-all',
+                'rounded-3xl border-none shadow-sm ring-1 transition-all',
                 highlight
-                    ? 'bg-red-50 ring-2 ring-red-500/50 dark:bg-red-950/20'
-                    : 'bg-white dark:bg-neutral-900/50',
+                    ? 'bg-red-50 ring-red-500/50 dark:bg-red-950/20'
+                    : 'bg-card ring-neutral-200 dark:ring-neutral-800',
             )}
         >
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                <CardTitle className="text-[10px] font-black tracking-widest text-muted-foreground uppercase opacity-70">
                     {title}
                 </CardTitle>
-                <div className="rounded-lg bg-neutral-50 p-2 dark:bg-neutral-800">
+                <div className="rounded-xl bg-neutral-100 p-2 dark:bg-neutral-800">
                     {icon}
                 </div>
             </CardHeader>
@@ -441,7 +481,7 @@ function StatCard({ title, value, icon, description, highlight = false }: any) {
                 <div className="text-2xl font-black tracking-tighter tabular-nums">
                     {value}
                 </div>
-                <p className="mt-1 text-[10px] font-medium text-muted-foreground italic">
+                <p className="mt-1 text-[10px] font-medium text-muted-foreground italic opacity-60">
                     {description}
                 </p>
             </CardContent>

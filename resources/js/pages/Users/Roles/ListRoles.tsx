@@ -8,7 +8,8 @@ import { Head, router } from '@inertiajs/react';
 import { ChevronLeft, ChevronRight, Plus, Search, Shield } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useDebounce } from 'use-debounce';
-import { RoleColumns, RoleItem } from './Columns'; // Definidas abajo
+import { RoleColumns, RoleItem } from './Columns';
+import { usePermission } from '@/hooks/usePermission'; // Definidas abajo
 
 interface PaginatedRoles {
     data: RoleItem[];
@@ -51,6 +52,7 @@ export default function ListRoles({ roles, filters }: Props) {
             },
         );
     };
+    const { hasPermission } = usePermission();
 
     return (
         <AppLayout
@@ -65,14 +67,19 @@ export default function ListRoles({ roles, filters }: Props) {
                 {/* --- HEADER STICKY --- */}
                 <div className="flex items-center justify-between border-b bg-background px-6 py-3 dark:border-neutral-800">
                     <div className="flex items-center gap-4">
-                        <Button
-                            className="bg-violet-600 font-bold text-white hover:bg-violet-700 dark:bg-violet-600 dark:hover:bg-violet-500"
-                            onClick={() =>
-                                router.visit(rolesRoute.create().url)
-                            }
-                        >
-                            <Plus className="mr-2 h-4 w-4" /> Nuevo Rol
-                        </Button>
+                        {hasPermission('user.create') && (
+                            <>
+                                <Button
+                                    className="bg-violet-600 font-bold text-white hover:bg-violet-700 dark:bg-violet-600 dark:hover:bg-violet-500"
+                                    onClick={() =>
+                                        router.visit(rolesRoute.create().url)
+                                    }
+                                >
+                                    <Plus className="mr-2 h-4 w-4" /> Nuevo Rol
+                                </Button>
+                            </>
+                        )}
+
                         <div className="flex items-center gap-2">
                             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
                                 <Shield className="h-4 w-4" />

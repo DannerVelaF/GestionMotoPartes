@@ -11,7 +11,6 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
-import receipts from '@/routes/receipts';
 import { Head, router } from '@inertiajs/react';
 import {
     Activity,
@@ -20,7 +19,7 @@ import {
     TrendingDown,
     TrendingUp,
 } from 'lucide-react';
-import { useState } from 'react'; // Importar useState
+import { useState } from 'react';
 import {
     CartesianGrid,
     Tooltip as ChartTooltip,
@@ -31,13 +30,19 @@ import {
     YAxis,
 } from 'recharts';
 
+interface Props {
+    trendData: any[];
+    reportData: any[];
+    productsList: { value: string | number; label: string }[];
+    filters: { from: string; to: string; id_product?: string };
+}
+
 export default function CostVariationReport({
-    trendData,
-    reportData,
-    productsList,
+    trendData = [],
+    reportData = [],
+    productsList = [],
     filters,
-}: any) {
-    // Estado local para controlar el select
+}: Props) {
     const [selectedProduct, setSelectedProduct] = useState(
         filters.id_product || '',
     );
@@ -46,16 +51,12 @@ export default function CostVariationReport({
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
 
-        // Aseguramos que si selectedProduct es vacío, se envíe vacío
-        const productId = selectedProduct || '';
-
         router.get(
-            // Usa tu helper de rutas o la cadena directa
-            '/recibos/reportes/variacionCosto',
+            '/compras/reportes/variacion-costos', // ✅ Nueva ruta en PurchaseOrdersController
             {
                 from: formData.get('from'),
                 to: formData.get('to'),
-                id_product: productId, // Usamos el estado local
+                id_product: selectedProduct,
             },
             { preserveState: true },
         );
@@ -64,25 +65,25 @@ export default function CostVariationReport({
     return (
         <AppLayout
             breadcrumbs={[
-                { title: 'Comprobantes', href: receipts.index().url },
+                { title: 'Compras', href: '/compras/ordenes' },
                 { title: 'Reportes', href: '#' },
                 { title: 'Variación de Costos', href: '' },
             ]}
         >
             <Head title="Historial de Precios" />
 
-            <div className="flex h-full flex-col bg-background">
+            <div className="flex h-full flex-col bg-background text-foreground">
                 {/* --- HEADER --- */}
                 <div className="sticky top-0 z-20 flex items-center justify-between border-b bg-background/95 px-8 py-4 backdrop-blur dark:border-neutral-800">
                     <div className="flex items-center gap-4">
                         <div>
                             <h1 className="text-lg font-bold tracking-tight">
-                                Variación de Costos
+                                Variación de Costos (OC)
                             </h1>
                             <p className="flex items-center gap-2 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
                                 Trazabilidad inflacionaria de insumos
-                                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                                    EN SOLES (PEN)
+                                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[9px] text-blue-700 dark:bg-blue-900/20 dark:text-blue-400">
+                                    VALORES EN SOLES (PEN)
                                 </span>
                             </p>
                         </div>
@@ -101,48 +102,44 @@ export default function CostVariationReport({
                                 onClear={() => setSelectedProduct('')}
                                 className="text-sm"
                             />
-                            <input
-                                type="hidden"
-                                name="id_product"
-                                value={selectedProduct}
-                            />
                         </div>
-                        <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-1 dark:border-neutral-800">
+                        <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-1 dark:border-neutral-800 dark:bg-neutral-900/50">
                             <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                             <Input
                                 type="date"
                                 name="from"
                                 defaultValue={filters.from}
-                                className="h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0"
+                                className="dark:color-scheme-dark h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0"
                             />
-                            <span className="opacity-20">|</span>
+                            <span className="text-muted-foreground opacity-20">
+                                |
+                            </span>
                             <Input
                                 type="date"
                                 name="to"
                                 defaultValue={filters.to}
-                                className="h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0"
+                                className="dark:color-scheme-dark h-7 border-none bg-transparent p-0 text-xs focus-visible:ring-0"
                             />
                         </div>
                         <Button
                             type="submit"
                             size="sm"
-                            className="bg-blue-600 font-bold hover:bg-blue-700"
+                            className="bg-blue-600 font-bold hover:bg-blue-700 dark:text-white"
                         >
                             <Filter className="mr-2 h-3.5 w-3.5" /> Rastrear
                         </Button>
                     </form>
                 </div>
 
-                {/* ... (Resto del contenido igual: Gráficos y Tablas) ... */}
                 <div className="flex-1 overflow-auto bg-muted/5 p-8 dark:bg-neutral-950/20">
                     <div className="mx-auto max-w-7xl space-y-6">
                         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-                            {/* Gráfico de Tendencia (Líneas) */}
+                            {/* Gráfico de Tendencia */}
                             <Card className="rounded-3xl border-none shadow-sm ring-1 ring-neutral-200 lg:col-span-3 dark:bg-neutral-900/50 dark:ring-neutral-800">
                                 <CardHeader className="border-b bg-muted/30 dark:border-neutral-800">
                                     <CardTitle className="flex items-center gap-2 text-[10px] font-black tracking-widest uppercase">
-                                        <Activity className="h-4 w-4 text-blue-400" />{' '}
-                                        Curva de Precios (Normalizada)
+                                        <Activity className="h-4 w-4 text-blue-500" />
+                                        Curva de Costos Históricos
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="pt-8">
@@ -171,7 +168,8 @@ export default function CostVariationReport({
                                                     tickLine={false}
                                                     tick={{
                                                         fontSize: 10,
-                                                        fill: '#888',
+                                                        fill: 'currentColor',
+                                                        opacity: 0.5,
                                                     }}
                                                 />
                                                 <YAxis
@@ -179,7 +177,8 @@ export default function CostVariationReport({
                                                     tickLine={false}
                                                     tick={{
                                                         fontSize: 11,
-                                                        fill: '#888',
+                                                        fill: 'currentColor',
+                                                        opacity: 0.5,
                                                     }}
                                                     tickFormatter={(val) =>
                                                         `S/ ${val}`
@@ -187,43 +186,32 @@ export default function CostVariationReport({
                                                 />
                                                 <ChartTooltip
                                                     contentStyle={{
-                                                        backgroundColor: '#000',
+                                                        backgroundColor:
+                                                            'black',
                                                         border: 'none',
                                                         borderRadius: '12px',
-                                                        color: '#fff',
-                                                        fontSize: '14px',
-                                                        fontWeight: '600',
-                                                        padding: '12px',
+                                                        color: 'white',
                                                     }}
                                                     itemStyle={{
                                                         color: '#60a5fa',
                                                     }}
-                                                    labelStyle={{
-                                                        color: '#999',
-                                                        marginBottom: '4px',
-                                                        fontSize: '12px',
-                                                    }}
-                                                    formatter={(
-                                                        value: number,
-                                                    ) => [
-                                                        `S/ ${value.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`,
+                                                    formatter={(value: any) => [
+                                                        `S/ ${Number(value).toFixed(2)}`,
                                                         'Costo Promedio',
                                                     ]}
                                                 />
                                                 <Line
                                                     type="monotone"
                                                     dataKey="price"
-                                                    name="Precio"
                                                     stroke="#3b82f6"
                                                     strokeWidth={4}
                                                     dot={{
-                                                        r: 5,
+                                                        r: 4,
                                                         fill: '#3b82f6',
-                                                        stroke: '#fff',
-                                                        strokeWidth: 2,
+                                                        strokeWidth: 0,
                                                     }}
                                                     activeDot={{
-                                                        r: 8,
+                                                        r: 6,
                                                         strokeWidth: 0,
                                                     }}
                                                 />
@@ -233,15 +221,15 @@ export default function CostVariationReport({
                                 </CardContent>
                             </Card>
 
-                            {/* Tabla de Variaciones Críticas */}
+                            {/* Ranking de Variación */}
                             <div className="flex flex-col rounded-3xl border border-neutral-200 bg-card p-6 shadow-sm lg:col-span-2 dark:border-neutral-800 dark:bg-neutral-900/20">
                                 <h3 className="mb-4 text-[10px] font-black tracking-widest text-muted-foreground uppercase">
-                                    Ranking de Variación
+                                    Ranking de Variación por Item
                                 </h3>
                                 <div className="flex-1 overflow-hidden rounded-2xl border dark:border-neutral-800">
                                     <Table>
                                         <TableHeader className="bg-muted/50 dark:bg-neutral-800/50">
-                                            <TableRow className="border-none hover:bg-transparent">
+                                            <TableRow className="hover:bg-transparent">
                                                 <TableHead className="font-bold">
                                                     Producto
                                                 </TableHead>
@@ -251,54 +239,69 @@ export default function CostVariationReport({
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {reportData.map(
-                                                (item: any, idx: number) => (
-                                                    <TableRow
-                                                        key={idx}
-                                                        className="transition-colors hover:bg-muted/50 dark:border-neutral-800"
+                                            {reportData.length > 0 ? (
+                                                reportData.map(
+                                                    (
+                                                        item: any,
+                                                        idx: number,
+                                                    ) => (
+                                                        <TableRow
+                                                            key={idx}
+                                                            className="transition-colors hover:bg-muted/50 dark:border-neutral-800"
+                                                        >
+                                                            <TableCell className="py-3">
+                                                                <p className="max-w-[180px] truncate text-[11px] leading-tight font-black text-foreground uppercase">
+                                                                    {item.name}
+                                                                </p>
+                                                                <span className="font-mono text-[10px] text-muted-foreground">
+                                                                    S/{' '}
+                                                                    {
+                                                                        item.old_price
+                                                                    }{' '}
+                                                                    → S/{' '}
+                                                                    {
+                                                                        item.new_price
+                                                                    }
+                                                                </span>
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                <div
+                                                                    className={`flex items-center justify-end gap-1 text-xs font-black tabular-nums ${
+                                                                        item.variation >
+                                                                        0
+                                                                            ? 'text-red-500'
+                                                                            : item.variation <
+                                                                                0
+                                                                              ? 'text-emerald-500'
+                                                                              : 'text-muted-foreground'
+                                                                    }`}
+                                                                >
+                                                                    {item.variation >
+                                                                    0 ? (
+                                                                        <TrendingUp className="h-3 w-3" />
+                                                                    ) : (
+                                                                        <TrendingDown className="h-3 w-3" />
+                                                                    )}
+                                                                    {Math.abs(
+                                                                        item.variation,
+                                                                    ).toFixed(
+                                                                        1,
+                                                                    )}
+                                                                    %
+                                                                </div>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ),
+                                                )
+                                            ) : (
+                                                <TableRow>
+                                                    <TableCell
+                                                        colSpan={2}
+                                                        className="h-24 text-center text-muted-foreground"
                                                     >
-                                                        <TableCell className="py-3">
-                                                            <p
-                                                                className="max-w-[180px] truncate text-[11px] leading-tight font-black uppercase"
-                                                                title={
-                                                                    item.name
-                                                                }
-                                                            >
-                                                                {item.name}
-                                                            </p>
-                                                            <span className="font-mono text-[10.5px] text-muted-foreground">
-                                                                Inicial: S/{' '}
-                                                                {item.old_price}{' '}
-                                                                → Final: S/{' '}
-                                                                {item.new_price}
-                                                            </span>
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            <div
-                                                                className={`flex items-center justify-end gap-1 text-xs font-black tabular-nums ${
-                                                                    item.variation >
-                                                                    0
-                                                                        ? 'text-red-500'
-                                                                        : item.variation <
-                                                                            0
-                                                                          ? 'text-emerald-500'
-                                                                          : 'text-muted-foreground'
-                                                                }`}
-                                                            >
-                                                                {item.variation >
-                                                                0 ? (
-                                                                    <TrendingUp className="h-3 w-3" />
-                                                                ) : (
-                                                                    <TrendingDown className="h-3 w-3" />
-                                                                )}
-                                                                {Math.abs(
-                                                                    item.variation,
-                                                                )}
-                                                                %
-                                                            </div>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ),
+                                                        Sin datos registrados.
+                                                    </TableCell>
+                                                </TableRow>
                                             )}
                                         </TableBody>
                                     </Table>

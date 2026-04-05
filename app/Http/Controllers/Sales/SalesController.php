@@ -86,8 +86,6 @@ class SalesController extends Controller
 
         $documentTypes = [
             ['value' => 'nota_venta', 'label' => 'Nota de Venta (Ticket)'],
-            ['value' => 'boleta', 'label' => 'Boleta de Venta'],
-            ['value' => 'factura', 'label' => 'Factura'],
         ];
 
         $taxes = \App\Models\Taxes::all();
@@ -180,7 +178,7 @@ class SalesController extends Controller
 
     public function printTicket($id)
     {
-        $sale = Sales::with(['details.product', 'user'])->findOrFail($id);
+        $sale = Sales::with(['details.product', 'details.tax', 'user', 'receipt', 'methodPayment'])->findOrFail($id);
 
         $config = BusinessConfig::first() ?? new BusinessConfig([
             'company_name' => 'Configurar Empresa',
@@ -211,26 +209,28 @@ class SalesController extends Controller
         [$from, $to] = $this->getDateRange($request);
         $period = $request->input('period', 'daily');
 
+        // 1. Definición de agrupamiento SQL según el periodo
         switch ($period) {
             case 'weekly':
                 $sqlSales = 'STR_TO_DATE(CONCAT(YEARWEEK(date_sales, 1), " Monday"), "%x%v %W")';
-                $sqlReceipts = 'STR_TO_DATE(CONCAT(YEARWEEK(issue_date, 1), " Monday"), "%x%v %W")';
+                $sqlPurchases = 'STR_TO_DATE(CONCAT(YEARWEEK(issue_date, 1), " Monday"), "%x%v %W")';
                 break;
             case 'monthly':
                 $sqlSales = 'DATE_FORMAT(date_sales, "%Y-%m-01")';
-                $sqlReceipts = 'DATE_FORMAT(issue_date, "%Y-%m-01")';
+                $sqlPurchases = 'DATE_FORMAT(issue_date, "%Y-%m-01")';
                 break;
             case 'yearly':
                 $sqlSales = 'DATE_FORMAT(date_sales, "%Y-01-01")';
-                $sqlReceipts = 'DATE_FORMAT(issue_date, "%Y-01-01")';
+                $sqlPurchases = 'DATE_FORMAT(issue_date, "%Y-01-01")';
                 break;
             case 'daily':
             default:
                 $sqlSales = 'DATE(date_sales)';
-                $sqlReceipts = 'DATE(issue_date)';
+                $sqlPurchases = 'DATE(issue_date)';
                 break;
         }
 
+        // 2. Consulta de INGRESOS (Ventas)
         $salesQuery = Sales::query()
             ->leftJoin('method_payments', 'sales.id_method_payment', '=', 'method_payments.id_method_payment')
             ->select(DB::raw("$sqlSales as date_group"))
@@ -243,21 +243,26 @@ class SalesController extends Controller
 
         $salesByDate = $salesQuery->groupBy('date_group');
 
-        $expensesQuery = Receipt::query()
-            ->select(DB::raw("$sqlReceipts as date_group"))
+        // 3. Consulta de EGRESOS (Ahora desde PurchaseOrder)
+        // Usamos PurchaseOrder para tener el gasto real comprometido/aprobado
+        $expensesQuery = DB::table('purchase_orders')
+            ->select(DB::raw("$sqlPurchases as date_group"))
             ->selectRaw('SUM(
-                CASE
-                    WHEN currency = "USD" THEN total_amount * exchange_rate
-                    ELSE total_amount
-                END
-            ) as expense')
+            CASE
+                WHEN currency = "USD" THEN total_amount * exchange_rate
+                ELSE total_amount
+            END
+        ) as expense')
             ->whereBetween('issue_date', [$from, $to])
+            ->whereNotIn('status', ['draft', 'cancelled']) // Solo órdenes reales
             ->groupBy('date_group')
             ->get()
             ->keyBy('date_group');
 
+        // 4. Unificar fechas de ambos universos
         $allDates = $salesByDate->keys()->merge($expensesQuery->keys())->unique()->sort();
 
+        // 5. Mapeo del reporte final
         $reportData = $allDates->map(function ($date) use ($salesByDate, $expensesQuery) {
             $daySales = $salesByDate->get($date, collect());
             $totalIncome = $daySales->sum('income');
@@ -285,97 +290,124 @@ class SalesController extends Controller
         return Inertia::render('Sales/Reports/DailySummary', [
             'reportData' => $reportData,
             'filters' => [
-                'from' => Carbon::parse($from)->toDateString(),
-                'to'   => Carbon::parse($to)->toDateString(),
+                'from' => \Carbon\Carbon::parse($from)->toDateString(),
+                'to'   => \Carbon\Carbon::parse($to)->toDateString(),
                 'period' => $period
             ]
         ]);
     }
-
     public function reportTax(Request $request)
     {
         $range = $this->getDateRange($request);
         $from = $request->input('from', Carbon::now()->subDays(30)->format('Y-m-d'));
         $to = $request->input('to', Carbon::now()->format('Y-m-d'));
 
-        // Nota: Si document_type ahora está en receipts, deberás actualizar este reporte pronto.
-        $data = Sales::select(
-            'document_type',
-            DB::raw('SUM(total / 1.18) as base_imponible'),
-            DB::raw('SUM(total - (total / 1.18)) as igv'),
-            DB::raw('SUM(total) as total')
-        )
-            ->whereBetween('date_sales', $range)
-            ->groupBy('document_type')
+        $data = DB::table('sales')
+            ->join('receipts', 'sales.id_sales', '=', 'receipts.id_sales')
+            ->join('sale_details', 'sales.id_sales', '=', 'sale_details.id_sales')
+            ->select(
+                'receipts.document_type',
+                // Base Imponible = (Cantidad * Precio) - Impuesto acumulado
+                DB::raw('SUM((sale_details.quantity * sale_details.unit_price) - sale_details.tax_amount) as base_imponible'),
+                DB::raw('SUM(sale_details.tax_amount) as igv'),
+                DB::raw('SUM(sale_details.quantity * sale_details.unit_price) as total')
+            )
+            ->whereBetween('sales.date_sales', $range)
+            ->groupBy('receipts.document_type')
             ->get();
 
         return Inertia::render('Sales/Reports/TaxReport', [
             'reportData' => $data,
-            'filters' => [
-                'from' => $from,
-                'to' => $to
-            ]
+            'filters' => ['from' => $from, 'to' => $to]
         ]);
     }
 
     public function reportTopProducts(Request $request)
     {
-        $range = $this->getDateRange($request);
-        $from = $request->input('from', Carbon::now()->subDays(30)->format('Y-m-d'));
-        $to = $request->input('to', Carbon::now()->format('Y-m-d'));
+        // Usamos el mismo estándar de fechas startOfDay y endOfDay
+        $from = $request->input('from')
+            ? \Carbon\Carbon::parse($request->input('from'))->startOfDay()
+            : \Carbon\Carbon::now()->subDays(30)->startOfDay();
 
+        $to = $request->input('to')
+            ? \Carbon\Carbon::parse($request->input('to'))->endOfDay()
+            : \Carbon\Carbon::now()->endOfDay();
+
+        // Consultamos la tabla de detalles unida a productos y cabecera de ventas
         $data = DB::table('sale_details')
             ->join('products', 'sale_details.id_product', '=', 'products.id_product')
             ->join('sales', 'sale_details.id_sales', '=', 'sales.id_sales')
+            // ✅ Filtro importante: Ignoramos ventas canceladas
+            ->whereNotIn('sales.status', ['cancelled'])
+            ->whereBetween('sales.date_sales', [$from, $to])
             ->select(
                 'products.product_name',
                 'products.product_code',
-                DB::raw('SUM(sale_details.quantity) as total_qty'),
-                DB::raw('SUM(sale_details.subtotal) as total_revenue')
+                // Usamos CAST o round para asegurar tipos numéricos limpios para el frontend
+                DB::raw('CAST(SUM(sale_details.quantity) AS DECIMAL(12,2)) as total_qty'),
+                DB::raw('CAST(SUM(sale_details.subtotal) AS DECIMAL(12,2)) as total_revenue')
             )
-            ->whereBetween('sales.date_sales', $range)
             ->groupBy('products.id_product', 'products.product_name', 'products.product_code')
             ->orderBy('total_qty', 'DESC')
             ->limit(15)
-            ->get();
+            ->get()
+            ->map(function($item) {
+                return [
+                    'product_name' => $item->product_name,
+                    'product_code' => $item->product_code,
+                    'total_qty' => (float) $item->total_qty,
+                    'total_revenue' => (float) $item->total_revenue,
+                ];
+            });
 
         return Inertia::render('Sales/Reports/TopProducts', [
             'reportData' => $data,
             'filters' => [
-                'from' => $from,
-                'to' => $to
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString()
             ]
         ]);
     }
-
     public function reportBrandAnalysis(Request $request)
     {
-        $range = $this->getDateRange($request);
-        $from = $request->input('from', Carbon::now()->subDays(30)->format('Y-m-d'));
-        $to = $request->input('to', Carbon::now()->format('Y-m-d'));
+        // Estandarización de fechas para precisión horaria
+        $from = $request->input('from')
+            ? \Carbon\Carbon::parse($request->input('from'))->startOfDay()
+            : \Carbon\Carbon::now()->subDays(30)->startOfDay();
+
+        $to = $request->input('to')
+            ? \Carbon\Carbon::parse($request->input('to'))->endOfDay()
+            : \Carbon\Carbon::now()->endOfDay();
 
         $data = DB::table('sale_details')
             ->join('products', 'sale_details.id_product', '=', 'products.id_product')
             ->join('brands', 'products.id_brand', '=', 'brands.id_brand')
             ->join('sales', 'sale_details.id_sales', '=', 'sales.id_sales')
+            // ✅ Filtro: Solo ventas válidas para el market share
+            ->whereNotIn('sales.status', ['cancelled'])
+            ->whereBetween('sales.date_sales', [$from, $to])
             ->select(
                 'brands.name_brand as label',
-                DB::raw('SUM(sale_details.subtotal) as value')
+                DB::raw('CAST(SUM(sale_details.subtotal) AS DECIMAL(12,2)) as value')
             )
-            ->whereBetween('sales.date_sales', $range)
             ->groupBy('brands.id_brand', 'brands.name_brand')
             ->orderBy('value', 'DESC')
-            ->get();
+            ->get()
+            ->map(function ($item) {
+                return [
+                    'label' => $item->label,
+                    'value' => (float) $item->value
+                ];
+            });
 
         return Inertia::render('Sales/Reports/BrandAnalysis', [
             'reportData' => $data,
             'filters' => [
-                'from' => $from,
-                'to' => $to
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString()
             ]
         ]);
     }
-
     public function exportTaxExcel(Request $request)
     {
         $from = $request->input('from', Carbon::now()->subDays(30)->format('Y-m-d'));

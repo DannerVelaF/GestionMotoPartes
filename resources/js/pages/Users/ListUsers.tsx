@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useDebounce } from 'use-debounce';
 import { Columns, User } from './Columns';
+import { usePermission } from '@/hooks/usePermission';
 
 interface PaginatedUsers {
     data: User[];
@@ -50,7 +51,7 @@ export default function ListUsers({ users, filters }: Props) {
             },
         );
     };
-
+    const {hasPermission} = usePermission()
     return (
         <AppLayout breadcrumbs={[{ title: 'Usuarios', href: '' }]}>
             <Head title="Usuarios del Sistema" />
@@ -59,14 +60,19 @@ export default function ListUsers({ users, filters }: Props) {
                 {/* --- HEADER STICKY --- */}
                 <div className="flex items-center justify-between border-b bg-background px-6 py-3 dark:border-neutral-800">
                     <div className="flex items-center gap-4">
-                        <Button
-                            className="bg-blue-700 font-bold text-white hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500"
-                            onClick={() =>
-                                router.visit(usersRoute.create().url)
-                            }
-                        >
-                            <Plus className="mr-2 h-4 w-4" /> Nuevo
-                        </Button>
+                        {hasPermission('user.create') && (
+                            <>
+                                <Button
+                                    className="bg-blue-700 font-bold text-white hover:bg-blue-800 dark:bg-blue-600 dark:hover:bg-blue-500"
+                                    onClick={() =>
+                                        router.visit(usersRoute.create().url)
+                                    }
+                                >
+                                    <Plus className="mr-2 h-4 w-4" /> Nuevo
+                                </Button>
+                            </>
+                        )}
+
                         <h1 className="text-lg font-bold tracking-tight text-foreground/90">
                             Usuarios
                         </h1>

@@ -406,55 +406,58 @@ class ReceiptController extends Controller
 
     public function taxReport(Request $request)
     {
-        // CORRECCIÓN DE FECHAS
         $from = Carbon::parse($request->input('from', Carbon::now()->startOfMonth()))->startOfDay();
         $to = Carbon::parse($request->input('to', Carbon::now()))->endOfDay();
         $idProduct = $request->input('id_product');
 
-        $query = Receipt::query();
+        $query = DB::table('receipts')
+            ->join('receipt_details', 'receipts.id_receipt', '=', 'receipt_details.id_receipt')
+            ->whereBetween('receipts.issue_date', [$from, $to]);
 
+        // Filtro por producto específico si se solicita
         if ($idProduct) {
-            $query->join('receipt_details', 'receipts.id_receipt', '=', 'receipt_details.id_receipt')
-                ->where('receipt_details.id_product', $idProduct);
-
-            $sumExpression = 'SUM(
-                CASE
-                    WHEN receipts.currency = "USD" THEN receipt_details.subtotal * receipts.exchange_rate
-                    ELSE receipt_details.subtotal
-                END
-            )';
-        } else {
-            $sumExpression = 'SUM(
-                CASE
-                    WHEN receipts.currency = "USD" THEN receipts.total_amount * receipts.exchange_rate
-                    ELSE receipts.total_amount
-                END
-            )';
+            $query->where('receipt_details.id_product', $idProduct);
         }
 
         $reportData = $query->select(
             'receipts.document_type',
-            DB::raw("$sumExpression as total_sum_pen")
+            // Sumamos los impuestos y subtotales reales de la tabla details
+            // Aplicamos tipo de cambio si la compra fue en dólares
+            DB::raw('SUM(
+                CASE
+                    WHEN receipts.currency = "USD" THEN (receipt_details.subtotal - receipt_details.tax_amount) * receipts.exchange_rate
+                    ELSE (receipt_details.subtotal - receipt_details.tax_amount)
+                END
+            ) as base_imponible'),
+            DB::raw('SUM(
+                CASE
+                    WHEN receipts.currency = "USD" THEN receipt_details.tax_amount * receipts.exchange_rate
+                    ELSE receipt_details.tax_amount
+                END
+            ) as igv'),
+            DB::raw('SUM(
+                CASE
+                    WHEN receipts.currency = "USD" THEN receipt_details.subtotal * receipts.exchange_rate
+                    ELSE receipt_details.subtotal
+                END
+            ) as total')
         )
-            ->whereBetween('receipts.issue_date', [$from, $to])
             ->groupBy('receipts.document_type')
             ->get()
             ->map(function ($item) {
-                $total = (float) $item->total_sum_pen;
-                $base = $total / 1.18;
-                $igv = $total - $base;
-
                 return [
                     'document_type' => $item->document_type,
-                    'base_imponible' => round($base, 2),
-                    'igv' => round($igv, 2),
-                    'total' => round($total, 2),
+                    'base_imponible' => round((float)$item->base_imponible, 2),
+                    'igv' => round((float)$item->igv, 2),
+                    'total' => round((float)$item->total, 2),
                 ];
             });
 
         return Inertia::render('Receipts/Reports/TaxReport', [
             'reportData' => $reportData,
-            'productsList' => Products::select('id_product as value', 'product_name as label')->orderBy('product_name')->get(),
+            'productsList' => Products::select('id_product as value', 'product_name as label')
+                ->orderBy('product_name')
+                ->get(),
             'filters' => [
                 'from' => $from->toDateString(),
                 'to' => $to->toDateString(),

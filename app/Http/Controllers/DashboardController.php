@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Products;
 use App\Models\Sales;
-use App\Models\Receipt;
+use App\Models\PurchaseOrder;
 use App\Models\InventoryMovements;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -15,13 +15,24 @@ class DashboardController extends Controller
 {
     public function __invoke()
     {
-        // 1. Cálculos Financieros (KPIs)
         $startDate = now()->subDays(6)->startOfDay();
+
+        // 1. Cálculos Financieros (KPIs) - Siempre en PEN
         $rawSales = Sales::sum('total') ?? 0;
-        $rawPurchases = Receipt::sum('total_amount') ?? 0;
+
+        // Compras: Solo aprobadas/recibidas y convertidas a Soles dinámicamente
+        $rawPurchases = PurchaseOrder::whereNotIn('status', ['draft', 'cancelled'])
+            ->selectRaw('SUM(
+                CASE
+                    WHEN currency = "USD" THEN total_amount * exchange_rate
+                    ELSE total_amount
+                END
+            ) as total_pen')
+            ->value('total_pen') ?? 0;
+
         $netMargin = $rawSales - $rawPurchases;
 
-        $activeUsers = User::where('is_active', true)->count();
+        $activeUsers = User::count(); // O User::where('is_active', true)->count() si tienes esa columna
         $lowStock = Products::where('stock', '<', 10)->count();
 
         // 2. Gráfico Comparativo (Últimos 7 días)
@@ -35,10 +46,16 @@ class DashboardController extends Controller
             ->groupBy('date_only')
             ->pluck('total', 'date_only');
 
-        $purchasesData = Receipt::select(
-            DB::raw('DATE(issue_date) as date_only'),
-            DB::raw('SUM(total_amount) as total')
-        )
+        $purchasesData = PurchaseOrder::whereNotIn('status', ['draft', 'cancelled'])
+            ->select(
+                DB::raw('DATE(issue_date) as date_only'),
+                DB::raw('SUM(
+                    CASE
+                        WHEN currency = "USD" THEN total_amount * exchange_rate
+                        ELSE total_amount
+                    END
+                ) as total')
+            )
             ->where('issue_date', '>=', $startDate)
             ->groupBy('date_only')
             ->pluck('total', 'date_only');
@@ -49,35 +66,33 @@ class DashboardController extends Controller
             'compras' => (float) ($purchasesData->get($date) ?? 0),
         ]);
 
-        // 3. Movimientos de Inventario (Polimórficos)
-        $recentMovements = InventoryMovements::with(['product', 'reference'])
+        // 3. Movimientos de Inventario (Adaptado a tu nueva estructura)
+        $recentMovements = InventoryMovements::with(['product'])
             ->latest()
             ->limit(5)
             ->get()
             ->map(function ($move) {
-                $refLabel = $move->notes ?? 'Movimiento manual';
+                // Lógica de etiquetas basada en el tipo de movimiento
+                $refLabel = $move->notes ?? 'Ajuste de inventario';
 
-                if (!$move->notes && $move->reference) {
-                    if ($move->reference_type === \App\Models\Sales::class) {
-                        $refLabel = "Venta " . ($move->reference->code_sales ?? '');
-                    } elseif ($move->reference_type === \App\Models\Receipt::class) {
-                        $tipo = $move->reference->document_type === 'nota_credito' ? 'Devolución' : 'Compra';
-                        $refLabel = $tipo . " " . ($move->reference->receipt_code ?? '');
-                    }
+                if ($move->reference_type === \App\Models\Sales::class) {
+                    $refLabel = "Venta #" . ($move->reference->code_sales ?? $move->reference_id);
+                } elseif ($move->reference_type === \App\Models\InventoryAdjustment::class) {
+                    $refLabel = "Ajuste Almacén";
+                } elseif ($move->reference_type === \App\Models\Receipt::class) {
+                    $refLabel = "Ingreso Factura";
                 }
 
                 return [
-                    'product_name'   => $move->product->product_name ?? 'Producto borrado',
-                    'quantity'       => (float) $move->quantity,
-                    'type'           => $move->type, // 'purchase' o 'sale'
+                    'product_name'    => $move->product->product_name ?? 'Producto no encontrado',
+                    'quantity'        => (float) $move->quantity,
+                    'type'            => $move->type === 'IN' || $move->type === 'purchase' ? 'purchase' : 'sale',
                     'reference_label' => $refLabel,
-                    'reference_type' => $move->reference_type,
-                    'reference_id'   => $move->reference_id,
-                    'created_at'     => $move->created_at,
+                    'created_at'      => $move->created_at,
                 ];
             });
 
-        // 4. Top 5 Productos más vendidos
+        // 4. Top 5 Productos (Desde los detalles de venta)
         $topProducts = DB::table('sale_details')
             ->join('products', 'sale_details.id_product', '=', 'products.id_product')
             ->select(
@@ -90,12 +105,11 @@ class DashboardController extends Controller
             ->limit(5)
             ->get();
 
-        // 5. Retorno a Inertia
         return Inertia::render('dashboard', [
             'stats' => [
-                'total_sales'     => number_format($rawSales, 2),
-                'total_purchases' => number_format($rawPurchases, 2),
-                'margin'          => number_format($netMargin, 2),
+                'total_sales'     => number_format($rawSales, 2, '.', ','),
+                'total_purchases' => number_format($rawPurchases, 2, '.', ','),
+                'margin'          => number_format($netMargin, 2, '.', ','),
                 'margin_raw'      => $netMargin,
                 'active_users'    => $activeUsers,
                 'low_stock'       => $lowStock,
