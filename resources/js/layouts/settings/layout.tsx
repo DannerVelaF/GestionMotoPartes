@@ -6,39 +6,37 @@ import { edit as editAppearance } from '@/routes/appearance';
 import configuracion from '@/routes/configuracion';
 import { edit as editPassword } from '@/routes/user-password';
 import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react'; // ✅ Importamos usePage
 import { type PropsWithChildren } from 'react';
 
-const sidebarNavItems: NavItem[] = [
-    /*{
-        title: 'Profile',
-        href: edit(),
-        icon: null,
-    },*/
-    {
-        title: 'Empresa',
-        href: configuracion.negocio.url(),
-        icon: null,
-    },
-    {
-        title: 'Cambio de contraseña',
-        href: editPassword(),
-        icon: null,
-    },
-    /*{
-        title: 'Two-Factor Auth',
-        href: show(),
-        icon: null,
-    },*/
-    {
-        title: 'Apariencia',
-        href: editAppearance(),
-        icon: null,
-    },
-];
-
 export default function SettingsLayout({ children }: PropsWithChildren) {
-    // When server-side rendering, we only render the layout on the client...
+    // 1. Obtenemos el usuario desde los props globales de Inertia
+    const { auth } = usePage<any>().props;
+    const user = auth.user;
+
+    // 2. Verificamos si es admin (ahora que corregimos el Middleware, esto funcionará)
+    const isAdmin = user?.role?.name === 'admin';
+
+    // 3. Definimos los items dentro del componente para poder filtrarlos dinámicamente
+    const sidebarNavItems: NavItem[] = [
+        // ✅ Solo incluimos "Empresa" si es administrador
+        ...(isAdmin ? [{
+            title: 'Empresa',
+            href: configuracion.negocio.url(),
+            icon: null,
+        }] : []),
+        {
+            title: 'Cambio de contraseña',
+            href: editPassword(),
+            icon: null,
+        },
+        {
+            title: 'Apariencia',
+            href: editAppearance(),
+            icon: null,
+        },
+    ];
+
     if (typeof window === 'undefined') {
         return null;
     }
@@ -49,7 +47,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
         <div className="px-4 py-6">
             <Heading
                 title="Configuración"
-                description="Manega la información de tu empresa y cuenta."
+                description="Maneja la información de tu empresa y cuenta."
             />
 
             <div className="flex flex-col lg:flex-row lg:space-x-12">

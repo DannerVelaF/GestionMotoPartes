@@ -50,7 +50,7 @@ class HandleInertiaRequests extends Middleware
                     'id' => $user->id,
                     'id_user' => $user->id_user,
                     'name' => $user->name,
-                    'role' => $user->load('role'),
+                    'role' => $user->relationLoaded('role') ? $user->role : $user->load('role')->role,
                     'notifications' => $user->unreadNotifications->map(function ($n) {
                         return [
                             'id' => $n->id,

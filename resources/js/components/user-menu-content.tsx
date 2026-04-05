@@ -25,8 +25,6 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
         router.flushAll();
     };
 
-    const isAdmin = user.role?.name === 'admin';
-
     return (
         <>
             <DropdownMenuLabel className="p-0 font-normal">
@@ -50,8 +48,6 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
                 </DropdownMenuItem>
             </DropdownMenuGroup>
 
-            {/* Solo mostramos Configuración si es Admin */}
-            {isAdmin && (
                 <DropdownMenuGroup>
                     <DropdownMenuItem asChild>
                         <Link
@@ -66,7 +62,6 @@ export function UserMenuContent({ user }: UserMenuContentProps) {
                         </Link>
                     </DropdownMenuItem>
                 </DropdownMenuGroup>
-            )}
 
             <DropdownMenuSeparator />
 
