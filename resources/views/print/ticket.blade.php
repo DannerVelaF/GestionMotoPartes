@@ -15,6 +15,7 @@
         }
         .text-center { text-align: center; }
         .text-right { text-align: right; }
+        .text-left { text-align: left; }
         .divider { border-top: 1px dashed #000; margin: 8px 0; }
         table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
         th { text-align: left; font-size: 11px; border-bottom: 1px solid #000; }
@@ -38,7 +39,7 @@
 
     <h4 style="margin: 2px 0;" class="uppercase">TICKET DE VENTA</h4>
     <p class="bold" style="margin: 0;">
-        NRO: {{ str_pad($sale->id_sales, 8, '0', STR_PAD_LEFT) }}
+        NRO: {{ $sale->receipt->series }}-{{ str_pad($sale->receipt->number, 8, '0', STR_PAD_LEFT) }}
     </p>
 </div>
 
@@ -64,27 +65,23 @@
     <tr>
         <th>DESCRIPCIÓN</th>
         <th class="text-right">CANT</th>
+        <th class="text-right">P.U.</th>
         <th class="text-right">TOTAL</th>
     </tr>
     </thead>
     <tbody>
-    @php
-        $accumulatedTax = 0;
-        $accumulatedBase = 0;
-    @endphp
     @foreach($sale->details as $item)
         @php
-            $lineTotal = $item->quantity * $item->unit_price;
+            $lineBase = $item->quantity * $item->unit_price;
             $lineTax = (float) $item->tax_amount;
-            $lineBase = $lineTotal - $lineTax;
-
-            $accumulatedTax += $lineTax;
-            $accumulatedBase += $lineBase;
+            $lineTotalWithTax = $lineBase + $lineTax;
+            $unitPriceWithTax = $item->quantity > 0 ? ($lineTotalWithTax / $item->quantity) : 0;
         @endphp
         <tr>
             <td class="fs-sm">{{ $item->product->product_name }}</td>
             <td class="text-right fs-sm">{{ number_format($item->quantity, 0) }}</td>
-            <td class="text-right fs-sm">{{ number_format($lineTotal, 2) }}</td>
+            <td class="text-right fs-sm">{{ number_format($unitPriceWithTax, 2) }}</td>
+            <td class="text-right fs-sm">{{ number_format($lineTotalWithTax, 2) }}</td>
         </tr>
     @endforeach
     </tbody>
@@ -93,20 +90,21 @@
 <div class="divider"></div>
 
 <div class="text-right fs-sm">
-    OP. GRAVADA: S/ {{ number_format($accumulatedBase, 2) }}<br>
-    IGV ACUMULADO: S/ {{ number_format($accumulatedTax, 2) }}<br>
+    OP. GRAVADA: S/ {{ number_format($sale->subtotal, 2) }}<br>
+    IGV ACUMULADO: S/ {{ number_format($sale->tax, 2) }}<br>
     <span class="bold" style="font-size: 14px;">TOTAL: S/ {{ number_format($sale->total, 2) }}</span>
+</div>
+
+<div class="text-left fs-sm bold" style="margin-top: 5px;">
+    {{ \App\Helpers\NumberHelper::numberToWords($sale->total) }}
 </div>
 
 <div class="divider"></div>
 
 <div class="text-center fs-sm" style="margin-top: 10px;">
     <p class="bold">*** DOCUMENTO DE CONTROL INTERNO ***</p>
-    <p class="fs-xs italic">No tiene valor tributario para crédito fiscal.</p>
-    <p class="fs-xs italic">Canjee este ticket por Boleta/Factura si lo requiere.</p>
 
     <p style="margin-top: 8px;">{{ $config->ticket_footer ?? '¡GRACIAS POR SU PREFERENCIA!' }}</p>
-    <p class="fs-xs" style="opacity: 0.6;">SISTEMA MOTOPARTES ERP</p>
 </div>
 
 <script>
