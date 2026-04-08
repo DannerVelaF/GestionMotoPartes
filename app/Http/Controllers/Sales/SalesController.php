@@ -40,7 +40,7 @@ class SalesController extends Controller
         }
 
         $query = Sales::query()
-            ->with(['user:id,name'])
+            ->with(['user:id,name', 'receipt', 'methodPayment'])
             ->when($search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
                     $q->where('code_sales', 'like', "%{$search}%")
@@ -52,12 +52,18 @@ class SalesController extends Controller
         // Lógica de Ordenamiento para agrupamiento visual
         if ($groupBy === 'customer') {
             $query->orderBy('receiver_name', 'asc');
-        } elseif ($groupBy === 'document_type') {
-            $query->orderBy('document_type', 'asc');
+        } elseif ($groupBy === 'method_payment') {
+            $query->leftJoin('method_payments', 'sales.id_method_payment', '=', 'method_payments.id_method_payment')
+                  ->orderBy('method_payments.name_method_payment', 'asc');
         } elseif ($groupBy === 'month') {
             $query->orderBy('date_sales', 'desc');
         } else {
-            $query->orderBy('created_at', 'desc');
+            $query->orderBy('sales.created_at', 'desc'); // explicit table to avoid ambiguous column if joined
+        }
+
+        // Si se hizo un join (por el method_payment), hay que seleccionar solo las columnas de ventas
+        if ($groupBy === 'method_payment') {
+            $query->select('sales.*');
         }
 
         $sales = $query->paginate((int)$perPage)->withQueryString();

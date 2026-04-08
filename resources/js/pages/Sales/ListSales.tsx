@@ -42,7 +42,7 @@ import React, {
 import { useDebounce } from 'use-debounce';
 import { Columns, Sale } from './Columns';
 import { usePermission } from '@/hooks/usePermission';
-import rolesRoute from '@/routes/roles';
+import { Badge } from '@/components/ui/badge';
 
 interface PaginatedSales {
     data: Sale[];
@@ -76,26 +76,8 @@ export default function ListSales({ sales, filters }: Props) {
 
     const selectedCount = Object.keys(rowSelection).length;
 
-    // --- EFECTOS ---
-    useEffect(() => {
-        if (debouncedSearch !== (filters.search || ''))
-            updateParams({ search: debouncedSearch, page: 1 });
-    }, [debouncedSearch]);
-
-    useEffect(() => {
-        if (groupBy !== (filters.group_by || 'none')) {
-            updateParams({ group_by: groupBy, page: 1 });
-            setRowSelection({});
-        }
-    }, [groupBy]);
-
-    useEffect(() => {
-        if (isEditingPerPage && perPageInputRef.current) {
-            perPageInputRef.current.focus();
-        }
-    }, [isEditingPerPage]);
-
     // --- FUNCIONES ---
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateParams = (newParams: any) => {
         router.get(
             salesRoute.index().url,
@@ -112,6 +94,28 @@ export default function ListSales({ sales, filters }: Props) {
             },
         );
     };
+
+    // --- EFECTOS ---
+    useEffect(() => {
+        if (debouncedSearch !== (filters.search || ''))
+            updateParams({ search: debouncedSearch, page: 1 });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [debouncedSearch]);
+
+    useEffect(() => {
+        if (groupBy !== (filters.group_by || 'none')) {
+            updateParams({ group_by: groupBy, page: 1 });
+            setRowSelection({});
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [groupBy]);
+
+    useEffect(() => {
+        if (isEditingPerPage && perPageInputRef.current) {
+            perPageInputRef.current.focus();
+        }
+    }, [isEditingPerPage]);
+
     const showNavigation = sales.last_page > 1;
     const handlePerPageSubmit = () => {
         setIsEditingPerPage(false);
@@ -149,19 +153,14 @@ export default function ListSales({ sales, filters }: Props) {
             let key = 'Otros';
             if (groupBy === 'customer')
                 key = sale.receiver_name || 'Sin nombre';
-            else if (groupBy === 'document_type') {
-                const names: Record<string, string> = {
-                    factura: 'Facturas',
-                    boleta: 'Boletas',
-                    nota_venta: 'Notas de Venta',
-                };
-                key = names[sale.document_type] || sale.document_type;
-            } else if (groupBy === 'month') {
+            else if (groupBy === 'month') {
                 const date = new Date(sale.date_sales);
                 if (!isNaN(date.getTime())) {
                     key = format(date, 'MMMM yyyy', { locale: es });
                     key = key.charAt(0).toUpperCase() + key.slice(1);
                 }
+            } else if (groupBy === 'method_payment') {
+                key = sale.method_payment?.name_method_payment || 'N/A';
             }
 
             if (!groups[key]) groups[key] = { items: [], total: 0 };
@@ -171,8 +170,6 @@ export default function ListSales({ sales, filters }: Props) {
         return groups;
     }, [sales.data, groupBy]);
 
-    const hidePaginationControls =
-        sales.total <= sales.per_page || sales.total === 0;
     useEffect(() => {
         setPerPage(sales.per_page);
     }, [sales.per_page]);
@@ -198,7 +195,7 @@ export default function ListSales({ sales, filters }: Props) {
                     {/* Cabecera adaptativa al Dark Mode */}
                     <TableHeader className="bg-muted/50 dark:bg-neutral-800/50">
                         <TableRow className="border-b hover:bg-transparent dark:border-neutral-800">
-                            <TableHead className="w-[50px]"></TableHead>
+                            <TableHead className="w-12.5"></TableHead>
                             <TableHead className="text-xs font-bold tracking-wider uppercase">
                                 Fecha
                             </TableHead>
@@ -207,6 +204,9 @@ export default function ListSales({ sales, filters }: Props) {
                             </TableHead>
                             <TableHead className="text-xs font-bold tracking-wider uppercase">
                                 Cliente
+                            </TableHead>
+                            <TableHead className="text-xs font-bold tracking-wider uppercase">
+                                Pago
                             </TableHead>
                             <TableHead className="text-xs font-bold tracking-wider uppercase">
                                 Referencia
@@ -240,7 +240,7 @@ export default function ListSales({ sales, filters }: Props) {
                                                 )}
                                             </TableCell>
                                             <TableCell
-                                                colSpan={4}
+                                                colSpan={5}
                                                 className="font-bold text-foreground"
                                             >
                                                 {groupName}{' '}
@@ -254,7 +254,15 @@ export default function ListSales({ sales, filters }: Props) {
                                         </TableRow>
 
                                         {isExpanded &&
-                                            items.map((sale) => (
+                                            items.map((sale) => {
+                                                const payment = sale.method_payment?.name_method_payment || 'N/A';
+                                                let docTypeLabel = 'TICK';
+                                                if (sale.receipt) {
+                                                    docTypeLabel = sale.receipt.document_type === 'boleta' ? 'BOL' :
+                                                                   sale.receipt.document_type === 'factura' ? 'FAC' : 'TICK';
+                                                }
+
+                                                return (
                                                 <TableRow
                                                     key={sale.id_sales}
                                                     className="cursor-pointer border-b last:border-0 hover:bg-muted/40 dark:border-neutral-800/50 dark:hover:bg-neutral-800/20"
@@ -298,9 +306,24 @@ export default function ListSales({ sales, filters }: Props) {
                                                     <TableCell className="text-sm font-medium text-foreground">
                                                         {sale.receiver_name}
                                                     </TableCell>
+                                                    <TableCell>
+                                                        <Badge variant="outline" className="font-normal whitespace-nowrap bg-muted/30">
+                                                            {payment}
+                                                        </Badge>
+                                                    </TableCell>
                                                     <TableCell className="text-[11px] tracking-tight text-muted-foreground uppercase">
-                                                        {sale.series}-
-                                                        {sale.number}
+                                                        {sale.receipt ? (
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                                                                    {docTypeLabel}
+                                                                </span>
+                                                                <span className="text-xs font-medium">
+                                                                    {sale.receipt.series}-{sale.receipt.number}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-xs text-muted-foreground">--</span>
+                                                        )}
                                                     </TableCell>
                                                     <TableCell className="text-right font-bold text-foreground">
                                                         S/{' '}
@@ -309,7 +332,7 @@ export default function ListSales({ sales, filters }: Props) {
                                                         ).toFixed(2)}
                                                     </TableCell>
                                                 </TableRow>
-                                            ))}
+                                            )})}
                                     </React.Fragment>
                                 );
                             },
@@ -383,9 +406,8 @@ export default function ListSales({ sales, filters }: Props) {
                                 <SelectItem value="none">
                                     Sin agrupar
                                 </SelectItem>
-                                <SelectItem value="document_type">
-                                    Tipo Documento
-                                </SelectItem>
+                                <SelectItem value="customer">Cliente</SelectItem>
+                                <SelectItem value="method_payment">Método de Pago</SelectItem>
                                 <SelectItem value="month">Mes</SelectItem>
                             </SelectContent>
                         </Select>
@@ -405,7 +427,7 @@ export default function ListSales({ sales, filters }: Props) {
                             <span className="flex items-center gap-1">
                                 <span>{sales.from || 0}</span>-
                                 <div
-                                    className="relative min-w-[1.5rem] text-center"
+                                    className="relative min-w-6 text-center"
                                     onClick={() => setIsEditingPerPage(true)}
                                 >
                                     {isEditingPerPage ? (

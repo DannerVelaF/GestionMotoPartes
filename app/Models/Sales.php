@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\DocumentType;
 use App\Enums\SalesStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -25,7 +24,6 @@ class Sales extends Model
     protected function casts(): array
     {
         return [
-            'document_type' => DocumentType::class,
             'status'        => SalesStatus::class,
             'date_sales'    => 'datetime',
         ];

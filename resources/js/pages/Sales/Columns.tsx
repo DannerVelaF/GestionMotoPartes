@@ -11,9 +11,16 @@ export interface Sale {
     number: string;
     date_sales: string;
     total: number;
-    document_type: string;
     receiver_name: string;
     receiver_id_number: string;
+    receipt?: {
+        document_type: string;
+        series: string;
+        number: string;
+    };
+    method_payment?: {
+        name_method_payment: string;
+    };
 }
 
 export const Columns: ColumnDef<Sale>[] = [
@@ -37,51 +44,26 @@ export const Columns: ColumnDef<Sale>[] = [
         },
     },
     {
-        accessorKey: 'document_type',
-        header: 'Tipo',
+        id: 'reference',
+        header: 'Referencia',
         cell: ({ row }) => {
-            const type = (row.original.document_type || '').toLowerCase();
+            const receipt = row.original.receipt;
+            if (!receipt) {
+                return <span className="text-xs text-muted-foreground">--</span>;
+            }
 
-            // Configuración unificada con soporte Dark Mode
-            const config: Record<string, { label: string; classes: string }> = {
-                factura: {
-                    label: 'Factura',
-                    classes:
-                        'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-300',
-                },
-                boleta: {
-                    label: 'Boleta',
-                    classes:
-                        'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300',
-                },
-                nota_venta: {
-                    label: 'Nota Venta',
-                    classes:
-                        'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300',
-                },
-                // Agregamos Nota de Crédito/Débito por si aparecen en el futuro en este listado
-                nota_credito: {
-                    label: 'Nota Crédito',
-                    classes:
-                        'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
-                },
-            };
-
-            const defaultConfig = {
-                label: type,
-                classes:
-                    'border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400',
-            };
-
-            const item = config[type] || defaultConfig;
+            const docTypeLabel = receipt.document_type === 'boleta' ? 'BOL' :
+                                 receipt.document_type === 'factura' ? 'FAC' : 'TICK';
 
             return (
-                <Badge
-                    variant="outline"
-                    className={`font-normal whitespace-nowrap ${item.classes}`}
-                >
-                    {item.label}
-                </Badge>
+                <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                        {docTypeLabel}
+                    </span>
+                    <span className="text-xs font-medium">
+                        {receipt.series}-{receipt.number}
+                    </span>
+                </div>
             );
         },
     },
@@ -100,13 +82,16 @@ export const Columns: ColumnDef<Sale>[] = [
         ),
     },
     {
-        id: 'reference',
-        header: 'Referencia',
-        cell: ({ row }) => (
-            <span className="text-sm text-muted-foreground">
-                {row.original.series}-{row.original.number}
-            </span>
-        ),
+        id: 'method_payment',
+        header: 'Pago',
+        cell: ({ row }) => {
+            const payment = row.original.method_payment?.name_method_payment || 'N/A';
+            return (
+                <Badge variant="outline" className="font-normal whitespace-nowrap bg-muted/30">
+                    {payment}
+                </Badge>
+            );
+        },
     },
     {
         accessorKey: 'total',
