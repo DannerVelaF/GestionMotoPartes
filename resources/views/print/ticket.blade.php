@@ -24,10 +24,18 @@
         .bold { font-weight: bold; }
         .fs-sm { font-size: 10px; }
         .fs-xs { font-size: 9px; }
+        .logo-container { text-align: center; margin-bottom: 10px; }
+        .logo-container img { max-width: 150px; max-height: 80px; }
     </style>
 </head>
 <body>
 <div class="text-center">
+    @if($config->logo_path)
+    <div class="logo-container">
+        <img src="{{ asset('storage/' . $config->logo_path) }}" alt="Logo">
+    </div>
+    @endif
+
     <h3 style="margin: 0;" class="uppercase">{{ $config->company_name }}</h3>
     <p class="fs-sm">
         RUC: {{ $config->ruc }}<br>

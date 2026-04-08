@@ -22,8 +22,10 @@ import {
     Globe,
     Key,
     Printer,
+    ImageIcon,
+    UploadCloud,
 } from 'lucide-react';
-import { FormEventHandler, useEffect, useState } from 'react';
+import React, { FormEventHandler, useEffect, useState } from 'react';
 
 // --- Interfaces ---
 interface BusinessConfig {
@@ -63,7 +65,7 @@ function FloatingAlert({
     const isSuccess = type === 'success';
 
     return (
-        <div className="fixed top-6 right-6 z-[100] w-auto max-w-md animate-in fade-in slide-in-from-top-2">
+        <div className="fixed top-6 right-6 z-100 w-auto max-w-md animate-in fade-in slide-in-from-top-2">
             <Alert
                 variant={isSuccess ? 'default' : 'destructive'}
                 className={cn(
@@ -113,8 +115,10 @@ export default function Config({ config, flash }: Props) {
     useEffect(() => {
         if (flash.success)
             setAlert({ message: flash.success, type: 'success' });
-        if (flash.error) setAlert({ message: flash.error, type: 'error' });
-    }, [flash]);
+        else if (flash.error)
+            setAlert({ message: flash.error, type: 'error' });
+    }, [flash.success, flash.error]);
+
     const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
@@ -122,6 +126,7 @@ export default function Config({ config, flash }: Props) {
             setLogoPreview(URL.createObjectURL(file)); // Generar vista previa temporal
         }
     };
+
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
         setAlert(null);
@@ -172,7 +177,8 @@ export default function Config({ config, flash }: Props) {
                     </div>
 
                     <form onSubmit={submit} className="space-y-6">
-                        {/* <Card className="border border-border shadow-none">
+                        {/* SECCIÓN 0: IDENTIDAD DE MARCA */}
+                        <Card className="border border-border shadow-none">
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2 text-base">
                                     <ImageIcon className="h-4 w-4 text-purple-600" />
@@ -222,7 +228,7 @@ export default function Config({ config, flash }: Props) {
                                     </div>
                                 </div>
                             </CardContent>
-                        </Card> */}
+                        </Card>
 
                         {/* SECCIÓN 1: DATOS DE LA EMPRESA */}
                         <Card className="border border-border shadow-none">

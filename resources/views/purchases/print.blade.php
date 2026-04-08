@@ -34,24 +34,11 @@
             vertical-align: top;
         }
 
-        /* Espacio para Logo */
-        .logo-placeholder {
-            width: 150px;
-            height: 60px;
-            border: 1px dashed #ccc; /* Se quita cuando hay logo */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 5px;
-            color: #ccc;
-            font-size: 10px;
-            text-transform: uppercase;
-        }
-
         .logo-img {
             max-width: 150px;
             max-height: 70px;
             display: block;
+            margin-bottom: 10px;
         }
 
         h1, h2, h3, h4 {
@@ -146,9 +133,7 @@
         <tr>
             <td class="col-50">
                 @if($businessConfig && $businessConfig->logo_path)
-                    <img src="{{ storage_path('app/public/' . $businessConfig->logo_path) }}" class="logo-img">
-                @else
-                    <div class="logo-placeholder">Sin Logo</div>
+                    <img src="{{ asset('storage/' . $businessConfig->logo_path) }}" alt="" class="logo-img">
                 @endif
                 <h3 style="margin-top: 10px;">{{ $businessConfig->company_name ?? 'MI EMPRESA S.A.C.' }}</h3>
                 <p>
@@ -236,6 +221,11 @@
         </p>
     </div>
 </div>
+<script>
+    window.onload = function() {
+        window.print();
+    };
+</script>
 </body>
 
 </html>
