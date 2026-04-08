@@ -42,7 +42,7 @@ Route::middleware(["auth", "verified"])->group(function () {
     // --- ÓRDENES DE COMPRA (OC) Y ANALÍTICA DE COMPRAS ---
     Route::middleware(['permission:purchase.view'])->controller(PurchaseOrdersController::class)->group(function () {
 
-        // 1. REPORTES DE COMPRAS (Trasladados aquí)
+        // 1. REPORTES DE COMPRAS
         Route::prefix('compras/reportes')->group(function () {
             Route::get('/impuestos', 'taxReport')->name('reports.purchases.tax');
             Route::get('/impuestos/export', 'exportTaxExcel')->name('reports.purchases.export');
@@ -52,12 +52,15 @@ Route::middleware(["auth", "verified"])->group(function () {
             Route::get('/proveedores', 'supplierReport')->name('reports-receipts.suppliers');
         });
 
-        // 2. Operaciones Estáticas
+        // 2. Operaciones Estáticas (IMPORTANTE: Van antes de las que tienen {purchaseOrder})
         Route::get('/compras/ordenes', 'index')->name('purchase-orders.index');
         Route::get('/compras/ordenes/crear', 'create')->name('purchase-orders.create');
         Route::post('/compras/ordenes', 'store')->name('purchase-orders.store');
 
-        // 3. Operaciones Dinámicas
+        // ✅ CORRECCIÓN: Definir el bulk-delete AQUÍ, antes de {purchaseOrder}
+        Route::delete('/compras/ordenes/bulk-delete', 'bulkDestroy')->name('purchase-orders.bulk-destroy');
+
+        // 3. Operaciones Dinámicas (Con parámetros de ID)
         Route::get('/compras/ordenes/{purchaseOrder}', 'show')->name('purchase-orders.show');
         Route::get('/compras/{purchaseOrder}/print', 'print')->name('purchase-orders.print');
         Route::put('/compras/ordenes/{purchaseOrder}', 'update')->name('purchase-orders.update');

@@ -804,4 +804,74 @@ class PurchaseOrdersController extends Controller
         ]);
     }
 
+    public function destroy($id)
+    {
+        try {
+            $order = PurchaseOrder::withCount('receipts')->findOrFail($id);
+
+            $allowedStatuses = ['draft', 'sent'];
+
+            if (!in_array($order->status, $allowedStatuses)) {
+                // Cambiamos withErrors por with('error', ...) para que llegue como flash message
+                return back()->with('error', 'No se puede eliminar: Solo órdenes en Borrador o Pendientes.');
+            }
+
+            if ($order->receipts_count > 0) {
+                return back()->with('error', 'No se puede eliminar: La orden ya tiene ingresos de almacén.');
+            }
+
+            DB::transaction(function () use ($order) {
+                $order->details()->delete();
+                $order->logs()->delete();
+                $order->delete();
+            });
+
+            return redirect()->route('purchase-orders.index')
+                ->with('success', 'Orden de compra eliminada correctamente.');
+
+        } catch (\Exception $e) {
+            Log::error("Error al eliminar OC {$id}: " . $e->getMessage());
+            return back()->with('error', 'Error interno al intentar eliminar la orden.');
+        }
+    }
+
+    public function bulkDestroy(Request $request)
+    {
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'exists:purchase_orders,id_purchase_order'
+        ]);
+
+        try {
+            $deletedCount = DB::transaction(function () use ($request) {
+                $orders = PurchaseOrder::withCount('receipts')
+                    ->whereIn('id_purchase_order', $request->ids)
+                    ->get();
+
+                $allowedStatuses = ['draft', 'sent'];
+                $count = 0;
+
+                foreach ($orders as $order) {
+                    if (in_array($order->status, $allowedStatuses) && $order->receipts_count == 0) {
+                        $order->details()->delete();
+                        $order->logs()->delete();
+                        $order->delete();
+                        $count++;
+                    }
+                }
+                return $count;
+            });
+
+            if ($deletedCount === 0) {
+                return back()->with('error', 'No se eliminó ninguna orden (revisa que sean Borradores o Pendientes).');
+            }
+
+            return back()->with('success', "Se eliminaron {$deletedCount} órdenes correctamente.");
+
+        } catch (\Exception $e) {
+            Log::error("Error en eliminación masiva: " . $e->getMessage());
+            return back()->with('error', 'Ocurrió un error al procesar la eliminación masiva.');
+        }
+    }
+
 }

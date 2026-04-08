@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { RowSelectionState } from '@tanstack/react-table';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -53,6 +53,7 @@ import React, {
 import { useDebounce } from 'use-debounce';
 import { Columns, PurchaseOrder } from './Columns';
 import { usePermission } from '@/hooks/usePermission';
+import { FloatingAlert } from '@/components/FloatingAlert';
 
 interface PaginatedOrders {
     data: PurchaseOrder[];
@@ -138,7 +139,8 @@ export default function ListOrders({ orders, filters }: Props) {
         if (newValue !== orders.per_page)
             updateParams({ per_page: newValue, page: 1 });
     };
-
+    const { props: pageProps } = usePage<any>(); // Para capturar los flash mensajes de Laravel
+    const [formError, setFormError] = useState<string | null>(null);
     const handleKeyDownPerPage = (e: KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') handlePerPageSubmit();
     };
@@ -148,22 +150,28 @@ export default function ListOrders({ orders, filters }: Props) {
     };
 
     const executeBulkDelete = () => {
-        let selectedIds: number[] = [];
+        // Obtenemos los IDs reales de la selección
+        const selectedIds = Object.keys(rowSelection).map((key) => {
+            // Si no hay agrupación, la llave es el índice del array, si hay, es el ID
+            return groupBy === 'none'
+                ? orders.data[Number(key)].id_purchase_order
+                : Number(key);
+        });
 
-        if (groupBy === 'none') {
-            selectedIds = Object.keys(rowSelection).map(
-                (idx) => orders.data[Number(idx)].id_purchase_order,
-            );
-        } else {
-            selectedIds = Object.keys(rowSelection).map(Number);
-        }
+        if (selectedIds.length === 0) return;
+
+        setFormError(null); // Limpiamos errores previos
 
         router.delete('/compras/ordenes/bulk-delete', {
             data: { ids: selectedIds },
             preserveScroll: true,
             onSuccess: () => {
                 setRowSelection({});
-                setIsDeleteAlertOpen(false);
+                // El mensaje de éxito vendrá por flash session de Laravel
+            },
+            onError: (errs) => {
+                // Capturamos el error de validación de estados que pusimos en el controlador
+                if (errs.error) setFormError(errs.error as string);
             },
         });
     };
@@ -436,7 +444,11 @@ export default function ListOrders({ orders, filters }: Props) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Órdenes de Compra" />
-
+            <FloatingAlert
+                message={formError || (pageProps.flash?.error as string)}
+                type="error"
+                onClose={() => setFormError(null)}
+            />
             <AlertDialog
                 open={isDeleteAlertOpen}
                 onOpenChange={setIsDeleteAlertOpen}
